@@ -1,34 +1,54 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { Routes, Route, Navigate } from 'react-router-dom'
+import { Layout } from './components/layout/Layout'
+import { ProtectedRoute } from './components/auth/ProtectedRoute'
+import { LoginForm } from './components/auth/LoginForm'
+import { RegisterForm } from './components/auth/RegisterForm'
+import { Dashboard, Licenses, Assignments, Employees, Software, Settings, VerifyLicense } from './pages'
+import { useAuth } from './contexts/AuthContext'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const { user, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    <Routes>
+      {/* Public routes */}
+      <Route
+        path="/login"
+        element={user ? <Navigate to="/" replace /> : <LoginForm />}
+      />
+      <Route
+        path="/register"
+        element={user ? <Navigate to="/" replace /> : <RegisterForm />}
+      />
+      <Route path="/verify" element={<VerifyLicense />} />
+
+      {/* Protected routes */}
+      <Route
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/licenses" element={<Licenses />} />
+        <Route path="/assignments" element={<Assignments />} />
+        <Route path="/employees" element={<Employees />} />
+        <Route path="/software" element={<Software />} />
+        <Route path="/settings" element={<Settings />} />
+      </Route>
+
+      {/* Catch all */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   )
 }
 
