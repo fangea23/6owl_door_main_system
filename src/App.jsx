@@ -8,9 +8,7 @@ import './App.css';
 
 // 子系統 Layout
 import PaymentSystemLayout from './pages/systems/PaymentSystemLayout';
-import LicenseSystemLayout from './pages/systems/LicenseSystemLayout';
-// ✅ 1. 新增引入：引入您剛剛建立的子系統 Layout
-import NewSystemLayout from './pages/systems/NewSystemLayout'; 
+import LicenseSystemLayout from './pages/systems/LicenseSystemLayout'; 
 
 function App() {
   return (
@@ -53,16 +51,6 @@ function App() {
           <Route
             path="/systems/software-license/*"
             element={<LicenseSystemLayout />}
-          />
-
-          {/* ✅ 2. 新增路由：為新系統設定路徑 
-              注意：
-              - path 後面必須加上 "/*"，這樣新系統內部的子路由 (如 /dashboard) 才能生效
-              - path 的名稱 (例如 "new-system") 會成為網址的一部分
-          */}
-          <Route
-            path="/systems/new-system/*" 
-            element={<NewSystemLayout />}
           />
 
           {/* 會議室租借系統（預留） */}
