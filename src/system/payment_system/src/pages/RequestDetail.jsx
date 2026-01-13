@@ -90,7 +90,7 @@ export default function RequestDetail() {
             if (data.handling_fee) setCashierFee(data.handling_fee);
         } catch (err) {
             alert('載入失敗: ' + err.message);
-            navigate('/dashboard');
+            navigate('/systems/payment-approval/dashboard');
         } finally {
             setLoading(false);
         }

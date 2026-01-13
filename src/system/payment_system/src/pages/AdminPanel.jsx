@@ -51,7 +51,7 @@ export default function AdminPanel() {
   useEffect(() => {
     if (role && role !== 'admin' && role !== 'boss') {
       alert('您沒有權限存取此頁面');
-      navigate('/dashboard');
+      navigate('/systems/payment-approval/dashboard');
     }
   }, [role, navigate]);
 

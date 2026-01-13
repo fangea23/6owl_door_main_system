@@ -20,7 +20,7 @@ export default function Login() {
       // 如果已經登入，直接跳轉 Dashboard，不用再輸入密碼 (這就是遊戲的自動登入感)
       const { data } = await supabase.auth.getSession();
       if (data.session) {
-        navigate('/dashboard');
+        navigate('/systems/payment-approval/dashboard');
         return;
       }
 
@@ -54,7 +54,7 @@ export default function Login() {
       localStorage.setItem('last_login_email', email);
 
       // 登入成功，導向儀表板
-      navigate('/dashboard'); 
+      navigate('/systems/payment-approval/dashboard'); 
 
     } catch (err) {
       setError(err.message === 'Invalid login credentials' 

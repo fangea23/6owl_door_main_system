@@ -1,90 +1,70 @@
-/**
- * 付款簽核系統 Layout
- *
- * 這個 Layout 包裝了 payment_system 的所有頁面，
- * 提供獨立的 AuthProvider（使用 Supabase）
- */
-import { Routes, Route, Navigate, Outlet, Link } from 'react-router-dom';
-import { AuthProvider } from '../../system/payment_system/src/AuthContext';
+import React from 'react';
+import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 
-// 導入付款系統的頁面
-import PaymentLogin from '../../system/payment_system/src/pages/Login';
-import ForgotPassword from '../../system/payment_system/src/pages/ForgotPassword';
-import UpdatePassword from '../../system/payment_system/src/pages/UpdatePassword';
-import Dashboard from '../../system/payment_system/src/pages/Dashboard';
-import ApplyForm from '../../system/payment_system/src/pages/ApplyForm';
-import RequestDetail from '../../system/payment_system/src/pages/RequestDetail';
-import UserProfile from '../../system/payment_system/src/pages/UserProfile';
-import AdminPanel from '../../system/payment_system/src/pages/AdminPanel';
+// 引入子系統的 Context (加上 .jsx 副檔名)
+import { AuthProvider } from '../../system/payment_system/src/AuthContext.jsx';
 
-// 導入付款系統的組件
-import PaymentHeader from '../../system/payment_system/src/components/Header';
-import PaymentProtectedRoute from '../../system/payment_system/src/components/ProtectedRoute';
+// 引入子系統的組件 (加上 .jsx 副檔名)
+import Header from '../../system/payment_system/src/components/Header.jsx';
+import ProtectedRoute from '../../system/payment_system/src/components/ProtectedRoute.jsx';
 
-// 返回主系統的導航列
-function BackToPortal() {
+// 引入子系統的頁面 (加上 .jsx 副檔名)
+import Login from '../../system/payment_system/src/pages/Login.jsx';
+import Dashboard from '../../system/payment_system/src/pages/Dashboard.jsx';
+import ApplyForm from '../../system/payment_system/src/pages/ApplyForm.jsx';
+import RequestDetail from '../../system/payment_system/src/pages/RequestDetail.jsx';
+import AdminPanel from '../../system/payment_system/src/pages/AdminPanel.jsx';
+import UserProfile from '../../system/payment_system/src/pages/UserProfile.jsx';
+import UpdatePassword from '../../system/payment_system/src/pages/UpdatePassword.jsx';
+import ForgotPassword from '../../system/payment_system/src/pages/ForgotPassword.jsx';
+
+// 內部佈局組件：負責顯示子系統專用的 Header
+const PaymentInternalLayout = () => {
   return (
-    <div className="bg-blue-600 text-white px-4 py-2 flex items-center justify-between">
-      <Link
-        to="/"
-        className="flex items-center gap-2 hover:text-blue-200 transition-colors"
-      >
-        <span>←</span>
-        <span>返回六扇門入口</span>
-      </Link>
-      <span className="text-sm opacity-80">付款簽核系統</span>
-    </div>
-  );
-}
-
-// 付款系統的主版面
-function PaymentMainLayout() {
-  return (
-    <>
-      <BackToPortal />
-      <PaymentHeader />
-      <main className="min-h-[calc(100vh-112px)] bg-gray-50">
+    <div className="min-h-screen bg-gray-50 text-slate-900">
+      {/* 這裡使用子系統的 Header */}
+      <Header /> 
+      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <Outlet />
       </main>
-    </>
+    </div>
   );
-}
-
-// 公開頁面版面（登入頁等）
-function PaymentPublicLayout() {
-  return (
-    <>
-      <BackToPortal />
-      <Outlet />
-    </>
-  );
-}
+};
 
 export default function PaymentSystemLayout() {
   return (
+    /* 角色 1: Context Provider 邊界
+      這裡包裹 AuthProvider，確保只有此路徑下的組件能存取付款系統的 User 狀態。
+      這解決了 "主系統登入 vs 子系統登入" 的衝突。
+    */
     <AuthProvider>
       <Routes>
+        {/* 角色 2: 路由轉接
+          這裡定義的 path 都是「相對路徑」。
+          例如 path="login" 實際上對應瀏覽器的 /systems/payment-approval/login
+        */}
+        
         {/* 公開路由 */}
-        <Route element={<PaymentPublicLayout />}>
-          <Route path="login" element={<PaymentLogin />} />
-          <Route path="forgot-password" element={<ForgotPassword />} />
-          <Route path="update-password" element={<UpdatePassword />} />
-        </Route>
+        <Route path="login" element={<Login />} />
+        <Route path="forgot-password" element={<ForgotPassword />} />
+        <Route path="update-password" element={<UpdatePassword />} />
 
-        {/* 受保護路由 */}
-        <Route element={<PaymentProtectedRoute />}>
-          <Route element={<PaymentMainLayout />}>
+        {/* 受保護路由 (需要子系統登入) */}
+        <Route element={<ProtectedRoute />}>
+          <Route element={<PaymentInternalLayout />}>
+            {/* 預設跳轉到 dashboard */}
+            <Route index element={<Navigate to="dashboard" replace />} />
+            
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="apply" element={<ApplyForm />} />
             <Route path="request/:id" element={<RequestDetail />} />
-            <Route path="profile" element={<UserProfile />} />
             <Route path="admin" element={<AdminPanel />} />
-            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="profile" element={<UserProfile />} />
           </Route>
         </Route>
 
-        {/* 未匹配路由導向登入 */}
-        <Route path="*" element={<Navigate to="login" replace />} />
+        {/* 處理 404: 如果在子系統內亂打網址，跳回 dashboard 或 login */}
+        <Route path="*" element={<Navigate to="dashboard" replace />} />
       </Routes>
     </AuthProvider>
   );
