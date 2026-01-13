@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabaseClient'; // 注意路徑，如果是 pages 裡的檔案可能要 ../supabaseClient
 import { useNavigate, useLocation } from 'react-router-dom'; // ✅ Added useLocation here
+
+// 付款系統的基礎路徑
+const BASE_PATH = '/systems/payment-approval';
 import SignatureCanvas from 'react-signature-canvas';
 import { useAuth } from '../AuthContext'; // ✅ 1. 引入 AuthContext
 import SearchableSelect from '../components/SearchableSelect'; // ✅ 引入可搜尋下拉選單
@@ -499,7 +502,7 @@ export default function ApplyForm() {
             }
 
             // 成功後導回總覽
-            navigate('/');
+            navigate(`${BASE_PATH}/dashboard`);
 
         } catch (error) {
             console.error("Error:", error);
@@ -514,7 +517,7 @@ export default function ApplyForm() {
             <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden">
 
                 <div className="bg-emerald-800 px-4 py-4 sm:px-6 sm:py-5 text-white flex justify-between items-center relative">
-                    <button onClick={() => navigate('/')} className="mr-3 p-1 hover:bg-emerald-700 rounded-full transition-colors md:hidden">
+                    <button onClick={() => navigate(`${BASE_PATH}/dashboard`)} className="mr-3 p-1 hover:bg-emerald-700 rounded-full transition-colors md:hidden">
                         <ChevronLeft size={24} />
                     </button>
                     <div className="flex-1">
