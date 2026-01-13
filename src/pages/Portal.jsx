@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import WelcomeBanner from '../components/WelcomeBanner';
 import QuickAccess from '../components/QuickAccess';
@@ -8,17 +9,15 @@ import useSearch from '../hooks/useSearch';
 
 export default function Portal() {
   const { searchQuery, setSearchQuery, searchResults, isSearching } = useSearch();
+  const navigate = useNavigate();
 
   const handleSystemClick = (system) => {
-    // 這裡處理系統點擊事件
-    // 實際整合時可以使用 React Router 導航
-    console.log('點擊系統:', system);
-
-    // 如果有 URL，導航到該系統
-    if (system.url) {
-      // 使用 React Router: navigate(system.url)
-      // 或直接跳轉: window.location.href = system.url
-      alert(`將導航至: ${system.name}\n路徑: ${system.url}\n\n請將此路徑替換為實際的系統連結`);
+    if (system.isExternal) {
+      // 外部連結在新視窗開啟
+      window.open(system.url, '_blank', 'noopener,noreferrer');
+    } else {
+      // 內部路由導航
+      navigate(system.url);
     }
   };
 
