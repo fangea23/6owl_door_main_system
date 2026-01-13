@@ -546,7 +546,7 @@ export default function Dashboard() {
                         </td>
                         <td className="p-4 text-center">
                           <Link 
-                            to={`/request/${req.id}`} 
+                            to={`${BASE_PATH}/request/${req.id}`} 
                             className={`p-2 rounded-full inline-flex transition-colors shadow-sm ${
                               viewMode === 'todo' 
                                 ? 'bg-emerald-600 text-white hover:bg-emerald-700' 
