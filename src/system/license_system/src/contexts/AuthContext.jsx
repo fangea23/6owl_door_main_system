@@ -1,123 +1,20 @@
-import { createContext, useContext, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+// 統一使用主系統的認證 Context
+// 所有 import { useAuth } from './contexts/AuthContext' 會自動使用主系統的認證
+import { AuthProvider as MainAuthProvider, useAuth as useMainAuth } from '../../../../contexts/AuthContext';
 
-const AuthContext = createContext({})
-
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    // 獲取初始 session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchProfile(session.user.id)
-      } else {
-        setLoading(false)
-      }
-    })
-
-    // 監聽認證狀態變化
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setUser(session?.user ?? null)
-        if (session?.user) {
-          await fetchProfile(session.user.id)
-        } else {
-          setProfile(null)
-          setLoading(false)
-        }
-      }
-    )
-
-    return () => subscription.unsubscribe()
-  }, [])
-
-  const fetchProfile = async (userId) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single()
-
-      if (error) throw error
-      setProfile(data)
-    } catch (error) {
-      console.error('Error fetching profile:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const signUp = async (email, password, fullName) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName
-        }
-      }
-    })
-    return { data, error }
-  }
-
-  const signIn = async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    })
-    return { data, error }
-  }
-
-  const signOut = async () => {
-    const { error } = await supabase.auth.signOut()
-    if (!error) {
-      setUser(null)
-      setProfile(null)
-    }
-    return { error }
-  }
-
-  const updateProfile = async (updates) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .update(updates)
-      .eq('id', user.id)
-      .select()
-      .single()
-
-    if (!error) {
-      setProfile(data)
-    }
-    return { data, error }
-  }
-
-  const value = {
-    user,
-    profile,
-    loading,
-    signUp,
-    signIn,
-    signOut,
-    updateProfile,
-    isAdmin: profile?.role === 'admin'
-  }
-
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  )
-}
-
+// 包裝 useAuth 以提供兼容性 (signOut -> logout)
 export function useAuth() {
-  const context = useContext(AuthContext)
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider')
-  }
-  return context
+  const auth = useMainAuth();
+
+  return {
+    ...auth,
+    // License System 使用 signOut，主系統使用 logout
+    signOut: auth.logout,
+    // License System 使用 signIn，主系統使用 login
+    signIn: auth.login,
+    // 兼容 loading 屬性
+    loading: auth.isLoading,
+  };
 }
+
+export const AuthProvider = MainAuthProvider;
