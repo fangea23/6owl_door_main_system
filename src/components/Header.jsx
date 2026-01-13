@@ -1,28 +1,19 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-
+import logoSrc from '../assets/logo.png';
 // 六扇門 Logo 組件 - 加入金色點綴
+// 2. 修改 Logo 組件
 const Logo = ({ size = 'default' }) => {
   const sizeClasses = size === 'small' ? 'w-8 h-8' : 'w-10 h-10 sm:w-12 sm:h-12';
   return (
-    <div className={`${sizeClasses} relative overflow-hidden bg-gradient-to-br from-red-800 to-red-950 rounded-xl flex items-center justify-center shadow-lg shadow-red-900/20 group-hover:shadow-red-500/30 transition-shadow`}>
-      {/* 內部質感 */}
-      <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-amber-500/20 to-transparent" />
-      
-      <svg viewBox="0 0 40 40" className="w-6 h-6 sm:w-8 sm:h-8 relative z-10">
-        <polygon
-          points="20,2 34,8 38,22 34,34 20,38 6,34 2,22 6,8"
-          fill="none"
-          stroke="white"
-          strokeWidth="2"
-        />
-        <circle cx="20" cy="20" r="8" fill="none" stroke="white" strokeWidth="1.5"/>
-        {/* 金色核心 */}
-        <circle cx="20" cy="20" r="3" fill="#fbbf24" stroke="none" className="opacity-90"/>
-        <line x1="20" y1="12" x2="20" y2="28" stroke="white" strokeWidth="1.5"/>
-        <line x1="12" y1="20" x2="28" y2="20" stroke="white" strokeWidth="1.5"/>
-      </svg>
+    <div className={`${sizeClasses} relative flex items-center justify-center`}>
+      {/* 3. 使用 img 標籤顯示 Logo */}
+      <img 
+        src={logoSrc} 
+        alt="六扇門 Logo" 
+        className="w-full h-full object-contain filter drop-shadow-md" // object-contain 確保圖片不變形
+      />
     </div>
   );
 };

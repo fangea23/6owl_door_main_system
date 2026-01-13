@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 // 確保您已將 App.css 的新樣式套用
-
+import logoSrc from '../assets/logo.png';
 export default function Login() {
   const [formData, setFormData] = useState({
     email: '',
@@ -55,21 +55,8 @@ export default function Login() {
 
         <div className="relative z-10">
           <div className="flex items-center gap-4 text-white">
-            <div className="w-16 h-16 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20 shadow-2xl">
-              {/* 六扇門 Logo */}
-              <svg viewBox="0 0 40 40" className="w-10 h-10 drop-shadow-lg">
-                <polygon
-                  points="20,2 34,8 38,22 34,34 20,38 6,34 2,22 6,8"
-                  fill="none"
-                  stroke="white"
-                  strokeWidth="2"
-                />
-                <circle cx="20" cy="20" r="8" fill="none" stroke="white" strokeWidth="1.5"/>
-                {/* 增加一點金色點綴在 Logo 中心 */}
-                <circle cx="20" cy="20" r="3" fill="#fbbf24" fillOpacity="0.8" stroke="none"/>
-                <line x1="20" y1="12" x2="20" y2="28" stroke="white" strokeWidth="1.5"/>
-                <line x1="12" y1="20" x2="28" y2="20" stroke="white" strokeWidth="1.5"/>
-              </svg>
+            <div className="w-16 h-16 flex items-center justify-center">
+              <img src={logoSrc} alt="Logo" className="w-full h-full object-contain drop-shadow-lg" />
             </div>
             <div>
               <span className="text-3xl font-bold tracking-wider text-white">六扇門</span>
@@ -122,11 +109,8 @@ export default function Login() {
         <div className="w-full max-w-md relative z-10">
           {/* 手機版 Logo */}
           <div className="lg:hidden flex flex-col items-center gap-3 mb-8">
-             <div className="w-16 h-16 bg-gradient-to-br from-red-700 to-red-900 rounded-2xl flex items-center justify-center shadow-lg shadow-red-500/20">
-               <svg viewBox="0 0 40 40" className="w-10 h-10">
-                 <polygon points="20,2 34,8 38,22 34,34 20,38 6,34 2,22 6,8" fill="none" stroke="white" strokeWidth="2"/>
-                 <circle cx="20" cy="20" r="3" fill="#fbbf24" stroke="none"/>
-               </svg>
+              <div className="w-20 h-20 flex items-center justify-center">
+               <img src={logoSrc} alt="Logo" className="w-full h-full object-contain" />
              </div>
              <div className="text-center">
                <span className="text-2xl font-bold text-stone-800">六扇門</span>

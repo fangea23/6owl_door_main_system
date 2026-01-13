@@ -6,23 +6,22 @@ import CategorySection from '../components/CategorySection';
 import SearchResults from '../components/SearchResults';
 import { categories } from '../data/systems';
 import useSearch from '../hooks/useSearch';
-
+import logoSrc from '../assets/logo.png';
 export default function Portal() {
   const { searchQuery, setSearchQuery, searchResults, isSearching } = useSearch();
   const navigate = useNavigate();
 
   const handleSystemClick = (system) => {
     if (system.isExternal) {
-      // 外部連結在新視窗開啟
       window.open(system.url, '_blank', 'noopener,noreferrer');
     } else {
-      // 內部路由導航
       navigate(system.url);
     }
   };
 
   return (
-    <div className="min-h-screen bg-stone-50">
+    // 修改：加入 bg-pattern-diagonal 紋理，讓背景有紙張質感
+    <div className="min-h-screen bg-stone-50 bg-pattern-diagonal">
       <Header onSearch={setSearchQuery} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -53,20 +52,24 @@ export default function Portal() {
         )}
       </main>
 
-      {/* 頁尾 */}
-      <footer className="border-t border-stone-200 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div className="flex items-center gap-2 text-stone-500">
-              <div className="w-6 h-6 bg-red-800 rounded flex items-center justify-center">
-                <svg viewBox="0 0 40 40" className="w-4 h-4">
-                  <polygon points="20,2 34,8 38,22 34,34 20,38 6,34 2,22 6,8" fill="none" stroke="white" strokeWidth="3"/>
-                </svg>
-              </div>
-              <span className="text-sm">六扇門企業服務入口</span>
+          {/* 頁尾 - 優化質感 */}
+    <footer className="border-t border-stone-200/60 mt-auto bg-white/50 backdrop-blur-sm">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-3 text-stone-600">
+            {/* 小 Logo 容器 */}
+            <div className="w-8 h-8 flex items-center justify-center">
+              <img src={logoSrc} alt="Logo" className="w-full h-full object-contain opacity-80" />
             </div>
-            <div className="text-sm text-stone-400">
-              © {new Date().getFullYear()} 六扇門時尚湯鍋. All rights reserved.
+            
+            <div className="flex flex-col">
+              <span className="text-sm font-bold text-stone-800">六扇門企業服務入口</span>
+              <span className="text-[10px] text-stone-400 tracking-wider">INTERNAL PORTAL</span>
+            </div>
+          </div>
+            
+            <div className="text-sm text-stone-500 font-medium">
+              © {new Date().getFullYear()} 六扇門時尚湯鍋. <span className="text-stone-300">|</span> All rights reserved.
             </div>
           </div>
         </div>
