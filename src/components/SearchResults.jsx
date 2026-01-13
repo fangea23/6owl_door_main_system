@@ -6,7 +6,8 @@ export default function SearchResults({ results, searchQuery, onSystemClick }) {
   return (
     <section className="mb-10">
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg">
+        {/* 搜尋結果圖標改為深灰色漸層，區別於功能入口 */}
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center shadow-lg">
           <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
@@ -27,13 +28,13 @@ export default function SearchResults({ results, searchQuery, onSystemClick }) {
             <SystemCard
               key={system.id}
               system={system}
-              color="blue"
+              color="stone" // 搜尋結果使用中性色展示
               onClick={onSystemClick}
             />
           ))}
         </div>
       ) : (
-        <div className="text-center py-12 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
+        <div className="text-center py-12 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-slate-200">
           <div className="w-16 h-16 mx-auto mb-4 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center">
             <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

@@ -7,13 +7,13 @@
  *
  * 系統物件格式：
  * {
- *   id: 'unique-id',           // 唯一識別碼
- *   name: '系統名稱',           // 顯示名稱
- *   description: '系統描述',    // 簡短描述
- *   icon: 'IconComponent',     // 圖標（使用 SVG 或 emoji）
- *   url: '/path-to-system',    // 系統連結
- *   status: 'active',          // active | coming-soon | maintenance
- *   isExternal: false,         // 是否為外部連結
+ * id: 'unique-id',           // 唯一識別碼
+ * name: '系統名稱',           // 顯示名稱
+ * description: '系統描述',    // 簡短描述
+ * icon: 'IconComponent',     // 圖標（使用 SVG 或 emoji）
+ * url: '/path-to-system',    // 系統連結
+ * status: 'active',          // active | coming-soon | maintenance
+ * isExternal: false,         // 是否為外部連結
  * }
  */
 
@@ -23,18 +23,17 @@ export const categories = [
     name: '財務管理',
     description: '財務相關流程與簽核',
     icon: '💰',
-    color: 'emerald',
+    color: 'rose', // 改為玫瑰紅，與主色呼應
     systems: [
       {
         id: 'payment-approval',
         name: '付款簽核系統',
         description: '管理付款申請、審核與追蹤',
         icon: '📝',
-        url: '/systems/payment-approval',  // 請將此連結替換為實際系統路徑
+        url: '/systems/payment-approval',
         status: 'active',
         isExternal: false,
       },
-      // 未來可新增：報銷系統、預算管理、發票管理等
     ],
   },
   {
@@ -42,18 +41,17 @@ export const categories = [
     name: 'IT 服務',
     description: '資訊技術支援與管理',
     icon: '💻',
-    color: 'blue',
+    color: 'stone', // 改為岩石灰，作為紅色的視覺緩衝，專業且耐看
     systems: [
       {
         id: 'software-license',
         name: '軟體授權系統',
         description: '軟體授權申請與管理',
         icon: '🔑',
-        url: '/systems/software-license',  // 請將此連結替換為實際系統路徑
+        url: '/systems/software-license',
         status: 'active',
         isExternal: false,
       },
-      // 未來可新增：設備申請、技術支援工單、VPN 申請等
     ],
   },
   {
@@ -61,49 +59,19 @@ export const categories = [
     name: '行政服務',
     description: '日常行政與辦公支援',
     icon: '🏢',
-    color: 'amber',
+    color: 'amber', // 改為琥珀橘，保持暖色調但不刺眼
     systems: [
       {
         id: 'meeting-room',
         name: '會議室租借系統',
         description: '會議室預約與管理',
         icon: '📅',
-        url: '/systems/meeting-room',  // 請將此連結替換為實際系統路徑
+        url: '/systems/meeting-room',
         status: 'active',
         isExternal: false,
       },
-      // 未來可新增：訪客預約、停車位管理、文具申領等
     ],
   },
-  // ============================================
-  // 以下為預留的擴充類別，取消註解即可啟用
-  // ============================================
-  // {
-  //   id: 'hr',
-  //   name: '人力資源',
-  //   description: '人事相關服務',
-  //   icon: '👥',
-  //   color: 'purple',
-  //   systems: [
-  //     {
-  //       id: 'leave',
-  //       name: '請假系統',
-  //       description: '請假申請與審核',
-  //       icon: '🏖️',
-  //       url: '/systems/leave',
-  //       status: 'coming-soon',
-  //       isExternal: false,
-  //     },
-  //   ],
-  // },
-  // {
-  //   id: 'project',
-  //   name: '專案管理',
-  //   description: '專案追蹤與協作',
-  //   icon: '📊',
-  //   color: 'rose',
-  //   systems: [],
-  // },
 ];
 
 // 取得所有系統的扁平列表（用於搜尋）

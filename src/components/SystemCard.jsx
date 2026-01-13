@@ -1,33 +1,28 @@
 const colorVariants = {
-  emerald: {
-    bg: 'bg-emerald-50 dark:bg-emerald-900/20',
-    border: 'border-emerald-200 dark:border-emerald-800',
-    icon: 'bg-emerald-100 dark:bg-emerald-900/50',
-    hover: 'hover:border-emerald-400 hover:shadow-emerald-500/10',
+  rose: {
+    bg: 'bg-rose-50 dark:bg-rose-900/20',
+    border: 'border-rose-200 dark:border-rose-800',
+    icon: 'bg-rose-100 dark:bg-rose-900/50 text-rose-600 dark:text-rose-400',
+    hover: 'hover:border-rose-400 hover:shadow-rose-500/10',
   },
-  blue: {
-    bg: 'bg-blue-50 dark:bg-blue-900/20',
-    border: 'border-blue-200 dark:border-blue-800',
-    icon: 'bg-blue-100 dark:bg-blue-900/50',
-    hover: 'hover:border-blue-400 hover:shadow-blue-500/10',
+  stone: {
+    bg: 'bg-stone-50 dark:bg-stone-800/50',
+    border: 'border-stone-200 dark:border-stone-700',
+    icon: 'bg-stone-200 dark:bg-stone-700 text-stone-600 dark:text-stone-300',
+    hover: 'hover:border-stone-400 hover:shadow-stone-500/10',
   },
   amber: {
     bg: 'bg-amber-50 dark:bg-amber-900/20',
     border: 'border-amber-200 dark:border-amber-800',
-    icon: 'bg-amber-100 dark:bg-amber-900/50',
+    icon: 'bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400',
     hover: 'hover:border-amber-400 hover:shadow-amber-500/10',
   },
-  purple: {
-    bg: 'bg-purple-50 dark:bg-purple-900/20',
-    border: 'border-purple-200 dark:border-purple-800',
-    icon: 'bg-purple-100 dark:bg-purple-900/50',
-    hover: 'hover:border-purple-400 hover:shadow-purple-500/10',
-  },
-  rose: {
-    bg: 'bg-rose-50 dark:bg-rose-900/20',
-    border: 'border-rose-200 dark:border-rose-800',
-    icon: 'bg-rose-100 dark:bg-rose-900/50',
-    hover: 'hover:border-rose-400 hover:shadow-rose-500/10',
+  // 保留 Blue 作為備用或特定強調色
+  blue: {
+    bg: 'bg-blue-50 dark:bg-blue-900/20',
+    border: 'border-blue-200 dark:border-blue-800',
+    icon: 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400',
+    hover: 'hover:border-blue-400 hover:shadow-blue-500/10',
   },
 };
 
@@ -43,8 +38,9 @@ const statusBadge = {
   },
 };
 
-export default function SystemCard({ system, color = 'blue', onClick }) {
-  const colors = colorVariants[color] || colorVariants.blue;
+export default function SystemCard({ system, color = 'stone', onClick }) {
+  // 預設使用 stone，如果找不到對應顏色也使用 stone
+  const colors = colorVariants[color] || colorVariants.stone;
   const badge = statusBadge[system.status];
   const isDisabled = system.status !== 'active';
 
@@ -54,13 +50,7 @@ export default function SystemCard({ system, color = 'blue', onClick }) {
     if (system.isExternal) {
       window.open(system.url, '_blank', 'noopener,noreferrer');
     } else {
-      // 這裡可以換成 React Router 的 navigate
-      // 或是直接 window.location.href = system.url;
       onClick?.(system);
-      console.log(`導航至: ${system.url}`);
-
-      // 暫時使用 alert 示意，實際整合時請替換為路由導航
-      // window.location.href = system.url;
     }
   };
 
@@ -94,7 +84,7 @@ export default function SystemCard({ system, color = 'blue', onClick }) {
       </div>
 
       {/* 標題 */}
-      <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-1 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+      <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-1 group-hover:text-red-700 dark:group-hover:text-red-400 transition-colors">
         {system.name}
       </h3>
 
@@ -106,7 +96,7 @@ export default function SystemCard({ system, color = 'blue', onClick }) {
       {/* 箭頭指示 */}
       {!isDisabled && (
         <div className="absolute bottom-5 right-5 opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0 transition-all duration-300">
-          <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
           </svg>
         </div>
