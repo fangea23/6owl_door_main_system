@@ -22,8 +22,10 @@ const PaymentProtectedRoute = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex justify-center items-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      // 修改：bg-gray-50 -> bg-stone-50
+      <div className="min-h-screen flex justify-center items-center bg-stone-50">
+        {/* 修改：border-indigo-600 -> border-red-700 */}
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-700"></div>
       </div>
     );
   }
@@ -39,7 +41,8 @@ const PaymentProtectedRoute = () => {
 // 內部佈局組件
 const PaymentInternalLayout = () => {
   return (
-    <div className="min-h-screen bg-gray-50 text-slate-900">
+    // 修改：bg-gray-50 -> bg-stone-50
+    <div className="min-h-screen bg-stone-50 text-stone-900">
       <Header />
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <Outlet />
