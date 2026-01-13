@@ -9,6 +9,8 @@ import './App.css';
 // 子系統 Layout
 import PaymentSystemLayout from './pages/systems/PaymentSystemLayout';
 import LicenseSystemLayout from './pages/systems/LicenseSystemLayout';
+// ✅ 1. 新增引入：引入您剛剛建立的子系統 Layout
+import NewSystemLayout from './pages/systems/NewSystemLayout'; 
 
 function App() {
   return (
@@ -38,8 +40,7 @@ function App() {
           />
 
           {/* ========================================
-              子系統路由 - 直接整合（不使用 iframe）
-              每個子系統有自己的 Layout 和認證系統
+              子系統路由
               ======================================== */}
 
           {/* 付款簽核系統 */}
@@ -54,7 +55,18 @@ function App() {
             element={<LicenseSystemLayout />}
           />
 
+          {/* ✅ 2. 新增路由：為新系統設定路徑 
+              注意：
+              - path 後面必須加上 "/*"，這樣新系統內部的子路由 (如 /dashboard) 才能生效
+              - path 的名稱 (例如 "new-system") 會成為網址的一部分
+          */}
+          <Route
+            path="/systems/new-system/*" 
+            element={<NewSystemLayout />}
+          />
+
           {/* 會議室租借系統（預留） */}
+          {/* 如果您的新系統就是會議室系統，可以直接把下面這段取代掉 */}
           <Route
             path="/systems/meeting-room/*"
             element={
