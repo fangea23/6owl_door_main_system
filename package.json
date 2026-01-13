@@ -5,7 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:payment\" \"npm run dev:license\"",
+    "dev:payment": "npm run dev --prefix src/system/payment_system",
+    "dev:license": "npm run dev --prefix src/system/license_system",
     "build": "vite build",
+    "build:all": "npm run build && npm run build:payment && npm run build:license",
+    "build:payment": "npm run build --prefix src/system/payment_system",
+    "build:license": "npm run build --prefix src/system/license_system",
+    "install:all": "npm install && npm run install:payment && npm run install:license",
+    "install:payment": "npm install --prefix src/system/payment_system",
+    "install:license": "npm install --prefix src/system/license_system",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -17,6 +26,7 @@
     "tailwindcss": "^4.1.18"
   },
   "devDependencies": {
+    "concurrently": "^9.1.0",
     "@eslint/js": "^9.39.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
