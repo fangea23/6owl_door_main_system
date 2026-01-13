@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+
+// 付款系統的基礎路徑
+const BASE_PATH = '/systems/payment-approval';
 import { 
   FileText, 
   ArrowRight, 
@@ -267,8 +270,8 @@ export default function Dashboard() {
           </div>
 {/* 只有員工才需要看到「新增申請」按鈕 (主管主要是來簽核的) */}
           {/* 當然如果您希望主管也能申請款項，這個條件可以拿掉 */}
-          <Link 
-            to="/apply" 
+          <Link
+            to={`${BASE_PATH}/apply`}
             className="w-full md:w-auto bg-emerald-600 text-white px-5 py-2.5 rounded-lg hover:bg-emerald-700 font-medium shadow-md transition-all flex items-center justify-center gap-2"
           >
             <FileText size={18} />
@@ -374,7 +377,7 @@ export default function Dashboard() {
                         </div>
                     )}
                     
-                    <Link to={`/request/${req.id}`} className="flex-1 block">
+                    <Link to={`${BASE_PATH}/request/${req.id}`} className="flex-1 block">
                         {/* 卡片頂部：單號與狀態 */}
                         <div className="flex justify-between items-start mb-3">
                         <div>
