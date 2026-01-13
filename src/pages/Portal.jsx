@@ -22,7 +22,7 @@ export default function Portal() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="min-h-screen bg-stone-50">
       <Header onSearch={setSearchQuery} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -54,15 +54,19 @@ export default function Portal() {
       </main>
 
       {/* 頁尾 */}
-      <footer className="border-t border-slate-200 dark:border-slate-700 mt-auto">
+      <footer className="border-t border-stone-200 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-              <span className="text-lg">🚪</span>
+            <div className="flex items-center gap-2 text-stone-500">
+              <div className="w-6 h-6 bg-red-800 rounded flex items-center justify-center">
+                <svg viewBox="0 0 40 40" className="w-4 h-4">
+                  <polygon points="20,2 34,8 38,22 34,34 20,38 6,34 2,22 6,8" fill="none" stroke="white" strokeWidth="3"/>
+                </svg>
+              </div>
               <span className="text-sm">六扇門企業服務入口</span>
             </div>
-            <div className="text-sm text-slate-400 dark:text-slate-500">
-              © {new Date().getFullYear()} 六扇門股份有限公司. All rights reserved.
+            <div className="text-sm text-stone-400">
+              © {new Date().getFullYear()} 六扇門時尚湯鍋. All rights reserved.
             </div>
           </div>
         </div>
