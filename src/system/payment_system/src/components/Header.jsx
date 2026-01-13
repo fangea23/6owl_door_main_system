@@ -13,7 +13,7 @@ import {
   Shield // ✅ 補上這個引入
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../../../../contexts/AuthContext';
 
 export default function Header() {
   const location = useLocation();
@@ -22,8 +22,11 @@ export default function Header() {
   
   const { user, role } = useAuth(); 
 
+  // 取得顯示名稱（相容不同資料格式）
+  const displayName = user?.user_metadata?.full_name || user?.name || user?.email;
+
   // 判斷是否資料不完整 (沒有全名)
-  const isProfileIncomplete = user && !user.user_metadata?.full_name;
+  const isProfileIncomplete = user && !displayName;
 
   // 判斷目前頁面
   const isActive = (path) => {
@@ -40,6 +43,7 @@ export default function Header() {
     try {
       await supabase.auth.signOut();
       closeMenu();
+      // 導回主系統登入頁
       navigate('/login');
     } catch (error) {
       console.error('登出失敗:', error);
@@ -136,7 +140,7 @@ export default function Header() {
                       <span>未設定名稱</span>
                     </>
                   ) : (
-                    <span className="group-hover:text-emerald-100">{user.user_metadata?.full_name}</span>
+                    <span className="group-hover:text-emerald-100">{displayName}</span>
                   )}
                 </div>
 
@@ -197,7 +201,7 @@ export default function Header() {
                 </div>
                 <div className="overflow-hidden flex-1">
                   <div className="text-sm font-bold truncate">
-                    {isProfileIncomplete ? '請設定顯示名稱' : (user.user_metadata?.full_name || user.email)}
+                    {isProfileIncomplete ? '請設定顯示名稱' : (displayName || user.email)}
                   </div>
                   <div className={`text-xs ${isProfileIncomplete ? 'text-amber-300' : 'text-emerald-300'}`}>
                     {isProfileIncomplete ? '點擊此處完善資料' : `目前身分：${roleName}`}

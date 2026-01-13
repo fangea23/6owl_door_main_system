@@ -3,10 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Login() {
-  const [loginType, setLoginType] = useState('email'); // 'email' | 'employeeId'
   const [formData, setFormData] = useState({
     email: '',
-    employeeId: '',
     password: '',
   });
   const [error, setError] = useState('');
@@ -16,7 +14,6 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // 登入後重導向到原本要去的頁面
   const from = location.state?.from?.pathname || '/';
 
   const handleSubmit = async (e) => {
@@ -24,15 +21,10 @@ export default function Login() {
     setError('');
     setIsSubmitting(true);
 
-    const credentials = {
+    const result = await login({
+      email: formData.email,
       password: formData.password,
-      ...(loginType === 'email'
-        ? { email: formData.email }
-        : { employeeId: formData.employeeId }
-      ),
-    };
-
-    const result = await login(credentials);
+    });
 
     if (result.success) {
       navigate(from, { replace: true });
@@ -110,32 +102,6 @@ export default function Login() {
               請登入以存取企業服務
             </p>
 
-            {/* 登入方式切換 */}
-            <div className="flex gap-2 mb-6 p-1 bg-slate-100 dark:bg-slate-700 rounded-lg">
-              <button
-                type="button"
-                onClick={() => setLoginType('email')}
-                className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
-                  loginType === 'email'
-                    ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-                }`}
-              >
-                電子郵件
-              </button>
-              <button
-                type="button"
-                onClick={() => setLoginType('employeeId')}
-                className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
-                  loginType === 'employeeId'
-                    ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-                }`}
-              >
-                員工編號
-              </button>
-            </div>
-
             {/* 錯誤訊息 */}
             {error && (
               <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
@@ -144,37 +110,20 @@ export default function Login() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {loginType === 'email' ? (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    電子郵件
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    placeholder="your@email.com"
-                    required
-                    className="w-full px-4 py-3 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  />
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    員工編號
-                  </label>
-                  <input
-                    type="text"
-                    name="employeeId"
-                    value={formData.employeeId}
-                    onChange={handleInputChange}
-                    placeholder="EMP001"
-                    required
-                    className="w-full px-4 py-3 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  />
-                </div>
-              )}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  電子郵件
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  placeholder="your@email.com"
+                  required
+                  className="w-full px-4 py-3 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                />
+              </div>
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
@@ -221,15 +170,11 @@ export default function Login() {
               </button>
             </form>
 
-            {/* 測試帳號提示 */}
-            <div className="mt-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-              <p className="text-sm text-amber-800 dark:text-amber-200 font-medium mb-2">
-                測試帳號
+            {/* 提示 */}
+            <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <p className="text-sm text-blue-800 dark:text-blue-200">
+                使用您的 Supabase 帳號登入。如有問題請聯繫系統管理員。
               </p>
-              <div className="text-xs text-amber-700 dark:text-amber-300 space-y-1">
-                <p>管理員：admin@sixdoor.com / admin123</p>
-                <p>一般用戶：user@sixdoor.com / user123</p>
-              </div>
             </div>
           </div>
         </div>
