@@ -18,8 +18,8 @@ import {
 } from 'lucide-react';
 
 // 環境變數
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_KEY;
+const supabaseUrl = import.meta.env.SUPABASE_URL;
+const supabaseKey = import.meta.env.SUPABASE_KEY;
 
 const ROLES = [
   { value: 'staff', label: '一般員工', color: 'bg-gray-100 text-gray-600' },
