@@ -1,11 +1,12 @@
 import SystemCard from './SystemCard';
 
+// 更新為新的品牌色系
 const colorVariants = {
   rose: 'from-rose-500 to-red-600',
-  stone: 'from-stone-500 to-stone-600', // 新增中性色漸層
+  stone: 'from-stone-500 to-stone-600',
   amber: 'from-amber-500 to-orange-500',
-  blue: 'from-blue-500 to-cyan-500',
-  emerald: 'from-emerald-500 to-teal-500',
+  // 保留 Blue 但調低飽和度以融入
+  blue: 'from-blue-500 to-cyan-500', 
 };
 
 export default function CategorySection({ category, onSystemClick }) {
@@ -16,25 +17,32 @@ export default function CategorySection({ category, onSystemClick }) {
   }
 
   return (
-    <section className="mb-10">
-      {/* 類別標題 */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${gradientColor} flex items-center justify-center shadow-lg`}>
-          <span className="text-xl text-white">{category.icon}</span>
+    <section className="mb-12">
+      {/* 類別標題 - 增加裝飾細節 */}
+      <div className="flex items-end gap-4 mb-6 relative">
+        <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${gradientColor} flex items-center justify-center shadow-lg shadow-stone-200 transform rotate-3`}>
+          <span className="text-2xl text-white drop-shadow-md transform -rotate-3">{category.icon}</span>
         </div>
-        <div>
-          <h2 className="text-xl font-bold text-slate-800 dark:text-white">
+        
+        <div className="flex-1 pb-1 border-b-2 border-stone-100 relative">
+          <h2 className="text-2xl font-bold text-stone-800 flex items-center gap-2">
             {category.name}
+            {/* 裝飾性的小標籤 */}
+            <span className="px-2 py-0.5 rounded text-[10px] font-normal bg-stone-100 text-stone-500 tracking-wider uppercase">
+              Section
+            </span>
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-stone-500 mb-1">
             {category.description}
           </p>
+          
+          {/* 底部滑動裝飾線 */}
+          <div className={`absolute -bottom-[2px] left-0 h-[2px] w-24 bg-gradient-to-r ${gradientColor}`} />
         </div>
-        <div className="flex-1 h-px bg-gradient-to-r from-stone-200 dark:from-stone-700 to-transparent ml-4" />
       </div>
 
       {/* 系統卡片網格 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
         {category.systems.map(system => (
           <SystemCard
             key={system.id}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import Header from '../components/Header'; // 確保引用新的 Header
 
 export default function Account() {
   const { user, updateProfile, changePassword } = useAuth();
@@ -9,6 +10,7 @@ export default function Account() {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
+  // ... (省略中間的 form state 與 handler 邏輯，與原檔案相同，無需變動) ...
   const [profileForm, setProfileForm] = useState({
     name: user?.name || '',
     phone: user?.phone || '',
@@ -36,44 +38,35 @@ export default function Account() {
     e.preventDefault();
     setIsSaving(true);
     setMessage({ type: '', text: '' });
-
     const result = await updateProfile(profileForm);
-
     if (result.success) {
       setMessage({ type: 'success', text: '個人資料已更新' });
       setIsEditing(false);
     } else {
       setMessage({ type: 'error', text: result.error });
     }
-
     setIsSaving(false);
   };
 
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     setMessage({ type: '', text: '' });
-
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       setMessage({ type: 'error', text: '新密碼與確認密碼不符' });
       return;
     }
-
     if (passwordForm.newPassword.length < 6) {
       setMessage({ type: 'error', text: '密碼長度至少需要 6 個字元' });
       return;
     }
-
     setIsSaving(true);
-
     const result = await changePassword(passwordForm.currentPassword, passwordForm.newPassword);
-
     if (result.success) {
       setMessage({ type: 'success', text: '密碼已成功變更' });
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
     } else {
       setMessage({ type: 'error', text: result.error });
     }
-
     setIsSaving(false);
   };
 
@@ -84,44 +77,61 @@ export default function Account() {
   ];
 
   return (
-    <div className="min-h-screen bg-stone-50 dark:bg-slate-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-slate-800 border-b border-stone-200 dark:border-slate-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-4">
-              <Link to="/" className="flex items-center gap-2 text-stone-500 hover:text-stone-700 dark:text-slate-400 dark:hover:text-slate-200">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                <span>返回首頁</span>
-              </Link>
+    <div className="min-h-screen bg-stone-50">
+      {/* 重用共用的 Header，保持一致性 */}
+      <Header />
+
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        
+        {/* 用戶資訊卡片 - 極致質感升級 */}
+        <div className="relative overflow-hidden bg-gradient-to-r from-red-900 via-red-800 to-rose-900 rounded-3xl p-8 mb-10 text-white shadow-2xl shadow-red-900/20 group">
+          {/* 背景紋理 */}
+          <div className="absolute inset-0 bg-pattern-hex opacity-20" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+          
+          {/* 裝飾性光暈 */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-20 w-32 h-32 bg-amber-500/20 rounded-full blur-2xl" />
+
+          <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-start gap-6">
+            <div className="relative">
+              <div className="w-24 h-24 bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-md rounded-full flex items-center justify-center text-4xl border border-white/20 shadow-inner">
+                {user?.name?.charAt(0) || '👤'}
+              </div>
+              <div className="absolute bottom-0 right-0 w-6 h-6 bg-green-500 border-4 border-red-900 rounded-full"></div>
             </div>
-            <h1 className="text-lg font-semibold text-stone-800 dark:text-white">帳戶設定</h1>
-            <div className="w-24" /> {/* Spacer */}
+            
+            <div className="text-center sm:text-left flex-1">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-1">
+                <h2 className="text-3xl font-bold tracking-tight">{user?.name}</h2>
+                <span className="inline-block px-2 py-0.5 text-xs font-medium bg-amber-500/20 text-amber-200 border border-amber-500/30 rounded backdrop-blur-sm">
+                  {user?.role === 'admin' ? 'ADMINISTRATOR' : 'EMPLOYEE'}
+                </span>
+              </div>
+              <p className="text-red-100 text-lg mb-4">{user?.department} · {user?.position}</p>
+              
+              <div className="flex flex-wrap justify-center sm:justify-start gap-4 text-sm text-red-200/80">
+                <div className="flex items-center gap-1.5">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>
+                  <span>員工編號：{user?.employeeId || 'N/A'}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                  <span>{user?.email}</span>
+                </div>
+              </div>
+            </div>
+
+            <button className="px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl backdrop-blur-sm transition-colors text-sm font-medium">
+              更換頭像
+            </button>
           </div>
         </div>
-      </header>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* 用戶資訊卡片 - 改為紅色漸層 */}
-        <div className="bg-gradient-to-br from-red-800 via-red-700 to-rose-600 rounded-2xl p-6 mb-8 text-white shadow-xl shadow-red-900/20">
-          <div className="flex items-center gap-4">
-            <div className="w-20 h-20 bg-white/20 backdrop-blur rounded-full flex items-center justify-center text-3xl border border-white/20">
-              {user?.name?.charAt(0) || '👤'}
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold">{user?.name}</h2>
-              <p className="text-red-100">{user?.department} · {user?.position}</p>
-              <p className="text-red-200/80 text-sm mt-1">員工編號：{user?.employeeId}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-col md:flex-row gap-6">
-          {/* 側邊選單 */}
-          <div className="md:w-56 flex-shrink-0">
-            <nav className="bg-white dark:bg-slate-800 rounded-xl shadow-sm overflow-hidden border border-stone-100 dark:border-stone-700">
+        <div className="flex flex-col md:flex-row gap-8">
+          {/* 側邊選單 - 樣式優化 */}
+          <div className="md:w-64 flex-shrink-0">
+            <nav className="bg-white rounded-2xl shadow-sm border border-stone-100 overflow-hidden sticky top-24">
               {tabs.map(tab => (
                 <button
                   key={tab.id}
@@ -129,15 +139,18 @@ export default function Account() {
                     setActiveTab(tab.id);
                     setMessage({ type: '', text: '' });
                   }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
+                  className={`w-full flex items-center gap-3 px-5 py-4 text-left transition-all relative ${
                     activeTab === tab.id
-                      // 改為紅色選中狀態
-                      ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-l-4 border-red-600'
-                      : 'text-stone-600 dark:text-slate-300 hover:bg-stone-50 dark:hover:bg-slate-700/50 border-l-4 border-transparent'
+                      ? 'bg-red-50 text-red-700 font-bold'
+                      : 'text-stone-600 hover:bg-stone-50 font-medium'
                   }`}
                 >
-                  <span>{tab.icon}</span>
-                  <span className="font-medium">{tab.name}</span>
+                  {/* 左側指示條 */}
+                  {activeTab === tab.id && (
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-600"></div>
+                  )}
+                  <span className={`text-xl ${activeTab === tab.id ? 'scale-110' : ''} transition-transform`}>{tab.icon}</span>
+                  <span>{tab.name}</span>
                 </button>
               ))}
             </nav>
@@ -145,234 +158,191 @@ export default function Account() {
 
           {/* 內容區 */}
           <div className="flex-1">
-            {/* 訊息提示 */}
             {message.text && (
-              <div className={`mb-4 p-4 rounded-lg ${
+              <div className={`mb-6 p-4 rounded-xl flex items-center gap-3 ${
                 message.type === 'success'
-                  ? 'bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400'
-                  : 'bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400'
+                  ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                  : 'bg-red-50 border border-red-200 text-red-700'
               }`}>
+                <span className="text-xl">{message.type === 'success' ? '✅' : '⚠️'}</span>
                 {message.text}
               </div>
             )}
 
-            {/* 個人資料 */}
-            {activeTab === 'profile' && (
-              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6 border border-stone-100 dark:border-stone-700">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-semibold text-stone-800 dark:text-white">個人資料</h3>
-                  {!isEditing && (
-                    <button
-                      onClick={() => setIsEditing(true)}
-                      // 改為紅色連結
-                      className="text-sm text-red-600 hover:text-red-700 font-medium"
-                    >
-                      編輯
-                    </button>
-                  )}
-                </div>
-
-                <form onSubmit={handleProfileSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* 內容容器 */}
+            <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-8">
+              
+              {/* 個人資料 */}
+              {activeTab === 'profile' && (
+                <>
+                  <div className="flex items-center justify-between mb-8 pb-4 border-b border-stone-100">
                     <div>
-                      <label className="block text-sm font-medium text-stone-700 dark:text-slate-300 mb-1">
-                        姓名
-                      </label>
-                      <input
-                        type="text"
-                        name="name"
-                        value={profileForm.name}
-                        onChange={handleProfileChange}
-                        disabled={!isEditing}
-                        className="w-full px-4 py-2 border border-stone-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-stone-800 dark:text-white disabled:bg-stone-50 dark:disabled:bg-slate-600 disabled:cursor-not-allowed focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all"
-                      />
+                      <h3 className="text-xl font-bold text-stone-800">基本資料</h3>
+                      <p className="text-sm text-stone-500 mt-1">管理您的個人資訊與聯絡方式</p>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 dark:text-slate-300 mb-1">
-                        電話
-                      </label>
-                      <input
-                        type="tel"
-                        name="phone"
-                        value={profileForm.phone}
-                        onChange={handleProfileChange}
-                        disabled={!isEditing}
-                        className="w-full px-4 py-2 border border-stone-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-stone-800 dark:text-white disabled:bg-stone-50 dark:disabled:bg-slate-600 disabled:cursor-not-allowed focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 dark:text-slate-300 mb-1">
-                        部門
-                      </label>
-                      <input
-                        type="text"
-                        name="department"
-                        value={profileForm.department}
-                        disabled
-                        className="w-full px-4 py-2 border border-stone-200 dark:border-slate-600 rounded-lg bg-stone-50 dark:bg-slate-600 text-stone-500 dark:text-slate-400 cursor-not-allowed"
-                      />
-                      <p className="text-xs text-stone-400 mt-1">如需變更請聯繫人資部門</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 dark:text-slate-300 mb-1">
-                        職位
-                      </label>
-                      <input
-                        type="text"
-                        name="position"
-                        value={profileForm.position}
-                        disabled
-                        className="w-full px-4 py-2 border border-stone-200 dark:border-slate-600 rounded-lg bg-stone-50 dark:bg-slate-600 text-stone-500 dark:text-slate-400 cursor-not-allowed"
-                      />
-                      <p className="text-xs text-stone-400 mt-1">如需變更請聯繫人資部門</p>
-                    </div>
+                    {!isEditing && (
+                      <button
+                        onClick={() => setIsEditing(true)}
+                        className="text-sm text-red-600 hover:text-red-700 font-medium px-4 py-2 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        編輯資料
+                      </button>
+                    )}
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-stone-700 dark:text-slate-300 mb-1">
-                      電子郵件
-                    </label>
-                    <input
-                      type="email"
-                      value={user?.email || ''}
-                      disabled
-                      className="w-full px-4 py-2 border border-stone-200 dark:border-slate-600 rounded-lg bg-stone-50 dark:bg-slate-600 text-stone-500 dark:text-slate-400 cursor-not-allowed"
-                    />
+                  <form onSubmit={handleProfileSubmit} className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-semibold text-stone-700">姓名</label>
+                        <input
+                          type="text"
+                          name="name"
+                          value={profileForm.name}
+                          onChange={handleProfileChange}
+                          disabled={!isEditing}
+                          className="w-full px-4 py-2.5 border border-stone-200 rounded-xl bg-stone-50 text-stone-800 disabled:bg-stone-100 disabled:text-stone-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-semibold text-stone-700">電話</label>
+                        <input
+                          type="tel"
+                          name="phone"
+                          value={profileForm.phone}
+                          onChange={handleProfileChange}
+                          disabled={!isEditing}
+                          className="w-full px-4 py-2.5 border border-stone-200 rounded-xl bg-stone-50 text-stone-800 disabled:bg-stone-100 disabled:text-stone-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-semibold text-stone-700">部門</label>
+                        <div className="w-full px-4 py-2.5 border border-stone-200 rounded-xl bg-stone-100 text-stone-500 flex items-center justify-between">
+                          <span>{profileForm.department}</span>
+                          <span className="text-xs text-stone-400">鎖定</span>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-semibold text-stone-700">職位</label>
+                        <div className="w-full px-4 py-2.5 border border-stone-200 rounded-xl bg-stone-100 text-stone-500 flex items-center justify-between">
+                          <span>{profileForm.position}</span>
+                          <span className="text-xs text-stone-400">鎖定</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-stone-700">電子郵件</label>
+                      <div className="w-full px-4 py-2.5 border border-stone-200 rounded-xl bg-stone-100 text-stone-500 flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                        <span>{user?.email}</span>
+                      </div>
+                    </div>
+
+                    {isEditing && (
+                      <div className="flex gap-4 pt-6 border-t border-stone-100">
+                        <button
+                          type="submit"
+                          disabled={isSaving}
+                          className="px-6 py-2.5 bg-gradient-to-r from-red-700 to-red-800 hover:from-red-800 hover:to-red-900 text-white font-medium rounded-xl shadow-lg shadow-red-500/30 transition-all disabled:opacity-50"
+                        >
+                          {isSaving ? '儲存中...' : '儲存變更'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditing(false)}
+                          className="px-6 py-2.5 border border-stone-200 text-stone-600 font-medium rounded-xl hover:bg-stone-50 transition-colors"
+                        >
+                          取消
+                        </button>
+                      </div>
+                    )}
+                  </form>
+                </>
+              )}
+
+              {/* 安全設定 */}
+              {activeTab === 'security' && (
+                <>
+                  <div className="mb-8 pb-4 border-b border-stone-100">
+                    <h3 className="text-xl font-bold text-stone-800">登入與安全</h3>
+                    <p className="text-sm text-stone-500 mt-1">定期更換密碼以保護您的帳戶安全</p>
                   </div>
 
-                  {isEditing && (
-                    <div className="flex gap-3 pt-4">
+                  <form onSubmit={handlePasswordSubmit} className="space-y-5 max-w-lg">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-stone-700">目前密碼</label>
+                      <input
+                        type="password"
+                        name="currentPassword"
+                        value={passwordForm.currentPassword}
+                        onChange={handlePasswordChange}
+                        required
+                        className="w-full px-4 py-2.5 border border-stone-200 rounded-xl bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-stone-700">新密碼</label>
+                      <input
+                        type="password"
+                        name="newPassword"
+                        value={passwordForm.newPassword}
+                        onChange={handlePasswordChange}
+                        required
+                        minLength={6}
+                        className="w-full px-4 py-2.5 border border-stone-200 rounded-xl bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-stone-700">確認新密碼</label>
+                      <input
+                        type="password"
+                        name="confirmPassword"
+                        value={passwordForm.confirmPassword}
+                        onChange={handlePasswordChange}
+                        required
+                        className="w-full px-4 py-2.5 border border-stone-200 rounded-xl bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
+                      />
+                    </div>
+                    <div className="pt-4">
                       <button
                         type="submit"
                         disabled={isSaving}
-                        // 改為紅色按鈕
-                        className="px-6 py-2 bg-red-700 hover:bg-red-800 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+                        className="px-6 py-2.5 bg-red-700 hover:bg-red-800 text-white font-medium rounded-xl shadow-lg shadow-red-500/20 transition-all disabled:opacity-50"
                       >
-                        {isSaving ? '儲存中...' : '儲存變更'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsEditing(false);
-                          setProfileForm({
-                            name: user?.name || '',
-                            phone: user?.phone || '',
-                            department: user?.department || '',
-                            position: user?.position || '',
-                          });
-                        }}
-                        className="px-6 py-2 border border-stone-200 dark:border-slate-600 text-stone-600 dark:text-slate-300 font-medium rounded-lg hover:bg-stone-50 dark:hover:bg-slate-700 transition-colors"
-                      >
-                        取消
+                        {isSaving ? '更新中...' : '更新密碼'}
                       </button>
                     </div>
-                  )}
-                </form>
-              </div>
-            )}
-
-            {/* 安全設定 */}
-            {activeTab === 'security' && (
-              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6 border border-stone-100 dark:border-stone-700">
-                <h3 className="text-lg font-semibold text-stone-800 dark:text-white mb-6">變更密碼</h3>
-
-                <form onSubmit={handlePasswordSubmit} className="space-y-4 max-w-md">
-                  <div>
-                    <label className="block text-sm font-medium text-stone-700 dark:text-slate-300 mb-1">
-                      目前密碼
-                    </label>
-                    <input
-                      type="password"
-                      name="currentPassword"
-                      value={passwordForm.currentPassword}
-                      onChange={handlePasswordChange}
-                      required
-                      className="w-full px-4 py-2 border border-stone-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-stone-800 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-stone-700 dark:text-slate-300 mb-1">
-                      新密碼
-                    </label>
-                    <input
-                      type="password"
-                      name="newPassword"
-                      value={passwordForm.newPassword}
-                      onChange={handlePasswordChange}
-                      required
-                      minLength={6}
-                      className="w-full px-4 py-2 border border-stone-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-stone-800 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-stone-700 dark:text-slate-300 mb-1">
-                      確認新密碼
-                    </label>
-                    <input
-                      type="password"
-                      name="confirmPassword"
-                      value={passwordForm.confirmPassword}
-                      onChange={handlePasswordChange}
-                      required
-                      className="w-full px-4 py-2 border border-stone-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-stone-800 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={isSaving}
-                    // 改為紅色按鈕
-                    className="px-6 py-2 bg-red-700 hover:bg-red-800 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    {isSaving ? '更新中...' : '更新密碼'}
-                  </button>
-                </form>
-
-                <hr className="my-8 border-stone-200 dark:border-slate-700" />
-
-                <div>
-                  <h4 className="font-medium text-stone-800 dark:text-white mb-4">登入裝置</h4>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 bg-stone-50 dark:bg-slate-700/50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl">💻</span>
-                        <div>
-                          <p className="font-medium text-stone-800 dark:text-white">目前裝置</p>
-                          <p className="text-sm text-stone-500 dark:text-slate-400">Chrome · Windows</p>
-                        </div>
-                      </div>
-                      <span className="text-xs text-emerald-600 font-medium">使用中</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* 通知設定 */}
-            {activeTab === 'notifications' && (
-              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6 border border-stone-100 dark:border-stone-700">
-                <h3 className="text-lg font-semibold text-stone-800 dark:text-white mb-6">通知設定</h3>
-
-                <div className="space-y-4">
-                  {[
+                  </form>
+                </>
+              )}
+              
+              {/* Notifications - 樣式統一 (略，套用相同邏輯) */}
+              {activeTab === 'notifications' && (
+                 <div className="space-y-4">
+                   <div className="mb-6">
+                    <h3 className="text-xl font-bold text-stone-800">通知偏好</h3>
+                    <p className="text-sm text-stone-500 mt-1">控制您接收通知的方式</p>
+                   </div>
+                   {/* ... (內容與原檔類似，但 Checkbox 改為紅色系) ... */}
+                   {[
                     { id: 'email_approval', name: '簽核通知', desc: '當有待簽核項目時發送郵件通知' },
                     { id: 'email_system', name: '系統公告', desc: '接收系統維護與更新通知' },
                     { id: 'browser_push', name: '瀏覽器推播', desc: '允許瀏覽器顯示桌面通知' },
-                  ].map(item => (
-                    <div key={item.id} className="flex items-center justify-between p-4 bg-stone-50 dark:bg-slate-700/50 rounded-lg">
+                   ].map(item => (
+                    <div key={item.id} className="flex items-center justify-between p-4 bg-stone-50 border border-stone-200 rounded-xl hover:border-stone-300 transition-colors">
                       <div>
-                        <p className="font-medium text-stone-800 dark:text-white">{item.name}</p>
-                        <p className="text-sm text-stone-500 dark:text-slate-400">{item.desc}</p>
+                        <p className="font-bold text-stone-800">{item.name}</p>
+                        <p className="text-sm text-stone-500">{item.desc}</p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input type="checkbox" defaultChecked className="sr-only peer" />
-                        {/* 改為紅色開關 (peer-checked:bg-red-600) */}
-                        <div className="w-11 h-6 bg-stone-300 peer-focus:outline-none rounded-full peer dark:bg-slate-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+                        <div className="w-11 h-6 bg-stone-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600 shadow-inner"></div>
                       </label>
                     </div>
                   ))}
-                </div>
-              </div>
-            )}
+                 </div>
+              )}
+            </div>
           </div>
         </div>
       </main>
