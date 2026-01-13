@@ -1,26 +1,30 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  FilePlus, 
-  LogOut, 
-  Wallet, 
-  Menu, 
+import {
+  LayoutDashboard,
+  FilePlus,
+  LogOut,
+  Wallet,
+  Menu,
   X,
   User,
   Settings,
   AlertCircle,
-  Shield // ✅ 補上這個引入
+  Shield,
+  Home
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../../../../contexts/AuthContext';
+
+// 付款系統的基礎路徑
+const BASE_PATH = '/systems/payment-approval';
 
 export default function Header() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  
-  const { user, role } = useAuth(); 
+
+  const { user, role } = useAuth();
 
   // 取得顯示名稱（相容不同資料格式）
   const displayName = user?.user_metadata?.full_name || user?.name || user?.email;
@@ -30,8 +34,13 @@ export default function Header() {
 
   // 判斷目前頁面
   const isActive = (path) => {
-    if (path === '/') return location.pathname === '/' || location.pathname === '/dashboard';
-    return location.pathname.startsWith(path);
+    const fullPath = `${BASE_PATH}${path}`;
+    if (path === '/dashboard') {
+      return location.pathname === BASE_PATH ||
+             location.pathname === `${BASE_PATH}/` ||
+             location.pathname === fullPath;
+    }
+    return location.pathname.startsWith(fullPath);
   };
 
   const closeMenu = () => setIsMenuOpen(false);
@@ -65,9 +74,9 @@ export default function Header() {
   return (
     <header className="bg-emerald-900 text-white shadow-lg sticky top-0 z-40 print:hidden">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between relative">
-        
+
         {/* ================= 左側：Logo 與標題 ================= */}
-        <Link to="/" onClick={closeMenu} className="flex items-center gap-3 hover:opacity-90 transition-opacity select-none">
+        <Link to={`${BASE_PATH}/dashboard`} onClick={closeMenu} className="flex items-center gap-3 hover:opacity-90 transition-opacity select-none">
           <div className="bg-white p-1.5 rounded-lg shadow-sm">
             <Wallet className="text-emerald-800" size={24} />
           </div>
@@ -79,23 +88,32 @@ export default function Header() {
 
         {/* ================= 中間：電腦版導覽選單 ================= */}
         <nav className="hidden md:flex items-center gap-1">
-          <Link 
-            to="/dashboard" 
+          {/* 返回主入口 */}
+          <Link
+            to="/"
+            className="px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition-all duration-200 text-emerald-100 hover:bg-emerald-800 hover:text-white"
+          >
+            <Home size={18} />
+            主入口
+          </Link>
+
+          <Link
+            to={`${BASE_PATH}/dashboard`}
             className={`px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition-all duration-200 ${
-              isActive('/') 
-                ? 'bg-emerald-800 text-white shadow-inner ring-1 ring-emerald-700' 
+              isActive('/dashboard')
+                ? 'bg-emerald-800 text-white shadow-inner ring-1 ring-emerald-700'
                 : 'text-emerald-100 hover:bg-emerald-800 hover:text-white'
             }`}
           >
             <LayoutDashboard size={18} />
             總覽看板
           </Link>
-          
-          <Link 
-            to="/apply" 
+
+          <Link
+            to={`${BASE_PATH}/apply`}
             className={`px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition-all duration-200 ${
-              isActive('/apply') 
-                ? 'bg-emerald-800 text-white shadow-inner ring-1 ring-emerald-700' 
+              isActive('/apply')
+                ? 'bg-emerald-800 text-white shadow-inner ring-1 ring-emerald-700'
                 : 'text-emerald-100 hover:bg-emerald-800 hover:text-white'
             }`}
           >
@@ -103,31 +121,31 @@ export default function Header() {
             新增申請
           </Link>
 
-            {(role === 'admin' || role === 'boss') && (
-            <Link 
-                to="/admin" 
-                className={`px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition-all duration-200 ${
-                isActive('/admin') 
-                    ? 'bg-emerald-800 text-white shadow-inner ring-1 ring-emerald-700' 
-                    : 'text-emerald-100 hover:bg-emerald-800 hover:text-white'
-                }`}
+          {(role === 'admin' || role === 'boss') && (
+            <Link
+              to={`${BASE_PATH}/admin`}
+              className={`px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition-all duration-200 ${
+                isActive('/admin')
+                  ? 'bg-emerald-800 text-white shadow-inner ring-1 ring-emerald-700'
+                  : 'text-emerald-100 hover:bg-emerald-800 hover:text-white'
+              }`}
             >
-                <Shield size={18} />
-                系統管理
+              <Shield size={18} />
+              系統管理
             </Link>
-            )}
+          )}
         </nav>
 
         {/* ================= 右側：使用者資訊 & 手機選單按鈕 ================= */}
         <div className="flex items-center gap-4">
-          
+
           {/* 電腦版使用者資訊 */}
           {user && (
-            <Link 
-              to="/profile" 
+            <Link
+              to={`${BASE_PATH}/profile`}
               className={`text-right hidden md:flex items-center gap-3 p-1.5 px-3 rounded-lg transition-all group ${
-                isProfileIncomplete 
-                  ? 'bg-amber-600 hover:bg-amber-500 text-white ring-2 ring-amber-400 shadow-lg' 
+                isProfileIncomplete
+                  ? 'bg-amber-600 hover:bg-amber-500 text-white ring-2 ring-amber-400 shadow-lg'
                   : 'hover:bg-emerald-800/50'
               }`}
               title={isProfileIncomplete ? "請點擊設定顯示名稱" : "個人資料設定"}
@@ -145,8 +163,8 @@ export default function Header() {
                 </div>
 
                 <div className={`text-xs px-1.5 rounded inline-block mt-0.5 ${
-                  isProfileIncomplete 
-                    ? 'bg-amber-800/30 text-amber-100 font-medium' 
+                  isProfileIncomplete
+                    ? 'bg-amber-800/30 text-amber-100 font-medium'
                     : 'text-emerald-300 font-mono bg-emerald-950/30 group-hover:bg-emerald-950/50'
                 }`}>
                   {isProfileIncomplete ? '點此設定' : roleName}
@@ -154,24 +172,24 @@ export default function Header() {
               </div>
             </Link>
           )}
-          
+
           {/* 電腦版登出按鈕 */}
-          <button 
+          <button
             onClick={handleLogout}
-            className="hidden md:flex items-center justify-center p-2 hover:bg-red-500/20 text-emerald-100 hover:text-red-200 rounded-full transition-all duration-200" 
+            className="hidden md:flex items-center justify-center p-2 hover:bg-red-500/20 text-emerald-100 hover:text-red-200 rounded-full transition-all duration-200"
             title="登出系統"
           >
             <LogOut size={20} />
           </button>
 
           {/* 手機版：漢堡選單按鈕 */}
-          <button 
+          <button
             className="md:hidden p-2 hover:bg-emerald-800 rounded transition-colors active:scale-95 relative"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             aria-label="選單"
           >
             {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-            
+
             {/* 手機版紅點 */}
             {isProfileIncomplete && !isMenuOpen && (
               <span className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-emerald-900" />
@@ -184,16 +202,16 @@ export default function Header() {
       {isMenuOpen && (
         <div className="md:hidden absolute top-16 left-0 w-full bg-emerald-900 border-t border-emerald-800 shadow-2xl animate-in slide-in-from-top-2 duration-200">
           <nav className="flex flex-col p-4 space-y-2">
-            
+
             {/* 手機版使用者資訊卡片 */}
             {user && (
-              <Link 
-                to="/profile"
+              <Link
+                to={`${BASE_PATH}/profile`}
                 onClick={closeMenu}
                 className={`rounded-lg p-3 mb-2 flex items-center gap-3 border transition-colors ${
-                  isProfileIncomplete 
-                    ? 'bg-amber-600/20 border-amber-500/50 text-amber-100' 
-                    : 'bg-emerald-800/50 border-emerald-700/50 text-white' 
+                  isProfileIncomplete
+                    ? 'bg-amber-600/20 border-amber-500/50 text-amber-100'
+                    : 'bg-emerald-800/50 border-emerald-700/50 text-white'
                 }`}
               >
                 <div className={`p-2 rounded-full ${isProfileIncomplete ? 'bg-amber-600 text-white' : 'bg-emerald-700 text-emerald-100'}`}>
@@ -213,25 +231,35 @@ export default function Header() {
               </Link>
             )}
 
-            <Link 
-              to="/dashboard" 
+            {/* 返回主入口 */}
+            <Link
+              to="/"
+              onClick={closeMenu}
+              className="px-4 py-3 rounded-lg text-base font-medium flex items-center gap-3 transition-colors text-emerald-100 hover:bg-emerald-800/50"
+            >
+              <Home size={20} />
+              返回主入口
+            </Link>
+
+            <Link
+              to={`${BASE_PATH}/dashboard`}
               onClick={closeMenu}
               className={`px-4 py-3 rounded-lg text-base font-medium flex items-center gap-3 transition-colors ${
-                isActive('/')
-                  ? 'bg-emerald-800 text-white shadow-sm' 
+                isActive('/dashboard')
+                  ? 'bg-emerald-800 text-white shadow-sm'
                   : 'text-emerald-100 hover:bg-emerald-800/50'
               }`}
             >
               <LayoutDashboard size={20} />
               總覽看板
             </Link>
-            
-            <Link 
-              to="/apply" 
+
+            <Link
+              to={`${BASE_PATH}/apply`}
               onClick={closeMenu}
               className={`px-4 py-3 rounded-lg text-base font-medium flex items-center gap-3 transition-colors ${
-                isActive('/apply') 
-                  ? 'bg-emerald-800 text-white shadow-sm' 
+                isActive('/apply')
+                  ? 'bg-emerald-800 text-white shadow-sm'
                   : 'text-emerald-100 hover:bg-emerald-800/50'
               }`}
             >
@@ -239,12 +267,12 @@ export default function Header() {
               新增申請
             </Link>
 
-            <Link 
-              to="/profile" 
+            <Link
+              to={`${BASE_PATH}/profile`}
               onClick={closeMenu}
               className={`px-4 py-3 rounded-lg text-base font-medium flex items-center gap-3 transition-colors ${
-                isActive('/profile') 
-                  ? 'bg-emerald-800 text-white shadow-sm' 
+                isActive('/profile')
+                  ? 'bg-emerald-800 text-white shadow-sm'
                   : 'text-emerald-100 hover:bg-emerald-800/50'
               }`}
             >
@@ -260,36 +288,36 @@ export default function Header() {
             </Link>
 
             {(role === 'admin' || role === 'boss') && (
-                <Link 
-                    to="/admin" 
-                    onClick={closeMenu}
-                    className={`px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition-all duration-200 ${
-                    isActive('/admin') 
-                        ? 'bg-emerald-800 text-white shadow-inner ring-1 ring-emerald-700' 
-                        : 'text-emerald-100 hover:bg-emerald-800 hover:text-white'
-                    }`}
-                >
-                    <Shield size={18} />
-                    系統管理
-                </Link>
-                )}
+              <Link
+                to={`${BASE_PATH}/admin`}
+                onClick={closeMenu}
+                className={`px-4 py-3 rounded-lg text-base font-medium flex items-center gap-3 transition-colors ${
+                  isActive('/admin')
+                    ? 'bg-emerald-800 text-white shadow-sm'
+                    : 'text-emerald-100 hover:bg-emerald-800/50'
+                }`}
+              >
+                <Shield size={18} />
+                系統管理
+              </Link>
+            )}
 
             <div className="border-t border-emerald-800 my-2 pt-2">
-              <button 
+              <button
                 onClick={handleLogout}
                 className="w-full px-4 py-3 flex items-center gap-3 text-red-300 hover:text-white hover:bg-red-500/20 rounded-lg transition-colors font-medium"
               >
-                <LogOut size={20} /> 
+                <LogOut size={20} />
                 登出系統
               </button>
             </div>
           </nav>
         </div>
       )}
-      
+
       {/* 點擊外部關閉選單的遮罩 */}
       {isMenuOpen && (
-        <div 
+        <div
           className="fixed inset-0 top-16 bg-black/20 z-[-1] md:hidden backdrop-blur-[1px]"
           onClick={closeMenu}
         />

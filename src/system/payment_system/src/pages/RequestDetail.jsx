@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
+
+// 付款系統的基礎路徑
+const BASE_PATH = '/systems/payment-approval';
 import { ArrowLeft, User, CheckCircle, XCircle, Clock, Shield, DollarSign, Loader2, Building, FileText, CreditCard, Paperclip, MessageSquare, ThumbsUp, Printer, Edit2, X, ExternalLink, Download, Image as ImageIcon } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 
@@ -154,7 +157,7 @@ export default function RequestDetail() {
     };
 
     const handleEdit = () => {
-        navigate('/apply', { state: { requestData: request } });
+        navigate(`${BASE_PATH}/apply`, { state: { requestData: request } });
     };
 
     const handlePrint = () => {
@@ -246,7 +249,7 @@ export default function RequestDetail() {
 
                 {/* 頁面標題列 */}
                 <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <button onClick={() => navigate('/dashboard')} className="text-gray-500 hover:text-gray-800 flex items-center gap-1 no-print">
+                    <button onClick={() => navigate(`${BASE_PATH}/dashboard`)} className="text-gray-500 hover:text-gray-800 flex items-center gap-1 no-print">
                         <ArrowLeft size={20} /> 返回列表
                     </button>
 
