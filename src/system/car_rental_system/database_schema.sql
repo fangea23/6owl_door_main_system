@@ -318,11 +318,13 @@ CREATE POLICY "Admins can manage rentals"
   USING (car_rental.is_admin());
 
 -- 政策：所有人可查看維護記錄
+DROP POLICY IF EXISTS "Anyone can view maintenance records" ON car_rental.maintenance_records;
 CREATE POLICY "Anyone can view maintenance records"
   ON car_rental.maintenance_records FOR SELECT
   USING (auth.uid() IS NOT NULL);
 
 -- 政策：管理員可管理維護記錄
+DROP POLICY IF EXISTS "Admins can manage maintenance records" ON car_rental.maintenance_records;
 CREATE POLICY "Admins can manage maintenance records"
   ON car_rental.maintenance_records FOR ALL
   USING (
