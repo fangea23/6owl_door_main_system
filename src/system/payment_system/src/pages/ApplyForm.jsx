@@ -641,57 +641,61 @@ export default function ApplyForm() {
                                 />
                             </div>
 
-                        {/* 6. 金額與稅別 */}
-                        <div className="col-span-1 md:col-span-2 bg-white p-5 rounded-xl shadow-sm"> {/* 🔴 移除了 border class */}
-                            <div className="flex flex-col md:flex-row gap-6 md:items-center">
-                                
-                                {/* 選項區 */}
-                                <div className="flex gap-6 shrink-0">
-                                    <label className="flex items-center gap-2 cursor-pointer group">
-                                        <input
-                                            type="radio"
-                                            name="taxType"
-                                            value="tax_included"
-                                            checked={formData.taxType === 'tax_included'}
-                                            onChange={handleChange}
-                                            className="w-5 h-5 text-red-600 focus:ring-red-500 border-stone-300"
-                                        />
-                                        <span className="text-base font-medium text-stone-700 group-hover:text-red-600 transition-colors">含稅</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer group">
-                                        <input
-                                            type="radio"
-                                            name="taxType"
-                                            value="tax_excluded"
-                                            checked={formData.taxType === 'tax_excluded'}
-                                            onChange={handleChange}
-                                            className="w-5 h-5 text-red-600 focus:ring-red-500 border-stone-300"
-                                        />
-                                        <span className="text-base font-medium text-stone-700 group-hover:text-red-600 transition-colors">未稅</span>
-                                    </label>
-                                </div>
+{/* 6. 金額與稅別 */}
+                            {/* 🔴 外層容器：移除所有 border，只保留白色背景與圓角 */}
+                            <div className="col-span-1 md:col-span-2 bg-white p-5 rounded-xl shadow-sm"> 
+                                <div className="flex flex-col md:flex-row gap-6 md:items-center">
+                                    
+                                    {/* 選項區 */}
+                                    <div className="flex gap-6 shrink-0">
+                                        <label className="flex items-center gap-2 cursor-pointer group">
+                                            <input
+                                                type="radio"
+                                                name="taxType"
+                                                value="tax_included"
+                                                checked={formData.taxType === 'tax_included'}
+                                                onChange={handleChange}
+                                                className="w-5 h-5 text-red-600 focus:ring-red-500 border-stone-300"
+                                            />
+                                            <span className="text-base font-medium text-stone-700 group-hover:text-red-600 transition-colors">含稅</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer group">
+                                            <input
+                                                type="radio"
+                                                name="taxType"
+                                                value="tax_excluded"
+                                                checked={formData.taxType === 'tax_excluded'}
+                                                onChange={handleChange}
+                                                className="w-5 h-5 text-red-600 focus:ring-red-500 border-stone-300"
+                                            />
+                                            <span className="text-base font-medium text-stone-700 group-hover:text-red-600 transition-colors">未稅</span>
+                                        </label>
+                                    </div>
 
-                                {/* 金額輸入區 */}
-                                <div className="flex-1 w-full relative mt-2 md:mt-0">
-                                    <label className="absolute -top-2.5 left-0 text-xs text-stone-400 font-bold bg-white px-1">
-                                        付款金額 (TWD)
-                                    </label>
-                                    <div className="relative">
-                                        <span className="absolute left-0 bottom-2 text-2xl font-bold text-stone-300 pl-1">$</span>
-                                        <input
-                                            type="number"
-                                            name="amount"
-                                            value={formData.amount}
-                                            onChange={handleChange}
-                                            placeholder="0"
-                                            required
-                                            // 🔴 重點：border-b-2 (底線), border-stone-200 (淺灰), focus:border-red-600 (點擊變紅)
-                                            className="w-full pl-8 pr-2 py-1 text-3xl font-bold text-stone-800 border-b-2 border-stone-200 focus:border-red-600 outline-none bg-transparent placeholder-stone-200 transition-colors font-mono"
-                                        />
+                                    {/* 金額輸入區 */}
+                                    <div className="flex-1 w-full relative mt-2 md:mt-0">
+                                        <label className="absolute -top-2.5 left-0 text-xs text-stone-400 font-bold bg-white px-1">
+                                            付款金額 (TWD)
+                                        </label>
+                                        <div className="relative">
+                                            <span className="absolute left-0 bottom-2 text-2xl font-bold text-stone-300 pl-1">$</span>
+                                            <input
+                                                type="number"
+                                                name="amount"
+                                                value={formData.amount}
+                                                onChange={handleChange}
+                                                placeholder="0"
+                                                required
+                                                // 🔴 關鍵修改：
+                                                // 1. border-0 border-b-2: 確保只有下邊框
+                                                // 2. focus:ring-0: 移除點擊時的藍色光暈
+                                                // 3. outline-none: 移除預設外框
+                                                className="w-full pl-8 pr-2 py-1 text-3xl font-bold text-stone-800 border-0 border-b-2 border-stone-200 focus:border-red-600 focus:ring-0 outline-none bg-transparent placeholder-stone-200 transition-colors font-mono shadow-none"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
                         </div>
                     </section>
