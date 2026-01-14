@@ -8,7 +8,8 @@ import './App.css';
 
 // 子系統 Layout
 import PaymentSystemLayout from './pages/systems/PaymentSystemLayout';
-import LicenseSystemLayout from './pages/systems/LicenseSystemLayout'; 
+import LicenseSystemLayout from './pages/systems/LicenseSystemLayout';
+import MeetingRoomSystemLayout from './pages/systems/MeetingRoomSystemLayout'; 
 
 function App() {
   return (
@@ -53,19 +54,10 @@ function App() {
             element={<LicenseSystemLayout />}
           />
 
-          {/* 會議室租借系統（預留） */}
-          {/* 如果您的新系統就是會議室系統，可以直接把下面這段取代掉 */}
+          {/* 會議室租借系統 */}
           <Route
             path="/systems/meeting-room/*"
-            element={
-              <div className="min-h-screen flex items-center justify-center bg-gray-100">
-                <div className="text-center">
-                  <div className="text-6xl mb-4">📅</div>
-                  <h1 className="text-2xl font-bold">會議室租借系統</h1>
-                  <p className="text-gray-500 mt-2">即將推出</p>
-                </div>
-              </div>
-            }
+            element={<MeetingRoomSystemLayout />}
           />
         </Routes>
       </AuthProvider>
