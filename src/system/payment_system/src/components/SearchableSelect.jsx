@@ -122,7 +122,7 @@ export default function SearchableSelect({
           value={manualValue}
           onChange={handleManualInputChange}
           placeholder={manualInputPlaceholder}
-          className={`w-full rounded-md border-gray-300 p-3 border bg-white focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm ${className}`}
+          className={`w-full rounded-md border-stone-300 p-3 border bg-white focus:ring-2 focus:ring-red-500 outline-none shadow-sm ${className}`}
           autoFocus
         />
         <button
@@ -132,7 +132,7 @@ export default function SearchableSelect({
             setManualValue('');
             onChange('');
           }}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 p-1"
         >
           <X size={16} />
         </button>
@@ -149,17 +149,17 @@ export default function SearchableSelect({
         disabled={disabled || loading}
         className={`
           w-full rounded-md border p-3 bg-white text-left flex items-center justify-between
-          ${disabled || loading ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-gray-300 hover:border-emerald-400 cursor-pointer'}
-          ${isOpen ? 'ring-2 ring-emerald-500 border-emerald-500' : ''}
-          focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm
+          ${disabled || loading ? 'bg-stone-100 text-stone-400 cursor-not-allowed' : 'border-stone-300 hover:border-red-400 cursor-pointer'}
+          ${isOpen ? 'ring-2 ring-red-500 border-red-500' : ''}
+          focus:outline-none focus:ring-2 focus:ring-red-500 shadow-sm
         `}
       >
-        <span className={`truncate ${!getDisplayLabel() ? 'text-gray-400' : 'text-gray-900'}`}>
+        <span className={`truncate ${!getDisplayLabel() ? 'text-stone-400' : 'text-stone-900'}`}>
           {loading ? loadingText : (getDisplayLabel() || placeholder)}
         </span>
         <ChevronDown
           size={18}
-          className={`text-gray-400 transition-transform flex-shrink-0 ml-2 ${isOpen ? 'rotate-180' : ''}`}
+          className={`text-stone-400 transition-transform flex-shrink-0 ml-2 ${isOpen ? 'rotate-180' : ''}`}
         />
       </button>
 
@@ -168,7 +168,7 @@ export default function SearchableSelect({
         <button
           type="button"
           onClick={handleClear}
-          className="absolute right-8 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+          className="absolute right-8 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 p-1"
         >
           <X size={14} />
         </button>
@@ -176,24 +176,24 @@ export default function SearchableSelect({
 
       {/* 下拉選單 */}
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+        <div className="absolute z-50 w-full mt-1 bg-white border border-stone-200 rounded-lg shadow-lg overflow-hidden">
           {/* 搜尋框 */}
-          <div className="p-2 border-b border-gray-100">
+          <div className="p-2 border-b border-stone-100">
             <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
               <input
                 ref={inputRef}
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="輸入關鍵字搜尋..."
-                className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                className="w-full pl-9 pr-3 py-2 border border-stone-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
               />
               {searchTerm && (
                 <button
                   type="button"
                   onClick={() => setSearchTerm('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
                 >
                   <X size={14} />
                 </button>
@@ -204,7 +204,7 @@ export default function SearchableSelect({
           {/* 選項列表 */}
           <div className="max-h-60 overflow-y-auto">
             {filteredOptions.length === 0 ? (
-              <div className="px-4 py-3 text-sm text-gray-500 text-center">
+              <div className="px-4 py-3 text-sm text-stone-500 text-center">
                 {searchTerm ? '找不到符合的項目' : emptyText}
               </div>
             ) : (
@@ -217,19 +217,19 @@ export default function SearchableSelect({
                     onClick={() => handleSelect(option.value)}
                     className={`
                       w-full px-4 py-2.5 text-left flex items-center justify-between text-sm
-                      ${isSelected ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-gray-50 text-gray-700'}
+                      ${isSelected ? 'bg-red-50 text-red-700' : 'hover:bg-stone-50 text-stone-700'}
                       transition-colors
                     `}
                   >
                     <div className="flex flex-col">
                       <span className={`${isSelected ? 'font-semibold' : ''}`}>
                         {option.subLabel && (
-                          <span className="text-gray-500 mr-1">{option.subLabel}</span>
+                          <span className="text-stone-500 mr-1">{option.subLabel}</span>
                         )}
                         {option.label}
                       </span>
                     </div>
-                    {isSelected && <Check size={16} className="text-emerald-600 flex-shrink-0" />}
+                    {isSelected && <Check size={16} className="text-red-600 flex-shrink-0" />}
                   </button>
                 );
               })
@@ -240,9 +240,9 @@ export default function SearchableSelect({
               <button
                 type="button"
                 onClick={() => handleSelect('__manual__')}
-                className="w-full px-4 py-2.5 text-left text-sm text-gray-600 hover:bg-gray-50 border-t border-gray-100 flex items-center gap-2"
+                className="w-full px-4 py-2.5 text-left text-sm text-stone-600 hover:bg-stone-50 border-t border-stone-100 flex items-center gap-2"
               >
-                <span className="text-gray-400">其他 /</span>
+                <span className="text-stone-400">其他 /</span>
                 <span>手動輸入</span>
               </button>
             )}
