@@ -14,6 +14,7 @@ import { Dashboard } from '../../system/license_system/src/pages/Dashboard';
 import { Licenses } from '../../system/license_system/src/pages/Licenses';
 import { Assignments } from '../../system/license_system/src/pages/Assignments';
 import { Employees } from '../../system/license_system/src/pages/Employees';
+import { Devices } from '../../system/license_system/src/pages/Devices';
 import { Software } from '../../system/license_system/src/pages/Software';
 import { Settings } from '../../system/license_system/src/pages/Settings';
 import { VerifyLicense } from '../../system/license_system/src/pages/VerifyLicense';
@@ -24,12 +25,14 @@ import {
   Key,
   Users,
   Monitor,
+  Laptop,
   UserCheck,
   Settings as SettingsIcon,
   LogOut,
   Shield,
   Menu,
-  X
+  X,
+  Package
 } from 'lucide-react';
 
 // Logo 圖片
@@ -44,7 +47,8 @@ const navItems = [
   { path: `${BASE_PATH}/licenses`, icon: Key, label: '授權管理' },
   { path: `${BASE_PATH}/assignments`, icon: UserCheck, label: '授權分配' },
   { path: `${BASE_PATH}/employees`, icon: Users, label: '員工管理' },
-  { path: `${BASE_PATH}/software`, icon: Monitor, label: '軟體管理' },
+  { path: `${BASE_PATH}/devices`, icon: Laptop, label: '設備管理' },
+  { path: `${BASE_PATH}/software`, icon: Package, label: '軟體管理' },
   { path: `${BASE_PATH}/settings`, icon: SettingsIcon, label: '設定' }
 ];
 
@@ -297,6 +301,7 @@ export default function LicenseSystemLayout() {
           <Route path="licenses" element={<Licenses />} />
           <Route path="assignments" element={<Assignments />} />
           <Route path="employees" element={<Employees />} />
+          <Route path="devices" element={<Devices />} />
           <Route path="software" element={<Software />} />
           <Route path="settings" element={<Settings />} />
         </Route>
