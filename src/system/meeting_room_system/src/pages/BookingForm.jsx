@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../AuthContext';
 import {
@@ -29,8 +29,14 @@ const SectionTitle = ({ icon: Icon, title }) => (
 export default function BookingForm() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const isEditMode = !!id;
+
+  // 從 URL 參數取得預設值（從時間表視圖快速預約）
+  const urlRoom = searchParams.get('room') || '';
+  const urlDate = searchParams.get('date') || '';
+  const urlTime = searchParams.get('time') || '';
 
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -38,12 +44,21 @@ export default function BookingForm() {
   const [errorMsg, setErrorMsg] = useState('');
   const [conflicts, setConflicts] = useState([]);
 
+  // 計算預設結束時間（開始時間 + 1 小時）
+  const getDefaultEndTime = (startTime) => {
+    if (!startTime) return '';
+    const [h, m] = startTime.split(':').map(Number);
+    const endHour = h + 1;
+    if (endHour > 21) return '21:30';
+    return `${String(endHour).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+
   const [formData, setFormData] = useState({
     title: '',
-    room_id: '',
-    booking_date: '',
-    start_time: '',
-    end_time: '',
+    room_id: urlRoom,
+    booking_date: urlDate,
+    start_time: urlTime,
+    end_time: getDefaultEndTime(urlTime),
     attendees_count: '',
     description: '',
     booker_name: '',
