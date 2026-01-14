@@ -642,8 +642,8 @@ export default function ApplyForm() {
                             </div>
 
 {/* 6. 金額與稅別 */}
-                            {/* 🔴 外層容器：移除所有 border，只保留白色背景與圓角 */}
-                            <div className="col-span-1 md:col-span-2 bg-white p-5 rounded-xl shadow-sm"> 
+                            {/* 🔴 外層容器：完全無框設計，只用底線區隔 */}
+                            <div className="col-span-1 md:col-span-2 bg-transparent py-4"> 
                                 <div className="flex flex-col md:flex-row gap-6 md:items-center">
                                     
                                     {/* 選項區 */}
