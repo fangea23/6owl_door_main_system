@@ -9,7 +9,8 @@ import './App.css';
 // 子系統 Layout
 import PaymentSystemLayout from './pages/systems/PaymentSystemLayout';
 import LicenseSystemLayout from './pages/systems/LicenseSystemLayout';
-import MeetingRoomSystemLayout from './pages/systems/MeetingRoomSystemLayout'; 
+import MeetingRoomSystemLayout from './pages/systems/MeetingRoomSystemLayout';
+import CarRentalSystemLayout from './pages/systems/CarRentalSystemLayout'; 
 
 function App() {
   return (
@@ -58,6 +59,12 @@ function App() {
           <Route
             path="/systems/meeting-room/*"
             element={<MeetingRoomSystemLayout />}
+          />
+
+          {/* 公司車租借系統 */}
+          <Route
+            path="/systems/car-rental/*"
+            element={<CarRentalSystemLayout />}
           />
         </Routes>
       </AuthProvider>

@@ -70,6 +70,15 @@ export const categories = [
         status: 'active',
         isExternal: false,
       },
+      {
+        id: 'car-rental',
+        name: '公司車租借系統',
+        description: '公司車輛預約與管理',
+        icon: '🚗',
+        url: '/systems/car-rental',
+        status: 'active',
+        isExternal: false,
+      },
     ],
   },
 ];
