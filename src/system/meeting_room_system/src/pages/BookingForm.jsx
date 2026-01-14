@@ -163,10 +163,46 @@ export default function BookingForm() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  // 將 Supabase 錯誤轉換為中文訊息
+  const translateError = (error) => {
+    const message = error?.message || '';
+
+    // 常見的 Supabase 錯誤訊息對照
+    if (message.includes('duplicate key') || message.includes('unique constraint')) {
+      return '此時段已被預約，請選擇其他時間';
+    }
+    if (message.includes('violates foreign key')) {
+      return '選擇的會議室不存在，請重新選擇';
+    }
+    if (message.includes('network') || message.includes('fetch')) {
+      return '網路連線異常，請檢查網路後重試';
+    }
+    if (message.includes('timeout')) {
+      return '伺服器回應超時，請稍後再試';
+    }
+    if (message.includes('permission') || message.includes('denied')) {
+      return '您沒有權限執行此操作';
+    }
+    if (message.includes('not found')) {
+      return '找不到相關資料，請重新整理頁面';
+    }
+    if (message.includes('invalid') || message.includes('malformed')) {
+      return '輸入資料格式不正確，請檢查後重試';
+    }
+
+    // 預設訊息
+    return '操作失敗，請稍後再試或聯繫系統管理員';
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // 檢查時間衝突
     if (conflicts.length > 0) {
-      setErrorMsg('該時段已有其他預約，請選擇其他時間');
+      const conflictDetails = conflicts.map(c =>
+        `「${c.title}」(${c.start_time.substring(0, 5)} - ${c.end_time.substring(0, 5)})`
+      ).join('、');
+      setErrorMsg(`該時段與以下預約衝突：${conflictDetails}，請選擇其他時間`);
       return;
     }
 
@@ -198,7 +234,8 @@ export default function BookingForm() {
 
       navigate(`${BASE_PATH}/dashboard`);
     } catch (error) {
-      setErrorMsg(`提交失敗：${error.message}`);
+      console.error('預約提交錯誤:', error);
+      setErrorMsg(translateError(error));
     } finally {
       setSubmitting(false);
     }
@@ -216,7 +253,8 @@ export default function BookingForm() {
       alert('預約已取消');
       navigate(`${BASE_PATH}/dashboard`);
     } catch (error) {
-      setErrorMsg(`取消失敗：${error.message}`);
+      console.error('取消預約錯誤:', error);
+      setErrorMsg(translateError(error));
     }
   };
 
@@ -395,18 +433,32 @@ export default function BookingForm() {
 
           {/* 衝突警告 */}
           {conflicts.length > 0 && (
-            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-700 font-bold flex items-center gap-2">
-                <AlertCircle size={18} />
-                該時段已有其他預約：
-              </p>
-              <ul className="mt-2 text-sm text-red-600 list-disc list-inside">
-                {conflicts.map(c => (
-                  <li key={c.id}>
-                    {c.title} ({c.start_time.substring(0, 5)} - {c.end_time.substring(0, 5)})
-                  </li>
-                ))}
-              </ul>
+            <div className="mt-4 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg animate-pulse">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-red-100 rounded-full shrink-0">
+                  <AlertCircle size={20} className="text-red-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-red-700 font-bold text-base">
+                    時段衝突提醒
+                  </p>
+                  <p className="text-red-600 text-sm mt-1">
+                    您選擇的時段與以下預約重疊，請調整時間：
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    {conflicts.map(c => (
+                      <div key={c.id} className="flex items-center gap-2 text-sm bg-white/60 p-2 rounded-lg border border-red-200">
+                        <Clock size={14} className="text-red-500 shrink-0" />
+                        <span className="font-medium text-red-800">{c.start_time.substring(0, 5)} - {c.end_time.substring(0, 5)}</span>
+                        <span className="text-red-600">「{c.title}」</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-red-500 mt-3">
+                    提示：請選擇不同的開始或結束時間來避免衝突
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </section>
