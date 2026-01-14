@@ -19,22 +19,19 @@ import { useAuth } from '../../../../contexts/AuthContext';
 const BASE_PATH = '/systems/payment-approval';
 
 // 六扇門 Logo 組件 - 修改為適應白底的樣式
-const Logo = () => (
-  // 修改：背景改為淡紅色，並移除 shadow-sm 改為 text-color 控制 SVG 顏色
-  <div className="bg-red-50 p-1.5 rounded-lg text-red-700">
-    <svg viewBox="0 0 40 40" className="w-6 h-6">
-      <polygon
-        points="20,2 34,8 38,22 34,34 20,38 6,34 2,22 6,8"
-        fill="none"
-        stroke="currentColor" // 使用 currentColor 繼承父層 text-red-700
-        strokeWidth="2.5"
+const Logo = ({ size = 'default' }) => {
+  const sizeClasses = size === 'small' ? 'w-8 h-8' : 'w-10 h-10 sm:w-12 sm:h-12';
+  return (
+    <div className={`${sizeClasses} relative flex items-center justify-center`}>
+      {/* 3. 使用 img 標籤顯示 Logo */}
+      <img 
+        src={logoSrc} 
+        alt="六扇門 Logo" 
+        className="w-full h-full object-contain filter drop-shadow-md" // object-contain 確保圖片不變形
       />
-      <circle cx="20" cy="20" r="8" fill="none" stroke="currentColor" strokeWidth="2"/>
-      <line x1="20" y1="12" x2="20" y2="28" stroke="currentColor" strokeWidth="2"/>
-      <line x1="12" y1="20" x2="28" y2="20" stroke="currentColor" strokeWidth="2"/>
-    </svg>
-  </div>
-);
+    </div>
+  );
+};
 
 export default function Header() {
   const location = useLocation();
