@@ -1,21 +1,29 @@
 import { useState } from 'react'
-import { Plus, Search, UserCheck, Trash2, XCircle, User, Package, Calendar } from 'lucide-react'
+import { Plus, Search, UserCheck, Trash2, XCircle, User, Package, Calendar, Monitor } from 'lucide-react'
 import { Card, CardContent } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input, Select, Textarea } from '../components/ui/Input'
 import { Badge } from '../components/ui/Badge'
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, EmptyState } from '../components/ui/Table'
 import { Modal, ConfirmModal } from '../components/ui/Modal'
 import { Loading } from '../components/ui/Loading'
 import { useLicenseAssignments, useLicenses } from '../hooks/useLicenses'
 import { useEmployees } from '../hooks/useEmployees'
-import { formatDate, getCategoryColor, getCategoryLabel, getUsagePercentage } from '../utils/helpers'
+import { useDevices } from '../hooks/useDevices'
+import { formatDate, getCategoryColor, getCategoryLabel } from '../utils/helpers'
 import toast from 'react-hot-toast'
 
-function AssignmentForm({ licenses, employees, onSubmit, onClose }) {
+const ASSIGN_TO_OPTIONS = [
+  { value: 'employee', label: '員工' },
+  { value: 'device', label: '設備' },
+  { value: 'both', label: '員工 + 設備' }
+]
+
+function AssignmentForm({ licenses, employees, devices, onSubmit, onClose }) {
   const [formData, setFormData] = useState({
     license_id: '',
+    assign_to: 'employee',
     employee_id: '',
+    device_id: '',
     assigned_date: new Date().toISOString().split('T')[0],
     notes: ''
   })
@@ -30,11 +38,33 @@ function AssignmentForm({ licenses, employees, onSubmit, onClose }) {
   // 過濾出在職員工
   const activeEmployees = employees.filter(e => e.status === 'active')
 
+  // 過濾出可用設備
+  const activeDevices = devices.filter(d => d.status === 'active')
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+
+    // 驗證至少選擇一個分配對象
+    if (formData.assign_to === 'employee' && !formData.employee_id) {
+      toast.error('請選擇員工')
+      return
+    }
+    if (formData.assign_to === 'device' && !formData.device_id) {
+      toast.error('請選擇設備')
+      return
+    }
+    if (formData.assign_to === 'both' && !formData.employee_id && !formData.device_id) {
+      toast.error('請至少選擇一個員工或設備')
+      return
+    }
+
     setLoading(true)
     await onSubmit({
-      ...formData,
+      license_id: formData.license_id,
+      employee_id: formData.employee_id || null,
+      device_id: formData.device_id || null,
+      assigned_date: formData.assigned_date,
+      notes: formData.notes,
       is_active: true
     })
     setLoading(false)
@@ -42,6 +72,9 @@ function AssignmentForm({ licenses, employees, onSubmit, onClose }) {
 
   const selectedLicense = availableLicenses.find(l => l.id === formData.license_id)
   const availableCount = selectedLicense ? selectedLicense.quantity - (selectedLicense.assigned_count || 0) : 0
+
+  const showEmployeeSelect = formData.assign_to === 'employee' || formData.assign_to === 'both'
+  const showDeviceSelect = formData.assign_to === 'device' || formData.assign_to === 'both'
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -73,16 +106,44 @@ function AssignmentForm({ licenses, employees, onSubmit, onClose }) {
       )}
 
       <Select
-        label="選擇員工"
-        value={formData.employee_id}
-        onChange={(e) => setFormData(prev => ({ ...prev, employee_id: e.target.value }))}
-        options={activeEmployees.map(e => ({
-          value: e.id,
-          label: `${e.name} (${e.employee_id || '無編號'}) - ${e.department?.name || '無部門'}`
+        label="分配給"
+        value={formData.assign_to}
+        onChange={(e) => setFormData(prev => ({
+          ...prev,
+          assign_to: e.target.value,
+          employee_id: e.target.value === 'device' ? '' : prev.employee_id,
+          device_id: e.target.value === 'employee' ? '' : prev.device_id
         }))}
-        placeholder="選擇要分配的員工"
-        required
+        options={ASSIGN_TO_OPTIONS}
       />
+
+      {showEmployeeSelect && (
+        <Select
+          label="選擇員工"
+          value={formData.employee_id}
+          onChange={(e) => setFormData(prev => ({ ...prev, employee_id: e.target.value }))}
+          options={activeEmployees.map(e => ({
+            value: e.id,
+            label: `${e.name} (${e.employee_id || '無編號'}) - ${e.department?.name || '無部門'}`
+          }))}
+          placeholder="選擇員工"
+          required={formData.assign_to === 'employee'}
+        />
+      )}
+
+      {showDeviceSelect && (
+        <Select
+          label="選擇設備"
+          value={formData.device_id}
+          onChange={(e) => setFormData(prev => ({ ...prev, device_id: e.target.value }))}
+          options={activeDevices.map(d => ({
+            value: d.id,
+            label: `${d.name} (${d.serial_number || '無序號'})${d.employee ? ` - ${d.employee.name}` : ''}`
+          }))}
+          placeholder="選擇設備"
+          required={formData.assign_to === 'device'}
+        />
+      )}
 
       <Input
         type="date"
@@ -112,9 +173,11 @@ export function Assignments() {
   const { assignments, loading, assignLicense, unassignLicense, deleteAssignment } = useLicenseAssignments()
   const { licenses } = useLicenses()
   const { employees } = useEmployees()
+  const { devices } = useDevices()
 
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('active')
+  const [typeFilter, setTypeFilter] = useState('all')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showUnassignModal, setShowUnassignModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
@@ -125,11 +188,17 @@ export function Assignments() {
     const matchesSearch =
       a.employee?.name?.toLowerCase().includes(search) ||
       a.employee?.employee_id?.toLowerCase().includes(search) ||
+      a.device?.name?.toLowerCase().includes(search) ||
+      a.device?.serial_number?.toLowerCase().includes(search) ||
       a.license?.software?.name?.toLowerCase().includes(search)
     const matchesStatus = statusFilter === 'all' ||
       (statusFilter === 'active' && a.is_active) ||
       (statusFilter === 'inactive' && !a.is_active)
-    return matchesSearch && matchesStatus
+    const matchesType = typeFilter === 'all' ||
+      (typeFilter === 'employee' && a.employee_id && !a.device_id) ||
+      (typeFilter === 'device' && a.device_id && !a.employee_id) ||
+      (typeFilter === 'both' && a.employee_id && a.device_id)
+    return matchesSearch && matchesStatus && matchesType
   })
 
   const handleAssign = async (data) => {
@@ -164,6 +233,18 @@ export function Assignments() {
     }
   }
 
+  // 取得分配對象的顯示名稱
+  const getAssigneeDisplay = (assignment) => {
+    const parts = []
+    if (assignment.employee) {
+      parts.push(assignment.employee.name)
+    }
+    if (assignment.device) {
+      parts.push(assignment.device.name)
+    }
+    return parts.length > 0 ? parts.join(' / ') : '-'
+  }
+
   if (loading) {
     return <div className="p-6"><Loading size="lg" className="min-h-[400px]" /></div>
   }
@@ -171,13 +252,15 @@ export function Assignments() {
   // 統計資訊
   const activeAssignments = assignments.filter(a => a.is_active).length
   const totalAssignments = assignments.length
+  const employeeAssignments = assignments.filter(a => a.is_active && a.employee_id).length
+  const deviceAssignments = assignments.filter(a => a.is_active && a.device_id).length
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">授權分配</h1>
-          <p className="text-gray-500 mt-1">管理員工的軟體授權分配</p>
+          <p className="text-gray-500 mt-1">管理軟體授權的分配（員工/設備）</p>
         </div>
         <Button onClick={() => setShowCreateModal(true)}>
           <Plus className="h-4 w-4 mr-2" />新增分配
@@ -185,7 +268,7 @@ export function Assignments() {
       </div>
 
       {/* 統計卡片 */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -195,6 +278,32 @@ export function Assignments() {
               <div>
                 <p className="text-sm text-gray-500">使用中</p>
                 <p className="text-xl font-bold text-gray-900">{activeAssignments}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <User className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">員工授權</p>
+                <p className="text-xl font-bold text-gray-900">{employeeAssignments}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-indigo-100 rounded-lg">
+                <Monitor className="h-5 w-5 text-indigo-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">設備授權</p>
+                <p className="text-xl font-bold text-gray-900">{deviceAssignments}</p>
               </div>
             </div>
           </CardContent>
@@ -212,19 +321,6 @@ export function Assignments() {
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Calendar className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">總記錄數</p>
-                <p className="text-xl font-bold text-gray-900">{totalAssignments}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       <Card>
@@ -234,7 +330,7 @@ export function Assignments() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="搜尋員工姓名、軟體..."
+                  placeholder="搜尋員工、設備、軟體..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -242,10 +338,21 @@ export function Assignments() {
               </div>
             </div>
             <Select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              options={[
+                { value: 'all', label: '全部類型' },
+                { value: 'employee', label: '員工' },
+                { value: 'device', label: '設備' },
+                { value: 'both', label: '員工+設備' }
+              ]}
+              className="w-36"
+            />
+            <Select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               options={[
-                { value: 'all', label: '全部' },
+                { value: 'all', label: '全部狀態' },
                 { value: 'active', label: '使用中' },
                 { value: 'inactive', label: '已取消' }
               ]}
@@ -255,95 +362,115 @@ export function Assignments() {
         </CardContent>
       </Card>
 
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>員工</TableHead>
-              <TableHead>軟體</TableHead>
-              <TableHead>類別</TableHead>
-              <TableHead>分配日期</TableHead>
-              <TableHead>取消日期</TableHead>
-              <TableHead>狀態</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredAssignments.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7}>
-                  <EmptyState message="暫無分配記錄" icon={UserCheck} />
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredAssignments.map((assignment) => (
-                <TableRow key={assignment.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-gray-400" />
-                      <div>
-                        <p className="font-medium text-gray-900">{assignment.employee?.name || '-'}</p>
-                        <p className="text-sm text-gray-500">
-                          {assignment.employee?.employee_id} · {assignment.employee?.department?.name}
-                        </p>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Package className="h-4 w-4 text-gray-400" />
-                      <span className="text-gray-900">{assignment.license?.software?.name || '-'}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {assignment.license?.software?.category ? (
-                      <Badge className={getCategoryColor(assignment.license.software.category)}>
-                        {getCategoryLabel(assignment.license.software.category)}
-                      </Badge>
-                    ) : '-'}
-                  </TableCell>
-                  <TableCell className="text-gray-600">
-                    {formatDate(assignment.assigned_date)}
-                  </TableCell>
-                  <TableCell className="text-gray-600">
-                    {assignment.unassigned_date ? formatDate(assignment.unassigned_date) : '-'}
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={assignment.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
-                      {assignment.is_active ? '使用中' : '已取消'}
+      {/* 授權分配卡片網格 */}
+      {filteredAssignments.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+          <UserCheck size={48} className="mx-auto mb-3 text-gray-300" />
+          <p className="text-gray-500">暫無分配記錄</p>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="mt-4 text-blue-600 hover:text-blue-700 font-medium"
+          >
+            立即新增
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredAssignments.map((assignment) => (
+            <div
+              key={assignment.id}
+              className={`bg-white rounded-xl border p-5 transition-all hover:shadow-lg ${
+                assignment.is_active ? 'border-gray-200' : 'border-gray-100 opacity-60'
+              }`}
+            >
+              {/* 卡片頭部 */}
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Package className="h-4 w-4 text-gray-400" />
+                    <h3 className="font-bold text-gray-800 truncate">
+                      {assignment.license?.software?.name || '-'}
+                    </h3>
+                  </div>
+                  {assignment.license?.software?.category && (
+                    <Badge className={getCategoryColor(assignment.license.software.category)}>
+                      {getCategoryLabel(assignment.license.software.category)}
                     </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-2">
-                      {assignment.is_active && (
-                        <button
-                          onClick={() => { setSelectedAssignment(assignment); setShowUnassignModal(true) }}
-                          className="p-1 text-gray-400 hover:text-orange-600 rounded"
-                          title="取消分配"
-                        >
-                          <XCircle className="h-4 w-4" />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => { setSelectedAssignment(assignment); setShowDeleteModal(true) }}
-                        className="p-1 text-gray-400 hover:text-red-600 rounded"
-                        title="刪除記錄"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                  )}
+                </div>
+                <div className="flex gap-1 ml-2">
+                  {assignment.is_active && (
+                    <button
+                      onClick={() => { setSelectedAssignment(assignment); setShowUnassignModal(true) }}
+                      className="p-2 hover:bg-orange-50 text-gray-500 hover:text-orange-600 rounded-lg transition-colors"
+                      title="取消分配"
+                    >
+                      <XCircle size={16} />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => { setSelectedAssignment(assignment); setShowDeleteModal(true) }}
+                    className="p-2 hover:bg-red-50 text-gray-500 hover:text-red-600 rounded-lg transition-colors"
+                    title="刪除記錄"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* 分配對象 */}
+              <div className="space-y-2 mb-3">
+                {assignment.employee && (
+                  <div className="flex items-center gap-2 bg-blue-50 rounded-lg px-3 py-2">
+                    <User size={16} className="text-blue-600 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-medium text-blue-800 truncate">{assignment.employee.name}</p>
+                      <p className="text-xs text-blue-600">
+                        {assignment.employee.employee_id} · {assignment.employee.department?.name}
+                      </p>
                     </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </Card>
+                  </div>
+                )}
+                {assignment.device && (
+                  <div className="flex items-center gap-2 bg-indigo-50 rounded-lg px-3 py-2">
+                    <Monitor size={16} className="text-indigo-600 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-medium text-indigo-800 truncate">{assignment.device.name}</p>
+                      {assignment.device.serial_number && (
+                        <p className="text-xs text-indigo-600 font-mono">{assignment.device.serial_number}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 狀態和日期 */}
+              <div className="flex items-center justify-between text-sm">
+                <Badge className={assignment.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
+                  {assignment.is_active ? '使用中' : '已取消'}
+                </Badge>
+                <span className="text-gray-500 flex items-center gap-1">
+                  <Calendar size={14} />
+                  {formatDate(assignment.assigned_date)}
+                </span>
+              </div>
+
+              {/* 取消日期 */}
+              {assignment.unassigned_date && (
+                <p className="text-xs text-gray-400 mt-2">
+                  取消於 {formatDate(assignment.unassigned_date)}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="新增授權分配" size="lg">
         <AssignmentForm
           licenses={licenses}
           employees={employees}
+          devices={devices}
           onSubmit={handleAssign}
           onClose={() => setShowCreateModal(false)}
         />
@@ -354,7 +481,7 @@ export function Assignments() {
         onClose={() => { setShowUnassignModal(false); setSelectedAssignment(null) }}
         onConfirm={handleUnassign}
         title="取消授權分配"
-        message={`確定要取消「${selectedAssignment?.employee?.name}」的「${selectedAssignment?.license?.software?.name}」授權嗎？`}
+        message={`確定要取消「${getAssigneeDisplay(selectedAssignment || {})}」的「${selectedAssignment?.license?.software?.name}」授權嗎？`}
         confirmText="取消分配"
       />
 

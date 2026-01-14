@@ -113,6 +113,9 @@ export function useLicenseAssignments(licenseId = null) {
         employee:employees(
           id, employee_id, name,
           department:departments(id, name)
+        ),
+        device:devices(
+          id, name, serial_number, device_type
         )
       `)
       .order('created_at', { ascending: false })
@@ -146,6 +149,9 @@ export function useLicenseAssignments(licenseId = null) {
         employee:employees(
           id, employee_id, name,
           department:departments(id, name)
+        ),
+        device:devices(
+          id, name, serial_number, device_type
         )
       `)
       .single()
