@@ -24,12 +24,15 @@ import {
     X,               // 新增
     Image as ImageIcon,
     ChevronLeft, // ✅ 新增這個
-    RotateCcw
+    RotateCcw,
+    Wallet // ✅ 新增這個
 } from 'lucide-react';
 
 const SectionTitle = ({ icon: Icon, title }) => (
-    <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-200 text-emerald-800 font-bold text-lg">
-        <Icon size={20} />
+    <div className="flex items-center gap-2 mb-4 pb-2 border-b border-stone-200 text-stone-700 font-bold text-lg">
+        <div className="p-1.5 bg-red-50 text-red-600 rounded-lg">
+           <Icon size={20} />
+        </div>
         <h3>{title}</h3>
     </div>
 );
@@ -512,37 +515,35 @@ export default function ApplyForm() {
         }
     };
 
-    return (
-        <div className="min-h-screen bg-gray-100 py-8 px-4 sm:px-6 lg:px-8 font-sans">
-            <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden">
+        return (
+            <div className="min-h-screen bg-stone-50 py-8 px-4 sm:px-6 lg:px-8 font-sans">
+                <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-stone-200">
 
-                <div className="bg-emerald-800 px-4 py-4 sm:px-6 sm:py-5 text-white flex justify-between items-center relative">
-                    <button onClick={() => navigate(`${BASE_PATH}/dashboard`)} className="mr-3 p-1 hover:bg-emerald-700 rounded-full transition-colors md:hidden">
-                        <ChevronLeft size={24} />
-                    </button>
-                    <div className="flex-1">
-                        <h1 className="text-xl sm:text-2xl font-bold tracking-wider flex items-center gap-2">
-                            <FileText className="hidden sm:block" size={24} />
-                            {/* 🔴 修改點：判斷 editId 顯示不同標題 */}
-                            {editId ? '編輯 / 重送付款單' : '付款單申請系統'}
-                        </h1>
-                        <p className="text-emerald-200 text-xs sm:text-sm mt-0.5">
-                            {editId ? `Editing Request #${editId}` : 'Payment Request Form'}
-                        </p>
-                    </div>
-                    <div className="text-right text-xs text-emerald-200 hidden sm:block">
-                        <p>系統狀態：連線中 (Supabase)</p>
-                    </div>
+            <div className="bg-white px-4 py-4 sm:px-6 sm:py-5 border-b border-stone-100 flex justify-between items-center relative">
+                <button onClick={() => navigate(`${BASE_PATH}/dashboard`)} className="mr-3 p-2 hover:bg-stone-50 text-stone-500 rounded-full transition-colors md:hidden">
+                    <ChevronLeft size={24} />
+                </button>
+                <div className="flex-1">
+                    <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-stone-800 flex items-center gap-3">
+                        <div className="p-2 bg-red-50 rounded-lg text-red-600">
+                            <Wallet size={24} />
+                        </div>
+                        {editId ? '編輯 / 重送付款單' : '付款單申請'}
+                    </h1>
+                    <p className="text-stone-400 text-xs sm:text-sm mt-1 ml-1">
+                        {editId ? `Editing Request #${editId}` : 'Create New Payment Request'}
+                    </p>
                 </div>
+            </div>
 
                 {successMsg && (
-                    <div className="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 m-6 rounded shadow-sm flex items-center whitespace-pre-line">
+                    <div className="bg-emerald-50 border-l-4 border-green-500 text-green-700 p-4 m-6 rounded shadow-sm flex items-center whitespace-pre-line">
                         <CheckCircle className="mr-2" />
                         <p>{successMsg}</p>
                     </div>
                 )}
                 {errorMsg && (
-                    <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 m-6 rounded shadow-sm flex items-center">
+                    <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 m-6 rounded shadow-sm flex items-center">
                         <AlertCircle className="mr-2" />
                         <p>{errorMsg}</p>
                     </div>
@@ -555,7 +556,7 @@ export default function ApplyForm() {
                 <form onSubmit={handleSubmit} className="p-3 md:p-8 space-y-6 md:space-y-8">
 
                     {/* 一、基本付款資訊 */}
-                    <section className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                    <section className="bg-stone-50/50 p-4 rounded-lg border border-stone-200/60">
                         <SectionTitle icon={FileText} title="一、基本付款資訊" />
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -564,14 +565,14 @@ export default function ApplyForm() {
                             <div className="col-span-1 flex flex-col">
                                 <label className="block text-sm font-medium text-gray-700 mb-1.5 flex justify-between items-center">
                                     <span>支付品牌 <span className="text-red-500">*</span></span>
-                                    {fetchingBrands && <span className="text-emerald-600 flex items-center text-xs"><Loader2 className="animate-spin h-3 w-3 mr-1" />載入中...</span>}
+                                    {fetchingBrands && <span className="text-red-500 flex items-center text-xs"><Loader2 className="animate-spin h-3 w-3 mr-1" />載入中...</span>}
                                 </label>
                                 <select
                                     name="brandId"
                                     value={formData.brandId}
                                     onChange={handleBrandChange}
                                     required
-                                    className="w-full rounded-md border-gray-300 p-3 border bg-white focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm"
+                                    className="w-full rounded-md border-stone-200 p-3 border bg-white focus:ring-2 focus:ring-red-500 outline-none shadow-sm"
                                 >
                                     <option value="">請選擇品牌</option>
                                     {brandList.map(brand => (
@@ -584,7 +585,7 @@ export default function ApplyForm() {
                             <div className="col-span-1 flex flex-col">
                                 <label className="block text-sm font-medium text-gray-700 mb-1.5 flex justify-between items-center">
                                     <span>支付門店 <span className="text-red-500">*</span></span>
-                                    {fetchingStores && <span className="text-emerald-600 flex items-center text-xs"><Loader2 className="animate-spin h-3 w-3 mr-1" />查詢中...</span>}
+                                    {fetchingStores && <span className="text-red-500 flex items-center text-xs"><Loader2 className="animate-spin h-3 w-3 mr-1" />查詢中...</span>}
                                 </label>
                                 <SearchableSelect
                                     options={storeList.map(store => ({
@@ -618,7 +619,7 @@ export default function ApplyForm() {
                                     value={formData.paymentDate}
                                     onChange={handleChange}
                                     required
-                                    className="w-full rounded-md border-gray-300 p-2.5 border bg-white focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm"
+                                    className="w-full rounded-md border-stone-200 p-2.5 border bg-white focus:ring-2 focus:ring-red-500 outline-none shadow-sm"
                                 />
                             </div>
 
@@ -636,12 +637,12 @@ export default function ApplyForm() {
                                     rows={3}
                                     placeholder="例如：11月租金、RFY-2011 車貸..."
                                     required
-                                    className="w-full rounded-md border-gray-300 p-2.5 border bg-white focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm"
+                                    className="w-full rounded-md border-stone-200 p-2.5 border bg-white focus:ring-2 focus:ring-red-500 outline-none shadow-sm"
                                 />
                             </div>
 
                             {/* 6. 金額與稅別 (手機垂直/電腦水平) */}
-                            <div className="col-span-1 md:col-span-2 bg-white p-4 rounded-lg border border-emerald-100 shadow-sm">
+                            <div className="col-span-1 md:col-span-2 bg-white p-4 rounded-lg border border-stone-200 shadow-sm">
                                 <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-center">
 
                                     {/* 選項區：手機橫向排列，不會被擠壓 */}
@@ -653,7 +654,7 @@ export default function ApplyForm() {
                                                 value="tax_included"
                                                 checked={formData.taxType === 'tax_included'}
                                                 onChange={handleChange}
-                                                className="w-5 h-5 text-emerald-600 focus:ring-emerald-500"
+                                                className="w-5 h-5 text-red-500 focus:ring-red-500"
                                             />
                                             <span className="text-base font-medium text-gray-700">含稅</span>
                                         </label>
@@ -664,7 +665,7 @@ export default function ApplyForm() {
                                                 value="tax_excluded"
                                                 checked={formData.taxType === 'tax_excluded'}
                                                 onChange={handleChange}
-                                                className="w-5 h-5 text-emerald-600 focus:ring-emerald-500"
+                                                className="w-5 h-5 text-red-500 focus:ring-red-500"
                                             />
                                             <span className="text-base font-medium text-gray-700">未稅</span>
                                         </label>
@@ -684,7 +685,7 @@ export default function ApplyForm() {
                                                 onChange={handleChange}
                                                 placeholder="0"
                                                 required
-                                                className="w-full pl-6 pr-2 py-1 text-2xl font-bold text-gray-800 border-b-2 border-gray-300 focus:border-emerald-600 outline-none bg-transparent placeholder-gray-300"
+                                                className="w-full pl-6 pr-2 py-1 text-2xl font-bold text-gray-800 border-b-2 border-stone-200 focus:border-red-600 outline-none bg-transparent placeholder-gray-300"
                                             />
                                         </div>
                                     </div>
@@ -696,7 +697,7 @@ export default function ApplyForm() {
                     </section>
 
                     {/* 二、付款方式 */}
-                    <section className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                    <section className="bg-stone-50/50 p-4 rounded-lg border border-stone-200/60">
                         <SectionTitle icon={CreditCard} title="二、付款方式" />
                         <div className="space-y-4">
                             <div className="flex flex-wrap gap-6">
@@ -708,7 +709,7 @@ export default function ApplyForm() {
                                             value={method}
                                             checked={formData.paymentMethod === method}
                                             onChange={handleChange}
-                                            className="text-emerald-600 focus:ring-emerald-500"
+                                            className="text-red-500 focus:ring-red-500"
                                         />
                                         <span className="text-sm font-medium">
                                             {method === 'transfer' ? '網銀轉帳' : method === 'cash' ? '現金' : '其他'}
@@ -724,7 +725,7 @@ export default function ApplyForm() {
                                     onChange={handleChange}
                                     required
                                     placeholder="請說明付款方式"
-                                    className="w-full md:w-1/2 rounded-md border-gray-300 p-2 border text-sm"
+                                    className="w-full md:w-1/2 rounded-md border-stone-200 p-2 border text-sm"
                                 />
                             )}
 
@@ -767,7 +768,7 @@ export default function ApplyForm() {
                     {/* ✅ Task 6: 三、受款與銀行資料 (合併顯示受款戶名) */}
                     {/* ✅ 修改：只有在「網銀轉帳」時，才顯示整個第三區塊 (包含受款戶名與銀行資料) */}
                     {formData.paymentMethod === 'transfer' && (
-                        <section className="bg-gray-50 p-4 rounded-lg border border-gray-100 animate-in slide-in-from-top-5 duration-300">
+                        <section className="bg-stone-50/50 p-4 rounded-lg border border-stone-200/60 animate-in slide-in-from-top-5 duration-300">
                             <SectionTitle icon={Building} title="三、受款銀行資料" />
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -784,7 +785,7 @@ export default function ApplyForm() {
                                         onChange={handleChange}
                                         placeholder="請輸入完整戶名"
                                         required
-                                        className="w-full rounded-md border-gray-300 p-2.5 border bg-white focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm"
+                                        className="w-full rounded-md border-stone-200 p-2.5 border bg-white focus:ring-2 focus:ring-red-500 outline-none shadow-sm"
                                     />
                                 </div>
 
@@ -792,7 +793,7 @@ export default function ApplyForm() {
                                 <div className="col-span-1 flex flex-col">
                                     <label className="block text-sm font-medium text-gray-700 mb-1.5 flex justify-between items-center">
                                         <span>受款銀行 <span className="text-red-500">*</span></span>
-                                        {fetchingBanks && <span className="text-emerald-600 flex items-center text-xs"><Loader2 className="animate-spin h-3 w-3 mr-1" />載入中...</span>}
+                                        {fetchingBanks && <span className="text-red-500 flex items-center text-xs"><Loader2 className="animate-spin h-3 w-3 mr-1" />載入中...</span>}
                                     </label>
                                     <SearchableSelect
                                         options={bankList.map(bank => ({
@@ -823,7 +824,7 @@ export default function ApplyForm() {
                                 <div className="col-span-1 flex flex-col">
                                     <label className="block text-sm font-medium text-gray-700 mb-1.5 flex justify-between items-center">
                                         <span>受款分行</span>
-                                        {fetchingBranches && <span className="text-emerald-600 flex items-center text-xs"><Loader2 className="animate-spin h-3 w-3 mr-1" />查詢中...</span>}
+                                        {fetchingBranches && <span className="text-red-500 flex items-center text-xs"><Loader2 className="animate-spin h-3 w-3 mr-1" />查詢中...</span>}
                                     </label>
 
                                     {branchList.length > 0 ? (
@@ -857,7 +858,7 @@ export default function ApplyForm() {
                                             onChange={handleChange}
                                             placeholder={!formData.bankCode ? "請先選擇銀行" : fetchingBranches ? "載入分行資料中..." : "查無分行資料，請手動輸入"}
                                             disabled={!formData.bankCode}
-                                            className="w-full rounded-md border-gray-300 p-3 border disabled:bg-gray-100 disabled:text-gray-400 focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm"
+                                            className="w-full rounded-md border-stone-200 p-3 border disabled:bg-gray-100 disabled:text-gray-400 focus:ring-2 focus:ring-red-500 outline-none shadow-sm"
                                         />
                                     )}
                                 </div>
@@ -874,7 +875,7 @@ export default function ApplyForm() {
                                         onChange={handleChange}
                                         placeholder="請輸入帳號"
                                         required
-                                        className="w-full rounded-md border-gray-300 p-3 border font-mono tracking-wide focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm"
+                                        className="w-full rounded-md border-stone-200 p-3 border font-mono tracking-wide focus:ring-2 focus:ring-red-500 outline-none shadow-sm"
                                     />
                                 </div>
 
@@ -889,7 +890,7 @@ export default function ApplyForm() {
                                         value={formData.branchCode}
                                         onChange={handleChange}
                                         placeholder="系統會自動帶入 (若有)"
-                                        className="w-full rounded-md border-gray-300 p-3 border bg-gray-100 text-gray-500 cursor-not-allowed outline-none shadow-sm"
+                                        className="w-full rounded-md border-stone-200 p-3 border bg-gray-100 text-gray-500 cursor-not-allowed outline-none shadow-sm"
                                         readOnly
                                     />
                                 </div>
@@ -899,7 +900,7 @@ export default function ApplyForm() {
                     )}
 
                     {/* 四、附件與發票 */}
-                    <section className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                    <section className="bg-stone-50/50 p-4 rounded-lg border border-stone-200/60">
                         <SectionTitle icon={Paperclip} title="四、附件與發票" />
 
                         <div className="space-y-4">
@@ -915,14 +916,14 @@ export default function ApplyForm() {
                                     onDrop={handleDrop}
                                     className={`
                     border-2 border-dashed rounded-lg p-6 text-center transition-colors
-                    ${isDragging ? 'border-emerald-500 bg-emerald-50' : 'border-gray-300 hover:border-emerald-400 bg-white'}
+                    ${isDragging ? 'border-red-500 bg-red-50' : 'border-stone-200 hover:border-red-400 bg-white'}
                   `}
                                 >
                                     <div className="flex flex-col items-center gap-2">
-                                        <UploadCloud className={`h-10 w-10 ${isDragging ? 'text-emerald-600' : 'text-gray-400'}`} />
+                                        <UploadCloud className={`h-10 w-10 ${isDragging ? 'text-red-500' : 'text-gray-400'}`} />
 
                                         <div className="text-sm text-gray-600">
-                                            <span className="font-semibold text-emerald-600">點擊上傳</span> 或將檔案拖曳至此
+                                            <span className="font-semibold text-red-500">點擊上傳</span> 或將檔案拖曳至此
                                         </div>
 
                                         <input
@@ -937,14 +938,14 @@ export default function ApplyForm() {
                                         <div className="flex gap-3 mt-2">
                                             <label
                                                 htmlFor="file-upload"
-                                                className="cursor-pointer bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-50 flex items-center gap-2 shadow-sm"
+                                                className="cursor-pointer bg-white border border-stone-200 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-stone-50/50 flex items-center gap-2 shadow-sm"
                                             >
                                                 <FileText size={16} /> 瀏覽檔案
                                             </label>
 
                                             <label
                                                 htmlFor="camera-upload"
-                                                className="cursor-pointer bg-emerald-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-emerald-700 flex items-center gap-2 shadow-sm"
+                                                className="cursor-pointer bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-700 flex items-center gap-2 shadow-sm"
                                             >
                                                 <Camera size={16} /> 拍照上傳
                                             </label>
@@ -960,13 +961,13 @@ export default function ApplyForm() {
                                     </div>
                                 </div>
                             ) : (
-                                <div className="bg-white border border-emerald-200 rounded-lg p-3 flex items-center justify-between shadow-sm">
+                                <div className="bg-white border border-stone-200 rounded-lg p-3 flex items-center justify-between shadow-sm">
                                     <div className="flex items-center gap-3 overflow-hidden">
-                                        <div className="bg-emerald-100 p-2 rounded">
+                                        <div className="bg-red-100 p-2 rounded">
                                             {formData.attachment.type.startsWith('image/') ? (
-                                                <ImageIcon className="text-emerald-600" size={24} />
+                                                <ImageIcon className="text-red-500" size={24} />
                                             ) : (
-                                                <FileText className="text-emerald-600" size={24} />
+                                                <FileText className="text-red-500" size={24} />
                                             )}
                                         </div>
                                         <div className="min-w-0">
@@ -994,7 +995,7 @@ export default function ApplyForm() {
                                 value={formData.attachmentDesc}
                                 onChange={handleChange}
                                 placeholder="附件備註說明 (選填)"
-                                className="w-full rounded-md border-gray-300 p-2 border text-sm"
+                                className="w-full rounded-md border-stone-200 p-2 border text-sm"
                             />
 
                             {/* ✅ [補回來的] 發票狀態與日期 */}
@@ -1009,7 +1010,7 @@ export default function ApplyForm() {
                                                 value={val}
                                                 checked={formData.hasInvoice === val}
                                                 onChange={handleChange}
-                                                className="text-emerald-600 focus:ring-emerald-500"
+                                                className="text-red-500 focus:ring-red-500"
                                             />
                                             <span className="text-sm">
                                                 {val === 'yes' ? '已附發票' : val === 'no_yet' ? '未開/後補' : '免用發票'}
@@ -1029,7 +1030,7 @@ export default function ApplyForm() {
                                             value={formData.invoiceDate}
                                             onChange={handleChange}
                                             required // 建議設為必填
-                                            className="block w-full md:w-auto rounded-md border-gray-300 p-2 border"
+                                            className="block w-full md:w-auto rounded-md border-stone-200 p-2 border"
                                         />
                                     </div>
                                 )}
@@ -1037,7 +1038,7 @@ export default function ApplyForm() {
                         </div>
                     </section>
                     {/* 五、備註 */}
-                    <section className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                    <section className="bg-stone-50/50 p-4 rounded-lg border border-stone-200/60">
                         <SectionTitle icon={MessageSquare} title="五、備註" />
                         <textarea
                             name="remarks"
@@ -1045,12 +1046,12 @@ export default function ApplyForm() {
                             onChange={handleChange}
                             rows={3}
                             placeholder="其他說明事項..."
-                            className="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 p-2 border"
+                            className="w-full rounded-md border-stone-200 shadow-sm focus:border-red-500 focus:ring-red-500 p-2 border"
                         />
                     </section>
 
                     {/* 七、製單資訊 */}
-                    <section className="bg-emerald-50 p-4 rounded-lg border border-emerald-100">
+                    <section className="bg-red-50/50 p-6 rounded-xl border border-red-100">
                         <SectionTitle icon={User} title="製單資訊" />
                         <div className="flex gap-6">
                             <div className="flex-1">
@@ -1062,7 +1063,7 @@ export default function ApplyForm() {
                                     onChange={handleChange}
                                     required
                                     readOnly
-                                    className="mt-1 block w-full bg-transparent border-b border-gray-400 focus:border-emerald-600 outline-none pb-1"
+                                    className="mt-1 block w-full bg-transparent border-b border-gray-400 focus:border-red-600 outline-none pb-1"
                                 />
                             </div>
                             <div className="flex-1">
@@ -1072,14 +1073,14 @@ export default function ApplyForm() {
                                     name="applyDate"
                                     value={formData.applyDate}
                                     readOnly
-                                    className="mt-1 block w-full bg-gray-100 text-gray-500 cursor-not-allowed border-b border-gray-300 pb-1 px-2 rounded-t"
+                                    className="mt-1 block w-full bg-gray-100 text-gray-500 cursor-not-allowed border-b border-stone-200 pb-1 px-2 rounded-t"
                                 />
                             </div>
                         </div>
                     </section>
 
                     {/* 六、簽核流程 (視覺展示) */}
-                    <section className="border-t-2 border-dashed border-gray-300 pt-6 mt-6">
+                    <section className="border-t-2 border-dashed border-stone-200 pt-6 mt-6">
                         <SectionTitle icon={ShieldCheck} title="六、簽核流程" />
 
                         {/* ✅ 新增外層 div：overflow-x-auto (允許左右滑動) */}
@@ -1087,9 +1088,9 @@ export default function ApplyForm() {
                             {/* ✅ 修改內層 div：設定 min-w (最小寬度) 確保不會被擠壓 */}
                             <div className="flex md:grid md:grid-cols-5 gap-2 text-center min-w-[600px] md:min-w-0">
                                 {['單位主管', '會計', '審核主管', '出納', '放行主管'].map((role, idx) => (
-                                    <div key={idx} className="border-2 border-gray-200 rounded p-4 flex flex-col items-center justify-center h-24 bg-gray-50 text-gray-400 flex-1">
+                                    <div key={idx} className="border-2 border-gray-200 rounded p-4 flex flex-col items-center justify-center h-24 bg-stone-50/50 text-gray-400 flex-1">
                                         <span className="text-xs font-bold mb-2 whitespace-nowrap">{role}</span>
-                                        <div className="w-12 h-12 rounded-full border border-gray-300 flex items-center justify-center text-xs bg-white">
+                                        <div className="w-12 h-12 rounded-full border border-stone-200 flex items-center justify-center text-xs bg-white">
                                             待簽
                                         </div>
                                     </div>
@@ -1102,8 +1103,8 @@ export default function ApplyForm() {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="bg-emerald-600 text-white px-8 py-3 rounded-lg hover:bg-emerald-700 focus:ring-4 focus:ring-emerald-300 font-bold text-lg shadow-md transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
+                            className="bg-red-600 text-white px-8 py-3.5 rounded-xl hover:bg-red-700 focus:ring-4 focus:ring-red-200 ..."
+                            >
                             {loading ? <><Loader2 className="animate-spin" size={20} /> 處理中...</> :
                                 editId ? <><RotateCcw size={20} /> 確認修改並重送</> :
                                     <><Save size={20} /> 提交付款單</>}
