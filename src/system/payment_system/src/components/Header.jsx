@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../../../../contexts/AuthContext';
-import logoSrc from '../../../../../assets/logo.png';
+import logoSrc from '../../../../assets/logo.png';
 // 付款系統的基礎路徑
 const BASE_PATH = '/systems/payment-approval';
 
