@@ -55,7 +55,7 @@ export default function BookingForm() {
   useEffect(() => {
     const fetchRooms = async () => {
       const { data } = await supabase
-        .from('meeting_rooms')
+        .from('rooms')
         .select('*')
         .eq('is_active', true)
         .order('name');
@@ -70,7 +70,7 @@ export default function BookingForm() {
       const fetchBooking = async () => {
         setLoading(true);
         const { data, error } = await supabase
-          .from('meeting_room_bookings')
+          .from('bookings')
           .select('*')
           .eq('id', id)
           .single();
@@ -110,7 +110,7 @@ export default function BookingForm() {
       }
 
       const { data } = await supabase
-        .from('meeting_room_bookings')
+        .from('bookings')
         .select('id, title, start_time, end_time')
         .eq('room_id', formData.room_id)
         .eq('booking_date', formData.booking_date)
@@ -156,14 +156,14 @@ export default function BookingForm() {
 
       if (isEditMode) {
         const { error } = await supabase
-          .from('meeting_room_bookings')
+          .from('bookings')
           .update(payload)
           .eq('id', id);
         if (error) throw error;
         alert('預約已更新！');
       } else {
         const { error } = await supabase
-          .from('meeting_room_bookings')
+          .from('bookings')
           .insert([payload]);
         if (error) throw error;
         alert('預約申請已送出！');
@@ -182,7 +182,7 @@ export default function BookingForm() {
 
     try {
       const { error } = await supabase
-        .from('meeting_room_bookings')
+        .from('bookings')
         .update({ status: 'cancelled' })
         .eq('id', id);
       if (error) throw error;

@@ -50,7 +50,7 @@ export default function RoomManagement() {
   const fetchRooms = async () => {
     setLoading(true);
     const { data, error } = await supabase
-      .from('meeting_rooms')
+      .from('rooms')
       .select('*')
       .order('name');
     if (!error) setRooms(data || []);
@@ -114,13 +114,13 @@ export default function RoomManagement() {
     try {
       if (editingRoom) {
         const { error } = await supabase
-          .from('meeting_rooms')
+          .from('rooms')
           .update(payload)
           .eq('id', editingRoom.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
-          .from('meeting_rooms')
+          .from('rooms')
           .insert([payload]);
         if (error) throw error;
       }
@@ -136,7 +136,7 @@ export default function RoomManagement() {
 
     try {
       const { error } = await supabase
-        .from('meeting_rooms')
+        .from('rooms')
         .delete()
         .eq('id', room.id);
       if (error) throw error;

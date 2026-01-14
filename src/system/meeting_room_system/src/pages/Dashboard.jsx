@@ -80,10 +80,10 @@ export default function Dashboard() {
         const endOfWeek = weekDates[6].toISOString().split('T')[0];
 
         const { data, error } = await supabase
-          .from('meeting_room_bookings')
+          .from('bookings')
           .select(`
             *,
-            meeting_rooms (id, name, location, capacity)
+            rooms (id, name, location, capacity)
           `)
           .gte('booking_date', startOfWeek)
           .lte('booking_date', endOfWeek)
@@ -248,7 +248,7 @@ export default function Dashboard() {
                         <div className="flex flex-wrap items-center gap-3 text-sm text-stone-500">
                           <span className="flex items-center gap-1">
                             <MapPin size={14} />
-                            {booking.meeting_rooms?.name || '未指定'}
+                            {booking.rooms?.name || '未指定'}
                           </span>
                           <span className="flex items-center gap-1">
                             <Users size={14} />
