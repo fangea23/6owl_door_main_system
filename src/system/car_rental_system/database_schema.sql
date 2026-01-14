@@ -207,6 +207,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- 刪除舊觸發器（如果存在）
+DROP TRIGGER IF EXISTS update_vehicles_updated_at ON car_rental.vehicles;
+DROP TRIGGER IF EXISTS update_rental_requests_updated_at ON car_rental.rental_requests;
+DROP TRIGGER IF EXISTS update_rentals_updated_at ON car_rental.rentals;
+DROP TRIGGER IF EXISTS update_maintenance_updated_at ON car_rental.maintenance_records;
+
+-- 創建新觸發器
 CREATE TRIGGER update_vehicles_updated_at
   BEFORE UPDATE ON car_rental.vehicles
   FOR EACH ROW
@@ -311,11 +318,13 @@ CREATE POLICY "Admins can manage rentals"
   USING (car_rental.is_admin());
 
 -- 政策：所有人可查看維護記錄
+DROP POLICY IF EXISTS "Anyone can view maintenance records" ON car_rental.maintenance_records;
 CREATE POLICY "Anyone can view maintenance records"
   ON car_rental.maintenance_records FOR SELECT
   USING (auth.uid() IS NOT NULL);
 
 -- 政策：管理員可管理維護記錄
+DROP POLICY IF EXISTS "Admins can manage maintenance records" ON car_rental.maintenance_records;
 CREATE POLICY "Admins can manage maintenance records"
   ON car_rental.maintenance_records FOR ALL
   USING (
