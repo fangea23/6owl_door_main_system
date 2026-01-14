@@ -18,7 +18,7 @@ export function AuthProvider({ children }) {
         .single();
 
       if (error) {
-        console.error('Error fetching profile:', error);
+        console.warn('Profile fetch warning:', error);
         return null;
       }
       return data;
@@ -34,15 +34,35 @@ export function AuthProvider({ children }) {
 
     const initAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        // 設定 3 秒超時限制，避免因 LocalStorage 損壞而無限轉圈
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Auth timeout')), 3000)
+        );
+
+        const sessionPromise = supabase.auth.getSession();
+
+        // 競賽：看是先取得 Session 還是先超時
+        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise])
+          .catch(async (err) => {
+            console.warn('Auth init timeout or error, forcing cleanup...', err);
+            // 如果超時或出錯，強制登出以清除壞掉的 cache
+            await supabase.auth.signOut(); 
+            return { data: { session: null } };
+          });
 
         if (session?.user && mounted) {
           setUser(session.user);
-          const userProfile = await fetchProfile(session.user.id);
+          // 嘗試取得 Profile，如果失敗也不要卡住整個 App
+          const userProfile = await fetchProfile(session.user.id).catch(() => null);
           if (mounted) setProfile(userProfile);
         }
       } catch (error) {
         console.error('Auth initialization failed:', error);
+        // 發生嚴重錯誤時確保狀態重置
+        if (mounted) {
+          setUser(null);
+          setProfile(null);
+        }
       } finally {
         if (mounted) setIsLoading(false);
       }
@@ -103,9 +123,16 @@ export function AuthProvider({ children }) {
 
   // 登出
   const logout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setProfile(null);
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setUser(null);
+      setProfile(null);
+      // 清除可能殘留的 LocalStorage (針對 Supabase)
+      localStorage.removeItem(`sb-${import.meta.env.VITE_SUPABASE_PROJECT_ID}-auth-token`);
+    }
   };
 
   // 更新用戶資料
@@ -149,7 +176,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 合併 user 和 profile 資訊，保持向後相容
+  // 合併 user 和 profile 資訊
   const combinedUser = user ? {
     ...user,
     ...profile,
@@ -166,7 +193,7 @@ export function AuthProvider({ children }) {
     profile,
     role: profile?.role,
     isLoading,
-    loading: isLoading, // 相容付款系統的命名
+    loading: isLoading,
     isAuthenticated: !!user,
     login,
     logout,
