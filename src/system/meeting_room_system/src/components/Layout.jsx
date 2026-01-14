@@ -10,16 +10,18 @@ import {
   Menu,
   X
 } from 'lucide-react';
-
+// 在其他 import 下方加入
+import logoSrc from '../../../../assets/logo.png'; // 確保路徑層級正確指向 src/assets/logo.png
 const BASE_PATH = '/systems/meeting-room';
 
 // 六扇門 Logo 組件 - 與主系統統一風格
+// 修改 Logo 組件
 const Logo = ({ size = 'default' }) => {
   const sizeClasses = size === 'small' ? 'w-8 h-8' : 'w-10 h-10';
   return (
     <div className={`${sizeClasses} relative flex items-center justify-center`}>
       <img
-        src="../../../../assets/logo.png"
+        src={logoSrc}  // 改用變數
         alt="六扇門 Logo"
         className="w-full h-full object-contain filter drop-shadow-md"
       />
@@ -161,7 +163,11 @@ export default function Layout() {
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-3 text-stone-600">
               <div className="w-8 h-8 flex items-center justify-center">
-                <img src="../../../../assets/logo.png" alt="Logo" className="w-full h-full object-contain opacity-80" />
+                <img 
+                  src={logoSrc} // 改用變數
+                  alt="Logo" 
+                  className="w-full h-full object-contain opacity-80" 
+                />
               </div>
               <div className="flex flex-col">
                 <span className="text-sm font-bold text-stone-800">六扇門企業服務入口</span>
