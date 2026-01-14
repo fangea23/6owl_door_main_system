@@ -1,4 +1,5 @@
 import SystemCard from './SystemCard';
+import { useAuth } from '../contexts/AuthContext';
 
 // 更新為新的品牌色系
 const colorVariants = {
@@ -6,13 +7,24 @@ const colorVariants = {
   stone: 'from-stone-500 to-stone-600',
   amber: 'from-amber-500 to-orange-500',
   // 保留 Blue 但調低飽和度以融入
-  blue: 'from-blue-500 to-cyan-500', 
+  blue: 'from-blue-500 to-cyan-500',
 };
 
 export default function CategorySection({ category, onSystemClick }) {
+  const { role } = useAuth();
   const gradientColor = colorVariants[category.color] || colorVariants.stone;
 
-  if (category.systems.length === 0) {
+  // 根據用戶角色過濾系統
+  const visibleSystems = category.systems.filter(system => {
+    // 如果系統沒有 requiresRole，所有人都可以看到
+    if (!system.requiresRole || system.requiresRole.length === 0) {
+      return true;
+    }
+    // 如果有 requiresRole，檢查用戶角色是否匹配
+    return system.requiresRole.includes(role);
+  });
+
+  if (visibleSystems.length === 0) {
     return null;
   }
 
@@ -43,7 +55,7 @@ export default function CategorySection({ category, onSystemClick }) {
 
       {/* 系統卡片網格 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-        {category.systems.map(system => (
+        {visibleSystems.map(system => (
           <SystemCard
             key={system.id}
             system={system}

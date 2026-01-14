@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Portal from './pages/Portal';
 import Login from './pages/Login';
 import Account from './pages/Account';
+import ManagementCenter from './pages/management/ManagementCenter';
 import './App.css';
 
 // 子系統 Layout
@@ -35,6 +36,16 @@ function App() {
             element={
               <ProtectedRoute>
                 <Account />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* 統一管理中心 */}
+          <Route
+            path="/management/*"
+            element={
+              <ProtectedRoute>
+                <ManagementCenter />
               </ProtectedRoute>
             }
           />

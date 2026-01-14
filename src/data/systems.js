@@ -19,6 +19,25 @@
 
 export const categories = [
   {
+    id: 'system-management',
+    name: '系統管理',
+    description: '帳號、員工、部門統一管理',
+    icon: '⚙️',
+    color: 'blue', // 藍色代表系統管理
+    systems: [
+      {
+        id: 'management-center',
+        name: '統一管理中心',
+        description: '帳號、員工、部門統一管理平台',
+        icon: '🛡️',
+        url: '/management',
+        status: 'active',
+        isExternal: false,
+        requiresRole: ['admin', 'hr'], // 需要特定角色才能看到
+      },
+    ],
+  },
+  {
     id: 'finance',
     name: '財務管理',
     description: '財務相關流程與簽核',
