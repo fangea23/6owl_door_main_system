@@ -2,8 +2,8 @@
  * 軟體授權系統 Layout
  * 整合授權系統到六扇門企業入口的單一入口 (SSO)
  */
-import React, { useState } from 'react';
-import { Routes, Route, Navigate, Outlet, NavLink, useNavigate } from 'react-router-dom';
+import React, { useState, useRef, useEffect } from 'react';
+import { Routes, Route, Navigate, Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
 // 使用主系統的認證
@@ -24,7 +24,6 @@ import {
   LayoutDashboard,
   Key,
   Users,
-  Monitor,
   Laptop,
   UserCheck,
   Settings as SettingsIcon,
@@ -32,7 +31,9 @@ import {
   Shield,
   Menu,
   X,
-  Package
+  Package,
+  ChevronDown,
+  FolderOpen
 } from 'lucide-react';
 
 // Logo 圖片
@@ -41,15 +42,39 @@ import logoSrc from '../../assets/logo.png';
 // 子系統的基礎路徑
 const BASE_PATH = '/systems/software-license';
 
-// 導航項目
-const navItems = [
-  { path: `${BASE_PATH}/dashboard`, icon: LayoutDashboard, label: '儀表板' },
-  { path: `${BASE_PATH}/licenses`, icon: Key, label: '授權管理' },
-  { path: `${BASE_PATH}/assignments`, icon: UserCheck, label: '授權分配' },
-  { path: `${BASE_PATH}/employees`, icon: Users, label: '員工管理' },
-  { path: `${BASE_PATH}/devices`, icon: Laptop, label: '設備管理' },
-  { path: `${BASE_PATH}/software`, icon: Package, label: '軟體管理' },
-  { path: `${BASE_PATH}/settings`, icon: SettingsIcon, label: '設定' }
+// 導航結構 - 分組
+const navConfig = [
+  {
+    type: 'link',
+    path: `${BASE_PATH}/dashboard`,
+    icon: LayoutDashboard,
+    label: '儀表板'
+  },
+  {
+    type: 'dropdown',
+    icon: Key,
+    label: '授權',
+    items: [
+      { path: `${BASE_PATH}/licenses`, icon: Key, label: '授權管理' },
+      { path: `${BASE_PATH}/assignments`, icon: UserCheck, label: '授權分配' }
+    ]
+  },
+  {
+    type: 'dropdown',
+    icon: FolderOpen,
+    label: '資源',
+    items: [
+      { path: `${BASE_PATH}/employees`, icon: Users, label: '員工管理' },
+      { path: `${BASE_PATH}/devices`, icon: Laptop, label: '設備管理' },
+      { path: `${BASE_PATH}/software`, icon: Package, label: '軟體管理' }
+    ]
+  },
+  {
+    type: 'link',
+    path: `${BASE_PATH}/settings`,
+    icon: SettingsIcon,
+    label: '設定'
+  }
 ];
 
 // Logo 組件
@@ -62,6 +87,70 @@ const Logo = ({ size = 'default' }) => {
         alt="六扇門 Logo"
         className="w-full h-full object-contain filter drop-shadow-md"
       />
+    </div>
+  );
+};
+
+// 下拉選單組件
+const NavDropdown = ({ item, isOpen, onToggle, onClose }) => {
+  const location = useLocation();
+  const dropdownRef = useRef(null);
+
+  // 檢查是否有子項目是當前頁面
+  const hasActiveChild = item.items.some(child => location.pathname === child.path);
+
+  // 點擊外部關閉
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        onClose();
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen, onClose]);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={onToggle}
+        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+          hasActiveChild || isOpen
+            ? 'bg-blue-50 text-blue-700 border border-blue-200'
+            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'
+        }`}
+      >
+        <item.icon size={18} />
+        <span>{item.label}</span>
+        <ChevronDown
+          size={14}
+          className={`transition-transform ${isOpen ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+          {item.items.map(child => (
+            <NavLink
+              key={child.path}
+              to={child.path}
+              onClick={onClose}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                  isActive
+                    ? 'bg-blue-50 text-blue-700 font-medium'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
+                }`
+              }
+            >
+              <child.icon size={16} />
+              {child.label}
+            </NavLink>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -79,7 +168,6 @@ const LicenseProtectedRoute = () => {
   }
 
   if (!isAuthenticated) {
-    // 導回主系統登入頁
     return <Navigate to="/login" replace />;
   }
 
@@ -90,7 +178,9 @@ const LicenseProtectedRoute = () => {
 const LicenseInternalLayout = () => {
   const { profile, logout, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState(null);
 
   const handleSignOut = async () => {
     if (logout) {
@@ -99,6 +189,11 @@ const LicenseInternalLayout = () => {
       await signOut();
     }
   };
+
+  // 路由變更時關閉下拉選單
+  useEffect(() => {
+    setOpenDropdown(null);
+  }, [location.pathname]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -143,22 +238,36 @@ const LicenseInternalLayout = () => {
 
             {/* Desktop Nav */}
             <nav className="hidden lg:flex items-center gap-1">
-              {navItems.map(item => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  className={({ isActive }) =>
-                    `flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      isActive
-                        ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'
-                    }`
-                  }
-                >
-                  <item.icon size={18} />
-                  <span className="hidden xl:inline">{item.label}</span>
-                </NavLink>
-              ))}
+              {navConfig.map((item, index) => {
+                if (item.type === 'link') {
+                  return (
+                    <NavLink
+                      key={item.path}
+                      to={item.path}
+                      className={({ isActive }) =>
+                        `flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          isActive
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'
+                        }`
+                      }
+                    >
+                      <item.icon size={18} />
+                      <span>{item.label}</span>
+                    </NavLink>
+                  );
+                }
+
+                return (
+                  <NavDropdown
+                    key={item.label}
+                    item={item}
+                    isOpen={openDropdown === index}
+                    onToggle={() => setOpenDropdown(openDropdown === index ? null : index)}
+                    onClose={() => setOpenDropdown(null)}
+                  />
+                );
+              })}
             </nav>
 
             {/* User Menu */}
@@ -197,24 +306,55 @@ const LicenseInternalLayout = () => {
 
         {/* Mobile Nav */}
         {mobileMenuOpen && (
-          <nav className="lg:hidden border-t border-gray-200 bg-white p-4 space-y-2">
-            {navItems.map(item => (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                onClick={() => setMobileMenuOpen(false)}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-blue-50 text-blue-700'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`
-                }
-              >
-                <item.icon size={18} />
-                {item.label}
-              </NavLink>
-            ))}
+          <nav className="lg:hidden border-t border-gray-200 bg-white p-4 space-y-1">
+            {navConfig.map((item) => {
+              if (item.type === 'link') {
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                        isActive
+                          ? 'bg-blue-50 text-blue-700'
+                          : 'text-gray-600 hover:bg-gray-100'
+                      }`
+                    }
+                  >
+                    <item.icon size={18} />
+                    {item.label}
+                  </NavLink>
+                );
+              }
+
+              // 下拉分組在手機版顯示為分組標題 + 子項目
+              return (
+                <div key={item.label} className="pt-2">
+                  <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    <item.icon size={14} />
+                    {item.label}
+                  </div>
+                  {item.items.map(child => (
+                    <NavLink
+                      key={child.path}
+                      to={child.path}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-4 py-3 pl-10 rounded-lg text-sm font-medium transition-colors ${
+                          isActive
+                            ? 'bg-blue-50 text-blue-700'
+                            : 'text-gray-600 hover:bg-gray-100'
+                        }`
+                      }
+                    >
+                      <child.icon size={18} />
+                      {child.label}
+                    </NavLink>
+                  ))}
+                </div>
+              );
+            })}
             <hr className="my-2 border-gray-200" />
             <button
               onClick={handleSignOut}
