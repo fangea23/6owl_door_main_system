@@ -1,10 +1,9 @@
 import { useState } from 'react'
-import { Plus, Search, Users, Eye, Edit2, Trash2, Mail, Phone, Building } from 'lucide-react'
+import { Plus, Search, Users, Edit2, Trash2, Mail, Phone, Briefcase, Building2 } from 'lucide-react'
 import { Card, CardContent } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input, Select, Textarea } from '../components/ui/Input'
 import { Badge } from '../components/ui/Badge'
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, EmptyState } from '../components/ui/Table'
 import { Modal, ConfirmModal } from '../components/ui/Modal'
 import { Loading } from '../components/ui/Loading'
 import { useEmployees, useDepartments } from '../hooks/useEmployees'
@@ -225,61 +224,94 @@ export function Employees() {
         </CardContent>
       </Card>
 
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>員工編號</TableHead>
-              <TableHead>姓名</TableHead>
-              <TableHead>部門</TableHead>
-              <TableHead>職位</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>狀態</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredEmployees.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7}>
-                  <EmptyState message="暫無員工" icon={Users} />
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredEmployees.map((emp) => (
-                <TableRow key={emp.id}>
-                  <TableCell className="font-mono text-gray-600">{emp.employee_id || '-'}</TableCell>
-                  <TableCell className="font-medium text-gray-900">{emp.name}</TableCell>
-                  <TableCell className="text-gray-600">{emp.department?.name || '-'}</TableCell>
-                  <TableCell className="text-gray-600">{emp.position || '-'}</TableCell>
-                  <TableCell className="text-gray-600">{emp.email || '-'}</TableCell>
-                  <TableCell>
-                    <Badge className={getEmployeeStatusColor(emp.status)}>
-                      {getEmployeeStatusLabel(emp.status)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => { setSelectedEmployee(emp); setShowEditModal(true) }}
-                        className="p-1 text-gray-400 hover:text-blue-600 rounded"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => { setSelectedEmployee(emp); setShowDeleteModal(true) }}
-                        className="p-1 text-gray-400 hover:text-red-600 rounded"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </Card>
+      {/* 員工卡片網格 */}
+      {filteredEmployees.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+          <Users size={48} className="mx-auto mb-3 text-gray-300" />
+          <p className="text-gray-500">暫無員工</p>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="mt-4 text-blue-600 hover:text-blue-700 font-medium"
+          >
+            立即新增
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredEmployees.map((emp) => (
+            <div
+              key={emp.id}
+              className={`bg-white rounded-xl border p-5 transition-all hover:shadow-lg ${
+                emp.status === 'active' ? 'border-gray-200' : 'border-gray-100 opacity-60'
+              }`}
+            >
+              {/* 卡片頭部：名稱和操作按鈕 */}
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="h-10 w-10 bg-green-100 rounded-full flex items-center justify-center shrink-0">
+                    <Users className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-gray-800 text-lg truncate">{emp.name}</h3>
+                    {emp.employee_id && (
+                      <p className="text-xs font-mono text-gray-500">{emp.employee_id}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-1 ml-2">
+                  <button
+                    onClick={() => { setSelectedEmployee(emp); setShowEditModal(true) }}
+                    className="p-2 hover:bg-blue-50 text-gray-500 hover:text-blue-600 rounded-lg transition-colors"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button
+                    onClick={() => { setSelectedEmployee(emp); setShowDeleteModal(true) }}
+                    className="p-2 hover:bg-red-50 text-gray-500 hover:text-red-600 rounded-lg transition-colors"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* 狀態標籤 */}
+              <div className="mb-3">
+                <Badge className={getEmployeeStatusColor(emp.status)}>
+                  {getEmployeeStatusLabel(emp.status)}
+                </Badge>
+              </div>
+
+              {/* 員工資訊 */}
+              <div className="space-y-2 text-sm text-gray-600">
+                {emp.department?.name && (
+                  <p className="flex items-center gap-2">
+                    <Building2 size={16} className="text-gray-400 shrink-0" />
+                    {emp.department.name}
+                  </p>
+                )}
+                {emp.position && (
+                  <p className="flex items-center gap-2">
+                    <Briefcase size={16} className="text-gray-400 shrink-0" />
+                    {emp.position}
+                  </p>
+                )}
+                {emp.email && (
+                  <p className="flex items-center gap-2 truncate">
+                    <Mail size={16} className="text-gray-400 shrink-0" />
+                    <span className="truncate">{emp.email}</span>
+                  </p>
+                )}
+                {emp.phone && (
+                  <p className="flex items-center gap-2">
+                    <Phone size={16} className="text-gray-400 shrink-0" />
+                    {emp.phone}
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="新增員工" size="lg">
         <EmployeeForm departments={departments} onSubmit={handleCreate} onClose={() => setShowCreateModal(false)} />

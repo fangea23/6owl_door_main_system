@@ -1,10 +1,9 @@
 import { useState } from 'react'
-import { Plus, Search, Key, Copy, Eye, Edit2, Trash2, AlertCircle, Users } from 'lucide-react'
+import { Plus, Search, Key, Copy, Eye, Edit2, Trash2, AlertCircle, Users, Calendar } from 'lucide-react'
 import { Card, CardContent } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input, Select, Textarea } from '../components/ui/Input'
 import { Badge } from '../components/ui/Badge'
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, EmptyState } from '../components/ui/Table'
 import { Modal, ConfirmModal } from '../components/ui/Modal'
 import { Loading } from '../components/ui/Loading'
 import { useLicenses } from '../hooks/useLicenses'
@@ -408,115 +407,114 @@ export function Licenses() {
         </CardContent>
       </Card>
 
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>軟體</TableHead>
-              <TableHead>授權金鑰</TableHead>
-              <TableHead>授權模式</TableHead>
-              <TableHead>使用狀況</TableHead>
-              <TableHead>到期日</TableHead>
-              <TableHead>狀態</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredLicenses.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7}>
-                  <EmptyState message="暫無授權" icon={Key} />
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredLicenses.map((license) => {
-                const usagePercent = getUsagePercentage(license.assigned_count, license.quantity)
-                const daysRemaining = getDaysRemaining(license.expiry_date)
-                const isExpiringSoon = daysRemaining !== null && daysRemaining <= 30 && daysRemaining > 0
-                const isExpired = daysRemaining !== null && daysRemaining <= 0
+      {/* 授權卡片網格 */}
+      {filteredLicenses.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+          <Key size={48} className="mx-auto mb-3 text-gray-300" />
+          <p className="text-gray-500">暫無授權</p>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="mt-4 text-blue-600 hover:text-blue-700 font-medium"
+          >
+            立即新增
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredLicenses.map((license) => {
+            const usagePercent = getUsagePercentage(license.assigned_count, license.quantity)
+            const daysRemaining = getDaysRemaining(license.expiry_date)
+            const isExpiringSoon = daysRemaining !== null && daysRemaining <= 30 && daysRemaining > 0
+            const isExpired = daysRemaining !== null && daysRemaining <= 0
 
-                return (
-                  <TableRow key={license.id}>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium text-gray-900">{license.software?.name || '-'}</p>
-                        <p className="text-sm text-gray-500">{license.software?.vendor?.name}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {license.license_key ? (
-                        <div className="flex items-center gap-2">
-                          <code className="text-xs font-mono bg-gray-100 px-2 py-1 rounded truncate max-w-[150px]">
-                            {license.license_key}
-                          </code>
-                          <button
-                            onClick={() => handleCopyKey(license.license_key)}
-                            className="text-gray-400 hover:text-gray-600"
-                          >
-                            <Copy className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getLicenseModelColor(license.license_model)}>
-                        {getLicenseModelLabel(license.license_model)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-gray-400" />
-                        <span className={getUsageColor(usagePercent)}>
-                          {license.assigned_count} / {license.quantity}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        {(isExpiringSoon || isExpired) && (
-                          <AlertCircle className={`h-4 w-4 ${isExpired ? 'text-red-500' : 'text-yellow-500'}`} />
-                        )}
-                        <span className={isExpired ? 'text-red-600' : isExpiringSoon ? 'text-yellow-600' : 'text-gray-600'}>
-                          {license.expiry_date ? formatDate(license.expiry_date) : '永久'}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getStatusColor(license.status)}>
-                        {getStatusLabel(license.status)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => { setSelectedLicense(license); setShowDetailModal(true) }}
-                          className="p-1 text-gray-400 hover:text-gray-600 rounded"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => { setSelectedLicense(license); setShowEditModal(true) }}
-                          className="p-1 text-gray-400 hover:text-blue-600 rounded"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => { setSelectedLicense(license); setShowDeleteModal(true) }}
-                          className="p-1 text-gray-400 hover:text-red-600 rounded"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )
-              })
-            )}
-          </TableBody>
-        </Table>
-      </Card>
+            return (
+              <div
+                key={license.id}
+                className={`bg-white rounded-xl border p-5 transition-all hover:shadow-lg ${
+                  license.status === 'active' ? 'border-gray-200' : 'border-gray-100 opacity-60'
+                }`}
+              >
+                {/* 卡片頭部：軟體名稱和操作按鈕 */}
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-gray-800 text-lg truncate">{license.software?.name || '-'}</h3>
+                    {license.software?.vendor?.name && (
+                      <p className="text-sm text-gray-500 truncate">{license.software.vendor.name}</p>
+                    )}
+                  </div>
+                  <div className="flex gap-1 ml-2">
+                    <button
+                      onClick={() => { setSelectedLicense(license); setShowDetailModal(true) }}
+                      className="p-2 hover:bg-gray-50 text-gray-500 hover:text-gray-600 rounded-lg transition-colors"
+                    >
+                      <Eye size={16} />
+                    </button>
+                    <button
+                      onClick={() => { setSelectedLicense(license); setShowEditModal(true) }}
+                      className="p-2 hover:bg-blue-50 text-gray-500 hover:text-blue-600 rounded-lg transition-colors"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                    <button
+                      onClick={() => { setSelectedLicense(license); setShowDeleteModal(true) }}
+                      className="p-2 hover:bg-red-50 text-gray-500 hover:text-red-600 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* 授權金鑰 */}
+                {license.license_key && (
+                  <div className="mb-3 flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                    <Key size={14} className="text-gray-400 shrink-0" />
+                    <code className="text-xs font-mono text-gray-600 truncate flex-1">
+                      {license.license_key}
+                    </code>
+                    <button
+                      onClick={() => handleCopyKey(license.license_key)}
+                      className="text-gray-400 hover:text-gray-600 shrink-0"
+                    >
+                      <Copy size={14} />
+                    </button>
+                  </div>
+                )}
+
+                {/* 狀態標籤 */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <Badge className={getLicenseModelColor(license.license_model)}>
+                    {getLicenseModelLabel(license.license_model)}
+                  </Badge>
+                  <Badge className={getStatusColor(license.status)}>
+                    {getStatusLabel(license.status)}
+                  </Badge>
+                </div>
+
+                {/* 詳細信息 */}
+                <div className="space-y-2 text-sm text-gray-600">
+                  <p className="flex items-center gap-2">
+                    <Users size={16} className="text-gray-400" />
+                    <span className={getUsageColor(usagePercent)}>
+                      使用量：{license.assigned_count} / {license.quantity}
+                    </span>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <Calendar size={16} className="text-gray-400" />
+                    <span className={isExpired ? 'text-red-600' : isExpiringSoon ? 'text-yellow-600' : ''}>
+                      {license.expiry_date ? formatDate(license.expiry_date) : '永久授權'}
+                      {isExpiringSoon && ` (${daysRemaining} 天後到期)`}
+                      {isExpired && ' (已過期)'}
+                    </span>
+                    {(isExpiringSoon || isExpired) && (
+                      <AlertCircle size={14} className={isExpired ? 'text-red-500' : 'text-yellow-500'} />
+                    )}
+                  </p>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="新增授權" size="lg">
         <LicenseForm softwareList={software} onSubmit={handleCreate} onClose={() => setShowCreateModal(false)} />
