@@ -19,7 +19,7 @@ const Logo = ({ size = 'default' }) => {
   return (
     <div className={`${sizeClasses} relative flex items-center justify-center`}>
       <img
-        src="../../../../src/assets/logo.png"
+        src="../../../../assets/logo.png"
         alt="六扇門 Logo"
         className="w-full h-full object-contain filter drop-shadow-md"
       />
@@ -161,7 +161,7 @@ export default function Layout() {
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-3 text-stone-600">
               <div className="w-8 h-8 flex items-center justify-center">
-                <img src="../../../../src/assets/logo.png" alt="Logo" className="w-full h-full object-contain opacity-80" />
+                <img src="../../../../assets/logo.png" alt="Logo" className="w-full h-full object-contain opacity-80" />
               </div>
               <div className="flex flex-col">
                 <span className="text-sm font-bold text-stone-800">六扇門企業服務入口</span>
