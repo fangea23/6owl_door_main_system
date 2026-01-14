@@ -124,13 +124,25 @@ export default function BookingForm() {
         return;
       }
 
-      const { data } = await supabase
+      // 建立查詢
+      let query = supabase
         .from('bookings')
         .select('id, title, start_time, end_time')
         .eq('room_id', formData.room_id)
         .eq('booking_date', formData.booking_date)
-        .neq('status', 'cancelled')
-        .neq('id', id || 0);
+        .neq('status', 'cancelled');
+
+      // 只有在編輯模式且有有效的 id 時才排除當前預約
+      if (isEditMode && id) {
+        query = query.neq('id', id);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('檢查衝突失敗:', error);
+        return;
+      }
 
       const overlapping = (data || []).filter(booking => {
         const existingStart = booking.start_time.substring(0, 5);
@@ -144,17 +156,53 @@ export default function BookingForm() {
     };
 
     checkConflicts();
-  }, [formData.room_id, formData.booking_date, formData.start_time, formData.end_time, id]);
+  }, [formData.room_id, formData.booking_date, formData.start_time, formData.end_time, id, isEditMode]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  // 將 Supabase 錯誤轉換為中文訊息
+  const translateError = (error) => {
+    const message = error?.message || '';
+
+    // 常見的 Supabase 錯誤訊息對照
+    if (message.includes('duplicate key') || message.includes('unique constraint')) {
+      return '此時段已被預約，請選擇其他時間';
+    }
+    if (message.includes('violates foreign key')) {
+      return '選擇的會議室不存在，請重新選擇';
+    }
+    if (message.includes('network') || message.includes('fetch')) {
+      return '網路連線異常，請檢查網路後重試';
+    }
+    if (message.includes('timeout')) {
+      return '伺服器回應超時，請稍後再試';
+    }
+    if (message.includes('permission') || message.includes('denied')) {
+      return '您沒有權限執行此操作';
+    }
+    if (message.includes('not found')) {
+      return '找不到相關資料，請重新整理頁面';
+    }
+    if (message.includes('invalid') || message.includes('malformed')) {
+      return '輸入資料格式不正確，請檢查後重試';
+    }
+
+    // 預設訊息
+    return '操作失敗，請稍後再試或聯繫系統管理員';
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // 檢查時間衝突
     if (conflicts.length > 0) {
-      setErrorMsg('該時段已有其他預約，請選擇其他時間');
+      const conflictDetails = conflicts.map(c =>
+        `「${c.title}」(${c.start_time.substring(0, 5)} - ${c.end_time.substring(0, 5)})`
+      ).join('、');
+      setErrorMsg(`該時段與以下預約衝突：${conflictDetails}，請選擇其他時間`);
       return;
     }
 
@@ -165,7 +213,7 @@ export default function BookingForm() {
       const payload = {
         ...formData,
         user_id: user?.id,
-        status: 'pending',
+        status: 'approved', // 直接核准，無需審核
         attendees_count: parseInt(formData.attendees_count) || 0,
       };
 
@@ -181,12 +229,13 @@ export default function BookingForm() {
           .from('bookings')
           .insert([payload]);
         if (error) throw error;
-        alert('預約申請已送出！');
+        alert('預約成功！');
       }
 
       navigate(`${BASE_PATH}/dashboard`);
     } catch (error) {
-      setErrorMsg(`提交失敗：${error.message}`);
+      console.error('預約提交錯誤:', error);
+      setErrorMsg(translateError(error));
     } finally {
       setSubmitting(false);
     }
@@ -204,7 +253,8 @@ export default function BookingForm() {
       alert('預約已取消');
       navigate(`${BASE_PATH}/dashboard`);
     } catch (error) {
-      setErrorMsg(`取消失敗：${error.message}`);
+      console.error('取消預約錯誤:', error);
+      setErrorMsg(translateError(error));
     }
   };
 
@@ -383,18 +433,32 @@ export default function BookingForm() {
 
           {/* 衝突警告 */}
           {conflicts.length > 0 && (
-            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-700 font-bold flex items-center gap-2">
-                <AlertCircle size={18} />
-                該時段已有其他預約：
-              </p>
-              <ul className="mt-2 text-sm text-red-600 list-disc list-inside">
-                {conflicts.map(c => (
-                  <li key={c.id}>
-                    {c.title} ({c.start_time.substring(0, 5)} - {c.end_time.substring(0, 5)})
-                  </li>
-                ))}
-              </ul>
+            <div className="mt-4 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg animate-pulse">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-red-100 rounded-full shrink-0">
+                  <AlertCircle size={20} className="text-red-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-red-700 font-bold text-base">
+                    時段衝突提醒
+                  </p>
+                  <p className="text-red-600 text-sm mt-1">
+                    您選擇的時段與以下預約重疊，請調整時間：
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    {conflicts.map(c => (
+                      <div key={c.id} className="flex items-center gap-2 text-sm bg-white/60 p-2 rounded-lg border border-red-200">
+                        <Clock size={14} className="text-red-500 shrink-0" />
+                        <span className="font-medium text-red-800">{c.start_time.substring(0, 5)} - {c.end_time.substring(0, 5)}</span>
+                        <span className="text-red-600">「{c.title}」</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-red-500 mt-3">
+                    提示：請選擇不同的開始或結束時間來避免衝突
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </section>
