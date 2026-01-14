@@ -7,17 +7,28 @@
 ### 執行順序
 
 1. **首先執行統一員工表** - 這是所有系統的基礎
-2. 然後執行各子系統的資料庫腳本
+2. **執行 profiles 表修正** - 確保認證系統與員工系統正確整合
+3. 然後執行各子系統的資料庫腳本
 
 ```bash
 # 1. 先執行統一員工表（必須）
 database/unified_employees.sql
 
-# 2. 再執行各子系統的資料庫腳本
+# 2. 執行 profiles 表修正（必須）- 修正認證系統與員工系統的整合
+database/fix_profiles_table.sql
+
+# 3. 再執行各子系統的資料庫腳本
 src/system/car_rental_system/database_schema.sql
 src/system/license_system/database_schema.sql  # 如果有
 src/system/payment_system/database_schema.sql  # 如果有
 ```
+
+### 重要說明
+
+- **profiles 表**：用於 Supabase 認證系統，僅包含認證相關資訊（email, full_name, role, avatar_url）
+- **employees 表**：用於員工組織管理，包含完整的員工資料（部門、職位、聯絡方式等）
+- 兩者通過 `user_id` 欄位關聯：`employees.user_id → profiles.id → auth.users.id`
+- 使用 `users_with_employee_info` 視圖可以一次獲取完整的用戶和員工資訊
 
 ## 統一員工表 (unified_employees.sql)
 
