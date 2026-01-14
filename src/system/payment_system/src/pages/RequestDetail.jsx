@@ -32,7 +32,7 @@ const STATUS_LABELS = {
 const InfoField = ({ label, value, subValue, highlight, className = "" }) => (
     <div className={`mb-4 print:mb-2 ${className}`}>
         {/* Label: 列印時統一 9pt */}
-        <label className="block text-xs text-gray-500 uppercase tracking-wider print:text-black print:font-bold print:mb-0 print:text-[9pt]">
+        <label className="block text-xs text-stone-400 uppercase tracking-wider print:text-black print:font-bold print:mb-0 print:text-[9pt]">
             {label}
         </label>
 
@@ -47,7 +47,7 @@ const InfoField = ({ label, value, subValue, highlight, className = "" }) => (
 
         {/* SubValue: 列印時統一 9pt */}
         {subValue && (
-            <div className="text-xs text-gray-500 mt-0.5 print:text-[9pt] print:text-gray-600">
+            <div className="text-xs text-stone-400 mt-0.5 print:text-[9pt] print:text-gray-600">
                 {subValue}
             </div>
         )}
@@ -56,8 +56,8 @@ const InfoField = ({ label, value, subValue, highlight, className = "" }) => (
 
 // ✅ 修正: 統一標題列印大小為 12pt
 const SectionHeader = ({ icon: Icon, title }) => (
-    <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-100 text-emerald-800 font-bold print:mb-2 print:pb-1 print:text-black print:border-black print:text-[12pt]">
-        <Icon size={18} className="print:hidden" />
+    <div className="flex items-center gap-2 mb-4 pb-2 border-b border-stone-200 text-stone-700 font-bold print:mb-2 print:pb-1 print:text-black print:border-black print:text-[12pt]">
+        <Icon size={18} className="text-red-600 print:hidden" />
         <h3>{title}</h3>
     </div>
 );
@@ -172,7 +172,7 @@ export default function RequestDetail() {
 
 
     return (
-        <div className="min-h-screen bg-gray-100 font-sans pb-20 print:bg-white print:pb-0 print:h-auto print:overflow-visible">
+        <div className="min-h-screen bg-stone-50 font-sans pb-20 print:bg-white print:pb-0">
 
             <style>{`
     @media print {
@@ -241,7 +241,7 @@ export default function RequestDetail() {
     `}</style>
 
             {/* 上帝模式切換列 (列印時隱藏) */}
-            <div className="no-print mb-2 text-xs text-gray-400 text-right">
+            <div className="no-print mb-2 text-xs text-stone-400 text-right">
                 登入身分: {user?.email} ({STATUS_LABELS[currentRole] || currentRole})
             </div>
 
@@ -249,26 +249,26 @@ export default function RequestDetail() {
 
                 {/* 頁面標題列 */}
                 <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <button onClick={() => navigate(`${BASE_PATH}/dashboard`)} className="text-gray-500 hover:text-gray-800 flex items-center gap-1 no-print">
+                    <button onClick={() => navigate(`${BASE_PATH}/dashboard`)} className="text-stone-400 hover:text-gray-800 flex items-center gap-1 no-print">
                         <ArrowLeft size={20} /> 返回列表
                     </button>
 
                     <div className="flex items-center gap-3">
-                        <span className="text-gray-400 text-sm font-mono">#{String(request.id)}</span>
-                        <div className={`px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-2 ${request.status === 'completed' ? 'bg-green-100 text-green-700' :
-                                request.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                        <span className="text-stone-400 text-sm font-mono">#{String(request.id)}</span>
+                        <div className={`px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-2 ${request.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                                request.status === 'rejected' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-white text-red-700 border border-red-200 text-blue-700'
                             }`}>
                             {request.status === 'completed' ? <CheckCircle size={16} /> : request.status === 'rejected' ? <XCircle size={16} /> : <Clock size={16} />}
                             {STATUS_LABELS[request.status] || request.status}
                         </div>
                     </div>
 
-                    <button onClick={handlePrint} className="no-print bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1.5 rounded flex items-center gap-2 text-sm font-bold">
+                    <button onClick={handlePrint} className="no-print bg-white border border-stone-200 hover:bg-stone-50 text-stone-600 hover:bg-gray-300 text-gray-700 px-3 py-1.5 rounded flex items-center gap-2 text-sm font-bold">
                         <Printer size={16} /> 列印 / PDF
                     </button>
                 </div>
 
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden print-container">
+                <div className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden print-container">
 
                     {/* 主要內容 Grid */}
                     <div className="p-6 md:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8 print:block print:p-0">
@@ -311,7 +311,7 @@ export default function RequestDetail() {
                             {request.payment_method === 'transfer' && (
                                 <section className="print-section">
                                     <SectionHeader icon={Building} title="三、銀行帳戶資料" />
-                                    <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded border border-gray-100 print:bg-white print:border-0 print:p-0 print-grid-4">
+                                    <div className="grid grid-cols-2 gap-4 bg-stone-50p-4 rounded border border-gray-100 print:bg-white print:border-0 print:p-0 print-grid-4">
 
                                         <div className="col-span-2 print-col-span-2">
                                             <InfoField label="受款戶名" value={request.payee_name} highlight />
@@ -343,13 +343,13 @@ export default function RequestDetail() {
                                         />
                                     </div>
                                     <div className="col-span-1 print-col-span-2">
-                                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1 print:text-[9pt] print:text-black">附件檔案</label>
+                                        <label className="block text-xs font-bold text-stone-400 uppercase mb-1 print:text-[9pt] print:text-black">附件檔案</label>
                                         {request.has_attachment && request.attachment_url ? (
                                             <div className="space-y-2 no-print">
                                                 <button
                                                     type="button"
                                                     onClick={() => setShowAttachmentModal(true)}
-                                                    className="text-emerald-600 hover:text-emerald-700 underline text-sm cursor-pointer flex items-center gap-1 transition-colors"
+                                                    className="text-red-600 hover:text-emerald-700 underline text-sm cursor-pointer flex items-center gap-1 transition-colors"
                                                 >
                                                     <Paperclip size={14} /> 檢視附件
                                                 </button>
@@ -365,15 +365,15 @@ export default function RequestDetail() {
                                                     <a
                                                         href={request.attachment_url}
                                                         download
-                                                        className="text-xs text-gray-500 hover:text-gray-600 flex items-center gap-1"
+                                                        className="text-xs text-stone-400 hover:text-red-600 flex items-center gap-1"
                                                     >
                                                         <Download size={12} /> 下載
                                                     </a>
                                                 </div>
                                             </div>
-                                        ) : <div className="text-gray-400 text-sm print:text-[10pt]">無附件</div>}
+                                        ) : <div className="text-stone-400 text-sm print:text-[10pt]">無附件</div>}
                                         {request.has_attachment && <div className="hidden print:block text-sm text-black print:text-[10pt]">[附件已上傳: {request.attachment_desc || '無備註'}]</div>}
-                                        {request.attachment_desc && <div className="text-xs text-gray-400 mt-1 no-print">{request.attachment_desc}</div>}
+                                        {request.attachment_desc && <div className="text-xs text-stone-400 mt-1 no-print">{request.attachment_desc}</div>}
                                     </div>
                                 </div>
                             </section>
@@ -381,7 +381,7 @@ export default function RequestDetail() {
                             {request.remarks && (
                                 <section className="print-section">
                                     <SectionHeader icon={MessageSquare} title="五、備註" />
-                                    <div className="text-gray-700 bg-yellow-50 p-3 rounded text-sm border border-yellow-100 print:bg-white print:border-0 print:p-0 print:text-[10pt]">
+                                    <div className="text-stone-700 bg-amber-50 p-3 rounded text-sm border border-amber-100 print:bg-white print:border-0 print:p-0 print:text-[10pt]">
                                         {request.remarks}
                                     </div>
                                 </section>
@@ -393,7 +393,7 @@ export default function RequestDetail() {
                             <div className="sticky top-24 space-y-6">
 
                                 <div className="bg-white border-2 border-gray-100 rounded-xl p-4 shadow-sm">
-                                    <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Shield size={18} className="text-emerald-600" /> 簽核進度</h3>
+                                    <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Shield size={18} className="text-red-600" /> 簽核進度</h3>
                                     <div className="space-y-4">
                                         {[
                                             { key: 'sign_manager', label: '單位主管', roleCode: 'unit_manager' },
@@ -407,14 +407,14 @@ export default function RequestDetail() {
                                             const isCurrent = currentConfig?.role === step.roleCode && request.status !== 'rejected' && request.status !== 'completed';
 
                                             return (
-                                                <div key={step.key} className={`relative pl-6 pb-4 border-l-2 ${url ? 'border-emerald-500' : 'border-gray-200'} last:border-0`}>
-                                                    <div className={`absolute -left-[9px] top-0 w-4 h-4 rounded-full border-2 ${url ? 'bg-emerald-500 border-emerald-500' : isCurrent ? 'bg-blue-500 border-blue-500 animate-pulse' : 'bg-white border-gray-300'}`}></div>
+                                                <div key={step.key} className={`relative pl-6 pb-4 border-l-2 ${url ? 'border-red-500' : 'border-stone-200'} last:border-0`}>
+                                                    <div className={`absolute -left-[9px] top-0 w-4 h-4 rounded-full border-2 ${url ? 'bg-red-500 border-red-500' : isCurrent ? 'bg-amber-500 border-blue-500 animate-pulse' : 'bg-white border-gray-300'}`}></div>
                                                     <div className="flex justify-between items-start">
                                                         <div>
                                                             <div className={`text-sm font-bold ${isCurrent ? 'text-blue-600' : 'text-gray-700'}`}>{step.label}</div>
-                                                            {time && <div className="text-[10px] text-gray-400">{new Date(time).toLocaleString()}</div>}
+                                                            {time && <div className="text-[10px] text-stone-400">{new Date(time).toLocaleString()}</div>}
                                                         </div>
-                                                        {url && <CheckCircle size={16} className="text-emerald-500" />}
+                                                        {url && <CheckCircle size={16} className="text-red-500" />}
                                                     </div>
                                                 </div>
                                             )
@@ -451,7 +451,7 @@ export default function RequestDetail() {
                                 ) : (
                                     <div className="space-y-4">
                                         {currentRole === 'staff' && (
-                                            <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+                                            <div className="p-4 bg-white border border-stone-200 rounded-lg shadow-sm">
                                                 <h4 className="font-bold text-gray-700 mb-2">管理申請</h4>
                                                 <button onClick={handleRevoke} className="w-full py-2.5 px-4 bg-red-600 text-white hover:bg-red-700 rounded-md text-sm font-bold transition-colors flex items-center justify-center gap-2 shadow-sm">
                                                     <XCircle size={18} /> 撤銷此申請
@@ -462,25 +462,25 @@ export default function RequestDetail() {
                                         {!currentConfig ? (
                                             <div className="p-4 bg-orange-50 border border-orange-200 text-orange-700 rounded text-sm">⚠️ 狀態異常：{request.status}</div>
                                         ) : canApprove ? (
-                                            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 animate-fade-in shadow-lg">
+                                            <div className="bg-white border-2 border-red-100 rounded-xl p-5 shadow-xl shadow-red-500/5 animate-fade-in">
                                                 <div className="mb-4 text-center">
-                                                    <div className="text-emerald-800 font-bold text-lg">等待您的簽核</div>
-                                                    <div className="text-sm text-emerald-600">({currentConfig.label})</div>
+                                                    <div className="text-red-800 font-bold text-lg">等待您的簽核</div>
+                                                    <div className="text-sm text-red-600">({currentConfig.label})</div>
                                                 </div>
                                                 {currentRole === 'cashier' && (
-                                                    <div className="mb-4 bg-white p-3 rounded border border-emerald-200">
+                                                    <div className="mb-4 bg-white p-3 rounded border border-stone-200">
                                                         <label className="block text-sm font-bold text-gray-700 mb-1">實際手續費 (TWD)</label>
-                                                        <input type="number" value={cashierFee} onChange={(e) => setCashierFee(e.target.value)} className="w-full border-gray-300 border rounded p-2 text-right font-mono font-bold text-lg focus:ring-emerald-500 focus:border-emerald-500" placeholder="0" />
+                                                        <input type="number" value={cashierFee} onChange={(e) => setCashierFee(e.target.value)} className="w-full border-gray-300 border rounded p-2 text-right font-mono font-bold text-lg focus:ring-red-500 focus:border-red-500" placeholder="0" />
                                                     </div>
                                                 )}
-                                                <button onClick={handleApprove} disabled={processing} className="w-full py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold flex items-center justify-center gap-2 shadow-md mb-3">
+                                                <button onClick={handleApprove} disabled={processing} className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg hover:bg-emerald-700 font-bold flex items-center justify-center gap-2 shadow-md mb-3">
                                                     {processing ? <Loader2 className="animate-spin" /> : <ThumbsUp size={18} />} 確認核准 / 下一步
                                                 </button>
                                                 <button onClick={handleReject} className="w-full py-2 text-red-500 hover:bg-red-50 border border-red-200 rounded text-sm font-medium">駁回此案件</button>
                                             </div>
                                         ) : (
                                             currentRole !== 'staff' && (
-                                                <div className="p-4 bg-gray-50 border border-gray-200 text-gray-500 rounded text-center text-sm flex flex-col items-center">
+                                                <div className="p-4 bg-stone-50border border-stone-200 text-stone-400 rounded text-center text-sm flex flex-col items-center">
                                                     <Loader2 className="animate-spin mb-1" size={16} /> 等待 <span className="font-bold">{currentConfig.label}</span> 簽核...
                                                 </div>
                                             )
@@ -523,14 +523,14 @@ export default function RequestDetail() {
                                                         <div className="text-[8pt] text-gray-600">{new Date(request[`${key}_at`]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                                                     </div>
                                                 ) : (
-                                                    request.status === 'rejected' ? <span className="text-xs text-gray-400">--</span> : ''
+                                                    request.status === 'rejected' ? <span className="text-xs text-stone-400">--</span> : ''
                                                 )}
                                             </td>
                                         ))}
                                     </tr>
                                 </tbody>
                             </table>
-                            <div className="flex justify-between text-[9pt] mt-1 text-gray-500">
+                            <div className="flex justify-between text-[9pt] mt-1 text-stone-400">
                                 <span>系統產生文件 | 六扇門財務系統</span>
                                 <span>Page 1 of 1</span>
                             </div>
@@ -550,12 +550,12 @@ export default function RequestDetail() {
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* 模態框標題列 */}
-                        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
+                        <div className="flex items-center justify-between p-4 border-b border-stone-200 bg-gray-50">
                             <div className="flex items-center gap-2">
-                                <Paperclip className="text-emerald-600" size={20} />
+                                <Paperclip className="text-red-600" size={20} />
                                 <h3 className="font-bold text-gray-800">附件預覽</h3>
                                 {request.attachment_desc && (
-                                    <span className="text-sm text-gray-500">- {request.attachment_desc}</span>
+                                    <span className="text-sm text-stone-400">- {request.attachment_desc}</span>
                                 )}
                             </div>
                             <div className="flex items-center gap-2">
@@ -563,7 +563,7 @@ export default function RequestDetail() {
                                     href={request.attachment_url}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                    className="p-2 text-stone-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                                     title="在新分頁開啟"
                                 >
                                     <ExternalLink size={20} />
@@ -571,7 +571,7 @@ export default function RequestDetail() {
                                 <a
                                     href={request.attachment_url}
                                     download
-                                    className="p-2 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                    className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                     title="下載附件"
                                 >
                                     <Download size={20} />
@@ -579,7 +579,7 @@ export default function RequestDetail() {
                                 <button
                                     type="button"
                                     onClick={() => setShowAttachmentModal(false)}
-                                    className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                     title="關閉"
                                 >
                                     <X size={20} />
@@ -606,7 +606,7 @@ export default function RequestDetail() {
                             ) : (
                                 // 其他檔案類型
                                 <div className="text-center py-12">
-                                    <FileText size={64} className="mx-auto text-gray-400 mb-4" />
+                                    <FileText size={64} className="mx-auto text-stone-400 mb-4" />
                                     <p className="text-gray-600 mb-4">此檔案類型無法直接預覽</p>
                                     <div className="flex gap-3 justify-center">
                                         <a
@@ -620,7 +620,7 @@ export default function RequestDetail() {
                                         <a
                                             href={request.attachment_url}
                                             download
-                                            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2 transition-colors"
+                                            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2 transition-colors"
                                         >
                                             <Download size={16} /> 下載檔案
                                         </a>
