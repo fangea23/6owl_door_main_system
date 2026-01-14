@@ -15,7 +15,6 @@ import { Licenses } from '../../system/license_system/src/pages/Licenses';
 import { Assignments } from '../../system/license_system/src/pages/Assignments';
 import { Employees } from '../../system/license_system/src/pages/Employees';
 import { Software } from '../../system/license_system/src/pages/Software';
-import { Customers } from '../../system/license_system/src/pages/Customers';
 import { Settings } from '../../system/license_system/src/pages/Settings';
 import { VerifyLicense } from '../../system/license_system/src/pages/VerifyLicense';
 
@@ -46,7 +45,6 @@ const navItems = [
   { path: `${BASE_PATH}/assignments`, icon: UserCheck, label: '授權分配' },
   { path: `${BASE_PATH}/employees`, icon: Users, label: '員工管理' },
   { path: `${BASE_PATH}/software`, icon: Monitor, label: '軟體管理' },
-  { path: `${BASE_PATH}/customers`, icon: Users, label: '客戶管理' },
   { path: `${BASE_PATH}/settings`, icon: SettingsIcon, label: '設定' }
 ];
 
@@ -300,7 +298,6 @@ export default function LicenseSystemLayout() {
           <Route path="assignments" element={<Assignments />} />
           <Route path="employees" element={<Employees />} />
           <Route path="software" element={<Software />} />
-          <Route path="customers" element={<Customers />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Route>
