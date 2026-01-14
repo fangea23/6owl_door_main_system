@@ -124,13 +124,25 @@ export default function BookingForm() {
         return;
       }
 
-      const { data } = await supabase
+      // 建立查詢
+      let query = supabase
         .from('bookings')
         .select('id, title, start_time, end_time')
         .eq('room_id', formData.room_id)
         .eq('booking_date', formData.booking_date)
-        .neq('status', 'cancelled')
-        .neq('id', id || 0);
+        .neq('status', 'cancelled');
+
+      // 只有在編輯模式且有有效的 id 時才排除當前預約
+      if (isEditMode && id) {
+        query = query.neq('id', id);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('檢查衝突失敗:', error);
+        return;
+      }
 
       const overlapping = (data || []).filter(booking => {
         const existingStart = booking.start_time.substring(0, 5);
@@ -144,7 +156,7 @@ export default function BookingForm() {
     };
 
     checkConflicts();
-  }, [formData.room_id, formData.booking_date, formData.start_time, formData.end_time, id]);
+  }, [formData.room_id, formData.booking_date, formData.start_time, formData.end_time, id, isEditMode]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -165,7 +177,7 @@ export default function BookingForm() {
       const payload = {
         ...formData,
         user_id: user?.id,
-        status: 'pending',
+        status: 'approved', // 直接核准，無需審核
         attendees_count: parseInt(formData.attendees_count) || 0,
       };
 
@@ -181,7 +193,7 @@ export default function BookingForm() {
           .from('bookings')
           .insert([payload]);
         if (error) throw error;
-        alert('預約申請已送出！');
+        alert('預約成功！');
       }
 
       navigate(`${BASE_PATH}/dashboard`);
