@@ -1,8 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-
-// 付款系統的基礎路徑
-const BASE_PATH = '/systems/payment-approval';
 import { 
   FileText, 
   ArrowRight, 
@@ -16,22 +13,26 @@ import {
   FileCheck, 
   FileX,
   Check, 
-  XCircle // ✅ 新增圖示
+  XCircle 
 } from 'lucide-react';
 import { supabase } from '../supabaseClient'; 
 import InstallPrompt from '../components/InstallPrompt';
-import { useAuth } from '../AuthContext';
-// --- 狀態與文字對照表 ---
+import { useAuth } from '../../../../contexts/AuthContext'; // 修正引用路徑以配合您的檔案結構
+
+// 付款系統的基礎路徑
+const BASE_PATH = '/systems/payment-approval';
+
+// --- 狀態與文字對照表 (優化為柔和色調，符合 Portal 風格) ---
 const STATUS_MAP = {
-  'draft':                 { label: '草稿', color: 'bg-gray-100 text-gray-600', step: 0 },
-  'pending_unit_manager':  { label: '待單位主管簽核', color: 'bg-blue-100 text-blue-700', step: 1 },
-  'pending_accountant':    { label: '待會計審核', color: 'bg-indigo-100 text-indigo-700', step: 2 },
-  'pending_audit_manager': { label: '待審核主管簽核', color: 'bg-purple-100 text-purple-700', step: 3 },
-  'pending_cashier':       { label: '待出納撥款', color: 'bg-orange-100 text-orange-700', step: 4 },
-  'pending_boss':          { label: '待放行主管決行', color: 'bg-pink-100 text-pink-700', step: 5 },
-  'completed':             { label: '已結案', color: 'bg-green-100 text-green-700', step: 6 },
-  'rejected':              { label: '已駁回', color: 'bg-red-100 text-red-700', step: 0 },
-  'revoked':               { label: '已撤銷', color: 'bg-gray-200 text-gray-500 line-through', step: 0 },
+  'draft':                 { label: '草稿', color: 'bg-stone-100 text-stone-600 border-stone-200', step: 0 },
+  'pending_unit_manager':  { label: '待主管簽核', color: 'bg-blue-50 text-blue-700 border-blue-100', step: 1 },
+  'pending_accountant':    { label: '待會計審核', color: 'bg-indigo-50 text-indigo-700 border-indigo-100', step: 2 },
+  'pending_audit_manager': { label: '待審核主管', color: 'bg-purple-50 text-purple-700 border-purple-100', step: 3 },
+  'pending_cashier':       { label: '待出納撥款', color: 'bg-amber-50 text-amber-700 border-amber-100', step: 4 },
+  'pending_boss':          { label: '待放行決行', color: 'bg-rose-50 text-rose-700 border-rose-100', step: 5 },
+  'completed':             { label: '已結案', color: 'bg-emerald-50 text-emerald-700 border-emerald-100', step: 6 },
+  'rejected':              { label: '已駁回', color: 'bg-red-50 text-red-700 border-red-100', step: 0 },
+  'revoked':               { label: '已撤銷', color: 'bg-stone-100 text-stone-400 line-through border-stone-200', step: 0 },
 };
 
 // --- 角色責任表 ---
@@ -48,7 +49,8 @@ export default function Dashboard() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user, role } = useAuth();
-  const currentRole = role || 'staff'; // 定義 currentRole：如果還沒抓到角色，預設為 staff
+  const currentRole = role || 'staff'; 
+
   // --- 模擬角色與視圖狀態 ---
   const [viewMode, setViewMode] = useState('all');
   useEffect(() => {
@@ -58,13 +60,13 @@ export default function Dashboard() {
       setViewMode('all');
     }
   }, [currentRole]);
+
   // ✅ Task 1: 批量操作 State
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [batchProcessing, setBatchProcessing] = useState(false);
 
-// --- Supabase 資料載入 & Realtime ---
+  // --- Supabase 資料載入 & Realtime ---
   useEffect(() => {
-    // 只有當 user 存在時才去抓資料
     if (user) {
       fetchRequests();
     }
@@ -76,51 +78,46 @@ export default function Dashboard() {
       )
       .subscribe();
     return () => { supabase.removeChannel(subscription); };
-  }, [user]); // 依賴 user
-    const fetchRequests = async () => {
-        setLoading(true);
-        try {
-        let query = supabase
-            .from('payment_requests')
-            .select('*');
+  }, [user]); 
 
-        // ✅ 動態排序策略
-        if (viewMode === 'todo') {
-            // 待辦事項：舊的在上面 (急件先處理)，避免積壓
-            // 也可以考慮用 apply_date，看你們習慣以「送單時間」還是「期望付款日」為準
-            query = query.order('created_at', { ascending: true }); 
-        } else {
-            // 所有歷史：新的在上面 (查看最新進度)
-            query = query.order('created_at', { ascending: false });
-        }
+  const fetchRequests = async () => {
+    setLoading(true);
+    try {
+      let query = supabase.from('payment_requests').select('*');
 
-        const { data, error } = await query;
-        
-        if (error) throw error;
-        setRequests(data || []);
-        } catch (error) {
-        console.error('Error:', error);
-        } finally {
-        setLoading(false);
-        }
-    };
+      // ✅ 動態排序策略
+      if (viewMode === 'todo') {
+        // 待辦事項：舊的在上面 (急件先處理)
+        query = query.order('created_at', { ascending: true }); 
+      } else {
+        // 所有歷史：新的在上面 (查看最新進度)
+        query = query.order('created_at', { ascending: false });
+      }
 
-    // ✅ 重要：當 viewMode 改變時，要重新抓取資料以套用新排序
-    useEffect(() => {
-        if (user) {
-        fetchRequests();
-        }
-    }, [user, viewMode]); // 加入 viewMode 到依賴陣列
+      const { data, error } = await query;
+      if (error) throw error;
+      setRequests(data || []);
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 當 viewMode 改變時重新抓取
+  useEffect(() => {
+    if (user) fetchRequests();
+  }, [user, viewMode]);
 
   // --- 切換紙本入庫狀態 ---
   const togglePaperStatus = async (id, currentStatus) => {
-    // ✅ Task 2: 權限檢查 - 只有會計可以操作
+    // ✅ Task 2: 權限檢查
     if (currentRole !== 'accountant') {
         alert('只有「會計」角色可以執行紙本入庫作業');
         return;
     }
 
-    // 樂觀更新 (Optimistic UI)
+    // 樂觀更新
     setRequests(prev => prev.map(req => 
       req.id === id ? { ...req, is_paper_received: !currentStatus } : req
     ));
@@ -135,7 +132,6 @@ export default function Dashboard() {
     } catch (error) {
       console.error('更新失敗:', error);
       alert('更新失敗，請檢查網路');
-      // 失敗的話要把狀態改回來
       setRequests(prev => prev.map(req => 
         req.id === id ? { ...req, is_paper_received: currentStatus } : req
       ));
@@ -211,13 +207,12 @@ export default function Dashboard() {
     }
   };
 
-  // ✅ Task 1 (補完): 批量駁回 API
+  // ✅ Task 1: 批量駁回 API
   const handleBatchReject = async () => {
     if (selectedIds.size === 0) return;
     
     const reason = prompt(`⚠️ 您即將駁回選取的 ${selectedIds.size} 筆單據。\n\n請輸入駁回原因 (將套用至所有選取案件)：`);
-    if (reason === null) return; // 按取消
-    if (!reason.trim()) { alert('請輸入駁回原因！'); return; }
+    if (!reason?.trim()) return;
 
     setBatchProcessing(true);
 
@@ -243,331 +238,315 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans pb-20">
-
-      <div className="max-w-6xl mx-auto p-4 sm:p-8">
-        
-        {/* ================= Header (標題與新增按鈕) ================= */}
-<div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-800 tracking-tight flex items-center gap-2">
-              <Wallet className="text-emerald-700 h-6 w-6 md:h-8 md:w-8"/> 付款單總覽
-            </h1>
-            <p className="text-gray-500 mt-1 ml-1 text-sm md:text-base">
-              {/* 顯示真實的登入資訊 */}
-              嗨，<span className="font-bold text-gray-800">{user?.user_metadata?.full_name || user?.email}</span>
-              <span className="mx-2">|</span>
-              目前身分：
-              <span className="font-bold text-emerald-600">
-                {currentRole === 'staff' ? '一般員工 (Staff)' : 
-                 currentRole === 'unit_manager' ? '單位主管 (Manager)' :
-                 currentRole === 'accountant' ? '會計 (Accountant)' :
-                 currentRole === 'audit_manager' ? '審核主管 (Audit)' :
-                 currentRole === 'cashier' ? '出納 (Cashier)' : 
-                 currentRole === 'boss' ? '放行主管 (Boss)' : '管理員 (Admin)'}
-              </span>
-            </p>
-          </div>
-{/* 只有員工才需要看到「新增申請」按鈕 (主管主要是來簽核的) */}
-          {/* 當然如果您希望主管也能申請款項，這個條件可以拿掉 */}
-          <Link
-            to={`${BASE_PATH}/apply`}
-            className="w-full md:w-auto bg-emerald-600 text-white px-5 py-2.5 rounded-lg hover:bg-emerald-700 font-medium shadow-md transition-all flex items-center justify-center gap-2"
-          >
-            <FileText size={18} />
-            新增申請
-          </Link>
+    <div className="pb-20">
+      
+      {/* ================= 標題區塊 ================= */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-stone-800 tracking-tight flex items-center gap-3">
+            <div className="p-2 bg-red-100 rounded-xl text-red-600">
+               <Wallet className="h-6 w-6 md:h-8 md:w-8"/>
+            </div>
+            付款單總覽
+          </h1>
+          <p className="text-stone-500 mt-2 ml-1 text-sm md:text-base flex items-center gap-2">
+             <span className="font-bold text-stone-700">{user?.user_metadata?.full_name || user?.email}</span>
+             <span className="text-stone-300">|</span>
+             <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-stone-100 text-stone-600 border border-stone-200">
+               {currentRole}
+             </span>
+          </p>
         </div>
 
-        {/* ✅ Task 1: 批量操作工具列 (只有在待辦模式 + 有選取時顯示) */}
-        {selectedIds.size > 0 && viewMode === 'todo' && (
-          <div className="sticky top-[130px] z-20 bg-emerald-50 border border-emerald-200 p-3 rounded-lg mb-4 flex justify-between items-center animate-in slide-in-from-top-2 shadow-md">
-            <span className="font-bold text-emerald-800 flex items-center gap-2">
-                <CheckSquare className="text-emerald-600"/> 已選取 {selectedIds.size} 筆
+        {/* 新增申請按鈕 - 修改為紅色系 */}
+        <Link
+          to={`${BASE_PATH}/apply`}
+          className="w-full md:w-auto bg-red-600 text-white px-6 py-2.5 rounded-xl hover:bg-red-700 font-medium shadow-md shadow-red-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+        >
+          <FileText size={18} />
+          新增申請
+        </Link>
+      </div>
+
+      {/* ✅ Task 1: 批量操作工具列 (只有在待辦模式 + 有選取時顯示) */}
+      {selectedIds.size > 0 && viewMode === 'todo' && (
+        <div className="sticky top-20 z-30 bg-white border border-red-100 p-3 rounded-xl mb-6 flex justify-between items-center animate-in slide-in-from-top-2 shadow-lg shadow-red-500/5">
+          <span className="font-bold text-stone-700 flex items-center gap-2 px-2">
+              <CheckSquare className="text-red-500"/> 已選取 {selectedIds.size} 筆
+          </span>
+          <div className="flex gap-2">
+             {/* 🔴 批量駁回按鈕 */}
+             <button 
+               onClick={handleBatchReject} 
+               disabled={batchProcessing} 
+               className="bg-white text-stone-600 border border-stone-200 px-4 py-2 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-200 text-sm font-bold flex items-center gap-2 transition-all disabled:opacity-50"
+             >
+               {batchProcessing ? <Loader2 className="animate-spin" size={16}/> : <XCircle size={16}/>} 
+               批量駁回
+             </button>
+
+             {/* 🟢 批量核准按鈕 */}
+             <button 
+               onClick={handleBatchApprove} 
+               disabled={batchProcessing} 
+               className="bg-red-600 text-white px-4 py-2 rounded-lg shadow-md shadow-red-500/20 hover:bg-red-700 text-sm font-bold flex items-center gap-2 transition-all disabled:opacity-50"
+             >
+               {batchProcessing ? <Loader2 className="animate-spin" size={16}/> : <Check size={16}/>} 
+               批量核准
+             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ================= Tabs (分頁籤) ================= */}
+      <div className="flex gap-6 border-b border-stone-200 mb-6 overflow-x-auto">
+        <button
+          onClick={() => { setViewMode('todo'); setSelectedIds(new Set()); }}
+          className={`pb-3 px-1 text-sm font-bold transition-all flex items-center gap-2 relative whitespace-nowrap ${
+            viewMode === 'todo' 
+              ? 'text-red-600 border-b-2 border-red-600' 
+              : 'text-stone-400 hover:text-stone-600'
+          }`}
+        >
+          <CheckSquare size={18} />
+          待我簽核
+          {todoCount > 0 && (
+            <span className="ml-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full shadow-sm">
+              {todoCount}
             </span>
-            <div className="flex gap-2">
-               {/* 🔴 批量駁回按鈕 */}
-               <button 
-                 onClick={handleBatchReject} 
-                 disabled={batchProcessing} 
-                 className="bg-white text-red-600 border border-red-200 px-4 py-1.5 rounded shadow-sm hover:bg-red-50 text-sm font-bold flex items-center gap-1 disabled:opacity-50"
-               >
-                 {batchProcessing ? <Loader2 className="animate-spin" size={16}/> : <XCircle size={16}/>} 
-                 批量駁回
-               </button>
+          )}
+        </button>
 
-               {/* 🟢 批量核准按鈕 */}
-               <button 
-                 onClick={handleBatchApprove} 
-                 disabled={batchProcessing} 
-                 className="bg-emerald-600 text-white px-4 py-1.5 rounded shadow hover:bg-emerald-700 text-sm font-bold flex items-center gap-1 disabled:opacity-50"
-               >
-                 {batchProcessing ? <Loader2 className="animate-spin" size={16}/> : <Check size={16}/>} 
-                 批量核准通過
-               </button>
-            </div>
-          </div>
-        )}
+        <button
+          onClick={() => { setViewMode('all'); setSelectedIds(new Set()); }}
+          className={`pb-3 px-1 text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+            viewMode === 'all' 
+              ? 'text-stone-800 border-b-2 border-stone-800' 
+              : 'text-stone-400 hover:text-stone-600'
+          }`}
+        >
+          <ListFilter size={18} />
+          歷史紀錄
+        </button>
+      </div>
 
-        {/* ================= Tabs (分頁籤) ================= */}
-        <div className="flex gap-4 border-b border-gray-200 mb-6 overflow-x-auto">
-          <button
-            onClick={() => { setViewMode('todo'); setSelectedIds(new Set()); }}
-            className={`pb-3 px-1 text-sm font-medium transition-all flex items-center gap-2 relative whitespace-nowrap ${
-              viewMode === 'todo' 
-                ? 'text-emerald-600 border-b-2 border-emerald-600' 
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <CheckSquare size={18} />
-            待我簽核 / 處理
-            {todoCount > 0 && (
-              <span className="ml-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
-                {todoCount}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => { setViewMode('all'); setSelectedIds(new Set()); }}
-            className={`pb-3 px-1 text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap ${
-              viewMode === 'all' 
-                ? 'text-emerald-600 border-b-2 border-emerald-600' 
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <ListFilter size={18} />
-            所有歷史單據
-          </button>
+      {/* ================= 列表區域 (卡片 vs 表格) ================= */}
+      {loading ? (
+        <div className="bg-white/50 backdrop-blur rounded-2xl border border-stone-200 p-12 text-center text-stone-400 flex flex-col items-center min-h-[400px] justify-center">
+          <Loader2 className="animate-spin mb-3 text-red-500" size={32} />
+          <p>資料載入中...</p>
         </div>
-
-        {/* ================= 列表區域 (卡片 vs 表格) ================= */}
-        {loading ? (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center text-gray-500 flex flex-col items-center min-h-[400px]">
-            <Loader2 className="animate-spin mb-2" size={32} />
-            <p>資料載入中...</p>
+      ) : filteredRequests.length === 0 ? (
+        <div className="bg-white/50 backdrop-blur rounded-2xl border border-stone-200 dashed p-12 text-center text-stone-400 flex flex-col items-center min-h-[400px] justify-center">
+          <div className="bg-stone-100 p-4 rounded-full mb-3 text-stone-300">
+             {viewMode === 'todo' ? <CheckSquare size={32}/> : <ListFilter size={32}/>}
           </div>
-        ) : filteredRequests.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center text-gray-400 flex flex-col items-center min-h-[400px]">
-            <div className="bg-gray-100 p-4 rounded-full mb-3">
-               {viewMode === 'todo' ? <CheckSquare size={32} className="text-gray-300"/> : <ListFilter size={32} className="text-gray-300"/>}
-            </div>
-            <p>{viewMode === 'todo' ? '目前沒有需要您簽核的單據，去喝杯咖啡吧！' : '尚無任何付款紀錄'}</p>
-          </div>
-        ) : (
-          <>
-            {/* -------------------------------------------------------- */}
-            {/* 📱 手機版視圖 (Mobile Cards) */}
-            {/* -------------------------------------------------------- */}
-            <div className="block md:hidden space-y-4">
-              {filteredRequests.map((req) => {
-                const status = STATUS_MAP[req.status] || { label: req.status, color: 'bg-gray-100', step: 0 };
-                
-                return (
-                  <div key={req.id} className="flex gap-3 bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-                    {/* ✅ Task 1: 手機版勾選框 (只在待辦模式顯示) */}
-                    {viewMode === 'todo' && (
-                        <div className="flex items-center">
-                            <input 
-                                type="checkbox" 
-                                checked={selectedIds.has(req.id)}
-                                onChange={() => handleSelect(req.id)}
-                                className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                            />
-                        </div>
-                    )}
-                    
-                    <Link to={`${BASE_PATH}/request/${req.id}`} className="flex-1 block">
-                        {/* 卡片頂部：單號與狀態 */}
-                        <div className="flex justify-between items-start mb-3">
+          <p>{viewMode === 'todo' ? '目前沒有待辦事項，去喝杯咖啡吧！' : '尚無資料'}</p>
+        </div>
+      ) : (
+        <>
+          {/* -------------------------------------------------------- */}
+          {/* 📱 手機版視圖 (Mobile Cards) */}
+          {/* -------------------------------------------------------- */}
+          <div className="block md:hidden space-y-4">
+            {filteredRequests.map((req) => {
+              const status = STATUS_MAP[req.status] || STATUS_MAP['draft'];
+              
+              return (
+                <div key={req.id} className="bg-white border border-stone-200 rounded-2xl p-4 shadow-sm relative overflow-hidden group">
+                  {/* ✅ 手機版勾選框 */}
+                  {viewMode === 'todo' && (
+                      <div className="absolute top-4 left-4 z-10">
+                          <input 
+                              type="checkbox" 
+                              checked={selectedIds.has(req.id)}
+                              onChange={() => handleSelect(req.id)}
+                              className="w-5 h-5 rounded border-stone-300 text-red-600 focus:ring-red-500"
+                          />
+                      </div>
+                  )}
+                  
+                  <Link to={`${BASE_PATH}/request/${req.id}`} className={`block ${viewMode === 'todo' ? 'pl-8' : ''}`}>
+                      {/* 卡片頂部 */}
+                      <div className="flex justify-between items-start mb-3">
                         <div>
-                            <span className="text-xs font-mono text-gray-400 block">#{String(req.id).padStart(4, '0')}</span>
-                            <span className="text-xs text-gray-400 mt-0.5 block">{req.apply_date}</span>
+                            <span className="text-xs font-mono text-stone-400 block">#{String(req.id).padStart(4, '0')}</span>
+                            <span className="text-xs text-stone-400 mt-0.5 block">{req.apply_date}</span>
                         </div>
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${status.color}`}>
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${status.color}`}>
                             {status.label}
                         </span>
-                        </div>
-                        
-                        {/* 卡片中間：主要資訊 */}
-                        <div className="mb-4">
-                        <h3 className="font-bold text-gray-800 text-lg mb-1 truncate">
+                      </div>
+                      
+                      {/* 卡片中間 */}
+                      <div className="mb-4">
+                        <h3 className="font-bold text-stone-800 text-lg mb-1 truncate">
                             {req.payee_name}
                         </h3>
-                        <div className="text-sm text-gray-600 flex flex-col gap-1">
+                        <div className="text-sm text-stone-600 flex flex-col gap-1">
                             <div className="flex items-center gap-1.5 overflow-hidden">
-                            <Building size={14} className="text-gray-400 shrink-0" />
-                            <span className="truncate">{req.brand} - {req.store}</span>
+                              <Building size={14} className="text-stone-400 shrink-0" />
+                              <span className="truncate">{req.brand} - {req.store}</span>
                             </div>
                             <div className="flex items-center gap-1.5 overflow-hidden">
-                            <FileText size={14} className="text-gray-400 shrink-0" />
-                            <span className="truncate text-gray-500">{req.content || '無說明'}</span>
-                            </div>
-                            <div className="text-xs text-gray-400 mt-1 pl-5">
-                                申請人: {req.creator_name}
+                              <FileText size={14} className="text-stone-400 shrink-0" />
+                              <span className="truncate text-stone-500">{req.content || '無說明'}</span>
                             </div>
                         </div>
-                        </div>
+                      </div>
 
-                        {/* 卡片底部：金額與按鈕 */}
-                        <div className="flex justify-between items-end border-t border-gray-100 pt-3">
+                      {/* 卡片底部 */}
+                      <div className="flex justify-between items-end border-t border-stone-100 pt-3">
                         <div>
-                            <p className="text-xs text-gray-400 mb-0.5">付款金額</p>
-                            <p className="text-xl font-bold text-emerald-700 font-mono">
-                            ${Number(req.amount).toLocaleString()}
+                            <p className="text-xs text-stone-400 mb-0.5">付款金額</p>
+                            <p className="text-xl font-bold text-stone-700 font-mono">
+                              ${Number(req.amount).toLocaleString()}
                             </p>
                         </div>
 
-                        {/* 紙本入庫按鈕 */}
+                        {/* 紙本按鈕 */}
                         <button
                             onClick={(e) => {
                                 e.preventDefault(); 
                                 togglePaperStatus(req.id, req.is_paper_received);
                             }}
-                            // ✅ Task 2: 非會計禁用樣式
                             disabled={currentRole !== 'accountant'}
                             className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
                             req.is_paper_received 
                                 ? 'bg-blue-50 text-blue-700 border-blue-200' 
-                                : 'bg-gray-50 text-gray-400 border-gray-200'
-                            } ${currentRole !== 'accountant' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100'}`}
+                                : 'bg-stone-50 text-stone-400 border-stone-200'
+                            } ${currentRole !== 'accountant' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-stone-100'}`}
                         >
                             {req.is_paper_received ? <FileCheck size={14} /> : <FileX size={14} />}
                             {req.is_paper_received ? '紙本已收' : '未收紙本'}
                         </button>
 
-                        <div className="bg-emerald-50 p-2 rounded-full text-emerald-600">
+                        <div className="text-stone-300 group-hover:text-red-500 transition-colors">
                             <ChevronRight size={20} />
                         </div>
-                        </div>
-                    </Link>
-                  </div>
-                );
-              })}
-            </div>
+                      </div>
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
 
-            {/* -------------------------------------------------------- */}
-            {/* 💻 電腦版視圖 (Desktop Table) */}
-            {/* -------------------------------------------------------- */}
-            <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-gray-50 text-gray-600 text-sm uppercase tracking-wider border-b border-gray-200">
-                    {/* ✅ Task 1: 全選 Checkbox (只在待辦模式顯示) */}
-                    {viewMode === 'todo' && (
-                        <th className="p-4 w-10 text-center">
-                            <input 
-                                type="checkbox" 
-                                onChange={handleSelectAll} 
-                                checked={selectedIds.size > 0 && selectedIds.size === filteredRequests.length}
-                                className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                            />
-                        </th>
-                    )}
-                    <th className="p-4 font-semibold w-24">單號</th>
-                    <th className="p-4 font-semibold w-32">申請日期</th>
-                    <th className="p-4 font-semibold w-48">申請資訊</th>
-                    <th className="p-4 font-semibold">受款 / 說明</th>
-                    <th className="p-4 font-semibold text-right w-32">金額</th>
-                    <th className="p-4 font-semibold text-center w-24">紙本入庫</th>
-                    <th className="p-4 font-semibold text-center w-32">狀態</th>
-                    <th className="p-4 font-semibold text-center w-20">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredRequests.map((req) => {
-                    const statusInfo = STATUS_MAP[req.status] || { label: req.status, color: 'bg-gray-100', step: 0 };
-                    
-                    return (
-                      <tr key={req.id} className="hover:bg-emerald-50/30 transition-colors group">
-                        {/* ✅ Task 1: 單選 Checkbox (只在待辦模式顯示) */}
-                        {viewMode === 'todo' && (
-                            <td className="p-4 text-center">
-                                <input 
-                                    type="checkbox" 
-                                    checked={selectedIds.has(req.id)}
-                                    onChange={() => handleSelect(req.id)}
-                                    className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                                />
-                            </td>
-                        )}
-                        <td className="p-4">
-                          <span className="font-mono font-bold text-gray-400">#{String(req.id).padStart(4, '0')}</span>
-                        </td>
-                        <td className="p-4 text-sm text-gray-600">
-                          {req.apply_date}
-                        </td>
-                        <td className="p-4">
-                          <div className="font-bold text-gray-800 text-sm">{req.brand}</div>
-                          <div className="text-xs text-gray-500">{req.store}</div>
-                        <div className="text-xs text-gray-400 mt-0.5">
+          {/* -------------------------------------------------------- */}
+          {/* 💻 電腦版視圖 (Desktop Table) */}
+          {/* -------------------------------------------------------- */}
+          <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-stone-50/50 text-stone-500 text-xs font-bold uppercase tracking-wider border-b border-stone-200">
+                  {/* ✅ 全選 Checkbox */}
+                  {viewMode === 'todo' && (
+                      <th className="p-4 w-10 text-center">
+                          <input 
+                              type="checkbox" 
+                              onChange={handleSelectAll} 
+                              checked={selectedIds.size > 0 && selectedIds.size === filteredRequests.length}
+                              className="w-4 h-4 rounded border-stone-300 text-red-600 focus:ring-red-500"
+                          />
+                      </th>
+                  )}
+                  <th className="p-4 w-24">單號</th>
+                  <th className="p-4 w-32">申請日期</th>
+                  <th className="p-4 w-48">申請資訊</th>
+                  <th className="p-4">受款 / 說明</th>
+                  <th className="p-4 text-right w-32">金額</th>
+                  <th className="p-4 text-center w-24">紙本</th>
+                  <th className="p-4 text-center w-32">狀態</th>
+                  <th className="p-4 text-center w-20"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {filteredRequests.map((req) => {
+                  const statusInfo = STATUS_MAP[req.status] || STATUS_MAP['draft'];
+                  
+                  return (
+                    <tr key={req.id} className="hover:bg-stone-50 transition-colors group">
+                      {/* ✅ 單選 Checkbox */}
+                      {viewMode === 'todo' && (
+                          <td className="p-4 text-center">
+                              <input 
+                                  type="checkbox" 
+                                  checked={selectedIds.has(req.id)}
+                                  onChange={() => handleSelect(req.id)}
+                                  className="w-4 h-4 rounded border-stone-300 text-red-600 focus:ring-red-500"
+                              />
+                          </td>
+                      )}
+                      <td className="p-4">
+                        <span className="font-mono font-bold text-stone-400">#{String(req.id).padStart(4, '0')}</span>
+                      </td>
+                      <td className="p-4 text-sm text-stone-600">
+                        {req.apply_date}
+                      </td>
+                      <td className="p-4">
+                        <div className="font-bold text-stone-700 text-sm">{req.brand}</div>
+                        <div className="text-xs text-stone-500">{req.store}</div>
+                        <div className="text-xs text-stone-400 mt-0.5">
                             申請人: {req.creator_name}
                         </div>
-                        </td>
-                        <td className="p-4">
-                           <div className="font-medium text-gray-900 truncate max-w-[200px]" title={req.payee_name}>
-                             {req.payee_name}
-                           </div>
-                           <div className="text-sm text-gray-500 truncate max-w-[200px]" title={req.content}>
-                             {req.content}
-                           </div>
-                        </td>
-                        <td className="p-4 text-right">
-                        <span className="font-mono font-bold text-gray-700">
-                            ${Number(req.amount).toLocaleString()}
+                      </td>
+                      <td className="p-4">
+                         <div className="font-medium text-stone-900 truncate max-w-[200px]" title={req.payee_name}>
+                           {req.payee_name}
+                         </div>
+                         <div className="text-sm text-stone-500 truncate max-w-[200px]" title={req.content}>
+                           {req.content}
+                         </div>
+                      </td>
+                      <td className="p-4 text-right">
+                        <span className="font-mono font-bold text-stone-700">
+                          ${Number(req.amount).toLocaleString()}
                         </span>
-                        </td>
+                      </td>
 
-                        <td className="p-4 text-center">
+                      <td className="p-4 text-center">
                         <button
                             onClick={() => togglePaperStatus(req.id, req.is_paper_received)}
-                            // ✅ Task 2: 只有會計能點擊
                             disabled={currentRole !== 'accountant'}
                             title={currentRole !== 'accountant' ? "只有會計可操作" : req.is_paper_received ? "點擊取消入庫" : "點擊確認入庫"}
-                            className={`p-2 rounded-full transition-colors ${
+                            className={`p-1.5 rounded-lg transition-colors ${
                             req.is_paper_received 
-                                ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' 
-                                : 'text-gray-300 hover:text-gray-500 hover:bg-gray-100'
-                            } ${currentRole !== 'accountant' ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : ''}`}
+                                ? 'text-blue-600 bg-blue-50' 
+                                : 'text-stone-300'
+                            } ${currentRole === 'accountant' ? 'hover:bg-stone-100' : ''}`}
                         >
-                            {req.is_paper_received ? <FileCheck size={20} /> : <FileX size={20} />}
+                            {req.is_paper_received ? <FileCheck size={18} /> : <FileX size={18} />}
                         </button>
-                        </td>
-                        <td className="p-4 text-center">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${statusInfo.color}`}>
-                            {statusInfo.label}
-                          </span>
-                          {/* 進度條 */}
-                          {statusInfo.step > 0 && statusInfo.step < 6 && (
-                            <div className="mt-1 w-full bg-gray-200 rounded-full h-1.5 max-w-[80px] mx-auto opacity-50 group-hover:opacity-100 transition-opacity">
-                              <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${(statusInfo.step / 5) * 100}%` }}></div>
-                            </div>
-                          )}
-                        </td>
-                        <td className="p-4 text-center">
-                          <Link 
-                            to={`${BASE_PATH}/request/${req.id}`} 
-                            className={`p-2 rounded-full inline-flex transition-colors shadow-sm ${
-                              viewMode === 'todo' 
-                                ? 'bg-emerald-600 text-white hover:bg-emerald-700' 
-                                : 'text-emerald-600 hover:bg-emerald-50'
-                            }`}
-                            title="查看詳情"
-                          >
-                            <ArrowRight size={20} />
-                          </Link>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-        <div className="mt-4 text-center text-xs text-gray-400">
-          總計 {filteredRequests.length} 筆資料
-        </div>
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap border ${statusInfo.color}`}>
+                          {statusInfo.label}
+                        </span>
+                        {/* 進度條 */}
+                        {statusInfo.step > 0 && statusInfo.step < 6 && (
+                          <div className="mt-1 w-full bg-stone-200 rounded-full h-1 max-w-[80px] mx-auto opacity-50 group-hover:opacity-100 transition-opacity">
+                            <div className="bg-red-400 h-1 rounded-full" style={{ width: `${(statusInfo.step / 5) * 100}%` }}></div>
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-4 text-center">
+                        <Link 
+                          to={`${BASE_PATH}/request/${req.id}`} 
+                          className="text-stone-300 hover:text-red-600 transition-colors p-2"
+                          title="查看詳情"
+                        >
+                          <ArrowRight size={20} />
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+      <div className="mt-6 text-center text-xs text-stone-400 font-medium">
+        總計 {filteredRequests.length} 筆資料
       </div>
       <InstallPrompt />
     </div>

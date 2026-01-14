@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   FilePlus,
   LogOut,
-  Wallet,
   Menu,
   X,
   User,
@@ -19,19 +18,20 @@ import { useAuth } from '../../../../contexts/AuthContext';
 // 付款系統的基礎路徑
 const BASE_PATH = '/systems/payment-approval';
 
-// 六扇門 Logo 組件
+// 六扇門 Logo 組件 - 修改為適應白底的樣式
 const Logo = () => (
-  <div className="bg-white p-1.5 rounded-lg shadow-sm">
+  // 修改：背景改為淡紅色，並移除 shadow-sm 改為 text-color 控制 SVG 顏色
+  <div className="bg-red-50 p-1.5 rounded-lg text-red-700">
     <svg viewBox="0 0 40 40" className="w-6 h-6">
       <polygon
         points="20,2 34,8 38,22 34,34 20,38 6,34 2,22 6,8"
         fill="none"
-        stroke="#991b1b"
+        stroke="currentColor" // 使用 currentColor 繼承父層 text-red-700
         strokeWidth="2.5"
       />
-      <circle cx="20" cy="20" r="8" fill="none" stroke="#991b1b" strokeWidth="2"/>
-      <line x1="20" y1="12" x2="20" y2="28" stroke="#991b1b" strokeWidth="2"/>
-      <line x1="12" y1="20" x2="28" y2="20" stroke="#991b1b" strokeWidth="2"/>
+      <circle cx="20" cy="20" r="8" fill="none" stroke="currentColor" strokeWidth="2"/>
+      <line x1="20" y1="12" x2="20" y2="28" stroke="currentColor" strokeWidth="2"/>
+      <line x1="12" y1="20" x2="28" y2="20" stroke="currentColor" strokeWidth="2"/>
     </svg>
   </div>
 );
@@ -88,16 +88,38 @@ export default function Header() {
     'admin': '管理員'
   }[role] || '訪客';
 
+  // 輔助函式：產生連結樣式 (避免重複寫 ClassName)
+  const getNavLinkClass = (active) => `
+    px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 transition-all duration-200
+    ${active 
+      ? 'bg-red-50 text-red-700 shadow-sm ring-1 ring-red-100' // 選中狀態：淡紅底 + 紅字
+      : 'text-stone-500 hover:text-red-600 hover:bg-stone-50'   // 一般狀態：灰字 -> Hover 變紅
+    }
+  `;
+
   return (
-    <header className="bg-gradient-to-r from-red-800 to-red-900 text-white shadow-lg sticky top-0 z-40 print:hidden">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between relative">
+    // 修改：背景改為白色玻璃擬態，文字改為深灰
+    <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-stone-200 shadow-sm print:hidden">
+      {/* 裝飾：極淡的紋理背景 (與主入口一致) */}
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIi8+CjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiMwMDAiIG9wYWNpdHk9IjAuMDIiLz4KPC9zdmc+')] opacity-50 pointer-events-none" />
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between relative">
 
         {/* ================= 左側：Logo 與標題 ================= */}
-        <Link to={`${BASE_PATH}/dashboard`} onClick={closeMenu} className="flex items-center gap-3 hover:opacity-90 transition-opacity select-none">
+        <Link to={`${BASE_PATH}/dashboard`} onClick={closeMenu} className="flex items-center gap-3 group select-none">
           <Logo />
           <div>
-            <h1 className="font-bold text-lg tracking-wide leading-tight">六扇門付款簽核</h1>
-            <p className="text-[10px] text-red-200 tracking-wider font-medium">PAYMENT APPROVAL</p>
+            {/* 修改：文字顏色改為 Stone-800，Hover 變紅 */}
+            <h1 className="font-bold text-lg sm:text-xl text-stone-800 tracking-tight group-hover:text-red-800 transition-colors leading-tight">
+              六扇門付款簽核
+            </h1>
+            <div className="flex items-center gap-1.5">
+               {/* 裝飾線條 */}
+               <div className="h-[1px] w-3 bg-amber-500/50"></div>
+               <p className="text-[10px] text-stone-500 font-medium tracking-[0.15em] group-hover:text-amber-600 transition-colors">
+                 PAYMENT APPROVAL
+               </p>
+            </div>
           </div>
         </Link>
 
@@ -106,7 +128,7 @@ export default function Header() {
           {/* 返回主入口 */}
           <Link
             to="/"
-            className="px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition-all duration-200 text-red-100 hover:bg-red-700 hover:text-white"
+            className={getNavLinkClass(false)} // 使用新的樣式函式
           >
             <Home size={18} />
             主入口
@@ -114,11 +136,7 @@ export default function Header() {
 
           <Link
             to={`${BASE_PATH}/dashboard`}
-            className={`px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition-all duration-200 ${
-              isActive('/dashboard')
-                ? 'bg-red-700 text-white shadow-inner ring-1 ring-red-600'
-                : 'text-red-100 hover:bg-red-700 hover:text-white'
-            }`}
+            className={getNavLinkClass(isActive('/dashboard'))}
           >
             <LayoutDashboard size={18} />
             總覽看板
@@ -126,11 +144,7 @@ export default function Header() {
 
           <Link
             to={`${BASE_PATH}/apply`}
-            className={`px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition-all duration-200 ${
-              isActive('/apply')
-                ? 'bg-red-700 text-white shadow-inner ring-1 ring-red-600'
-                : 'text-red-100 hover:bg-red-700 hover:text-white'
-            }`}
+            className={getNavLinkClass(isActive('/apply'))}
           >
             <FilePlus size={18} />
             新增申請
@@ -139,11 +153,7 @@ export default function Header() {
           {(role === 'admin' || role === 'boss') && (
             <Link
               to={`${BASE_PATH}/admin`}
-              className={`px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition-all duration-200 ${
-                isActive('/admin')
-                  ? 'bg-red-700 text-white shadow-inner ring-1 ring-red-600'
-                  : 'text-red-100 hover:bg-red-700 hover:text-white'
-              }`}
+              className={getNavLinkClass(isActive('/admin'))}
             >
               <Shield size={18} />
               系統管理
@@ -152,35 +162,39 @@ export default function Header() {
         </nav>
 
         {/* ================= 右側：使用者資訊 & 手機選單按鈕 ================= */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
 
           {/* 電腦版使用者資訊 */}
           {user && (
             <Link
               to={`${BASE_PATH}/profile`}
-              className={`text-right hidden md:flex items-center gap-3 p-1.5 px-3 rounded-lg transition-all group ${
+              // 修改：移除深色背景邏輯，改為灰底/琥珀色底
+              className={`hidden md:flex items-center gap-3 p-1.5 pr-3 rounded-xl transition-all border ${
                 isProfileIncomplete
-                  ? 'bg-amber-600 hover:bg-amber-500 text-white ring-2 ring-amber-400 shadow-lg'
-                  : 'hover:bg-red-700/50'
+                  ? 'bg-amber-50 border-amber-200 text-amber-700 ring-1 ring-amber-100'
+                  : 'border-transparent hover:bg-stone-50 hover:border-stone-200 text-stone-600 hover:text-stone-900'
               }`}
               title={isProfileIncomplete ? "請點擊設定顯示名稱" : "個人資料設定"}
             >
-              <div>
-                <div className="text-sm font-bold truncate max-w-[150px] flex items-center justify-end gap-1">
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-white font-medium text-sm shadow-sm ${
+                  isProfileIncomplete ? 'bg-amber-500' : 'bg-gradient-to-br from-red-700 to-red-900'
+              }`}>
+                {displayName?.charAt(0) || <User size={16}/>}
+              </div>
+              
+              <div className="text-right">
+                <div className="text-sm font-bold leading-none mb-1 flex items-center justify-end gap-1">
                   {isProfileIncomplete ? (
                     <>
-                      <AlertCircle size={14} className="text-white" />
-                      <span>未設定名稱</span>
+                      <AlertCircle size={14} />
+                      <span>未設定</span>
                     </>
                   ) : (
-                    <span className="group-hover:text-red-100">{displayName}</span>
+                    <span>{displayName}</span>
                   )}
                 </div>
-
-                <div className={`text-xs px-1.5 rounded inline-block mt-0.5 ${
-                  isProfileIncomplete
-                    ? 'bg-amber-800/30 text-amber-100 font-medium'
-                    : 'text-red-200 font-mono bg-red-950/30 group-hover:bg-red-950/50'
+                <div className={`text-[10px] font-medium tracking-wide ${
+                  isProfileIncomplete ? 'text-amber-600' : 'text-stone-400'
                 }`}>
                   {isProfileIncomplete ? '點此設定' : roleName}
                 </div>
@@ -191,7 +205,8 @@ export default function Header() {
           {/* 電腦版登出按鈕 */}
           <button
             onClick={handleLogout}
-            className="hidden md:flex items-center justify-center p-2 hover:bg-white/10 text-red-100 hover:text-white rounded-full transition-all duration-200"
+            // 修改：按鈕樣式改為深灰 -> Hover 紅
+            className="hidden md:flex items-center justify-center p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all duration-200"
             title="登出系統"
           >
             <LogOut size={20} />
@@ -199,7 +214,8 @@ export default function Header() {
 
           {/* 手機版：漢堡選單按鈕 */}
           <button
-            className="md:hidden p-2 hover:bg-red-700 rounded transition-colors active:scale-95 relative"
+            // 修改：按鈕樣式改為深灰
+            className="md:hidden p-2 text-stone-600 hover:bg-stone-100 rounded-lg transition-colors active:scale-95 relative"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             aria-label="選單"
           >
@@ -207,7 +223,7 @@ export default function Header() {
 
             {/* 手機版紅點 */}
             {isProfileIncomplete && !isMenuOpen && (
-              <span className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-red-900" />
+              <span className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white" />
             )}
           </button>
         </div>
@@ -215,7 +231,8 @@ export default function Header() {
 
       {/* ================= 手機版下拉選單 ================= */}
       {isMenuOpen && (
-        <div className="md:hidden absolute top-16 left-0 w-full bg-red-900 border-t border-red-700 shadow-2xl animate-in slide-in-from-top-2 duration-200">
+        // 修改：背景改為白色，邊框改為 Stone-200
+        <div className="md:hidden absolute top-full left-0 w-full bg-white border-b border-stone-200 shadow-xl animate-in slide-in-from-top-2 z-50">
           <nav className="flex flex-col p-4 space-y-2">
 
             {/* 手機版使用者資訊卡片 */}
@@ -223,34 +240,35 @@ export default function Header() {
               <Link
                 to={`${BASE_PATH}/profile`}
                 onClick={closeMenu}
-                className={`rounded-lg p-3 mb-2 flex items-center gap-3 border transition-colors ${
+                // 修改：卡片樣式改為白底/灰底
+                className={`rounded-xl p-3 mb-2 flex items-center gap-3 border transition-colors ${
                   isProfileIncomplete
-                    ? 'bg-amber-600/20 border-amber-500/50 text-amber-100'
-                    : 'bg-red-800/50 border-red-700/50 text-white'
+                    ? 'bg-amber-50 border-amber-200 text-amber-800'
+                    : 'bg-stone-50 border-stone-100 text-stone-800'
                 }`}
               >
-                <div className={`p-2 rounded-full ${isProfileIncomplete ? 'bg-amber-600 text-white' : 'bg-red-700 text-red-100'}`}>
+                <div className={`p-2 rounded-lg text-white ${isProfileIncomplete ? 'bg-amber-500' : 'bg-red-700'}`}>
                   {isProfileIncomplete ? <AlertCircle size={20} /> : <User size={20} />}
                 </div>
                 <div className="overflow-hidden flex-1">
                   <div className="text-sm font-bold truncate">
                     {isProfileIncomplete ? '請設定顯示名稱' : (displayName || user.email)}
                   </div>
-                  <div className={`text-xs ${isProfileIncomplete ? 'text-amber-300' : 'text-red-200'}`}>
+                  <div className={`text-xs ${isProfileIncomplete ? 'text-amber-600' : 'text-stone-500'}`}>
                     {isProfileIncomplete ? '點擊此處完善資料' : `目前身分：${roleName}`}
                   </div>
                 </div>
-                <div className="text-red-300">
+                <div className="text-stone-400">
                    <Settings size={16} />
                 </div>
               </Link>
             )}
 
-            {/* 返回主入口 */}
+            {/* 手機版連結項目 - 修改為深灰色系 */}
             <Link
               to="/"
               onClick={closeMenu}
-              className="px-4 py-3 rounded-lg text-base font-medium flex items-center gap-3 transition-colors text-red-100 hover:bg-red-800/50"
+              className="px-4 py-3 rounded-xl text-base font-medium flex items-center gap-3 transition-colors text-stone-600 hover:bg-stone-50"
             >
               <Home size={20} />
               返回主入口
@@ -259,10 +277,10 @@ export default function Header() {
             <Link
               to={`${BASE_PATH}/dashboard`}
               onClick={closeMenu}
-              className={`px-4 py-3 rounded-lg text-base font-medium flex items-center gap-3 transition-colors ${
+              className={`px-4 py-3 rounded-xl text-base font-medium flex items-center gap-3 transition-colors ${
                 isActive('/dashboard')
-                  ? 'bg-red-700 text-white shadow-sm'
-                  : 'text-red-100 hover:bg-red-800/50'
+                  ? 'bg-red-50 text-red-700'
+                  : 'text-stone-600 hover:bg-stone-50'
               }`}
             >
               <LayoutDashboard size={20} />
@@ -272,10 +290,10 @@ export default function Header() {
             <Link
               to={`${BASE_PATH}/apply`}
               onClick={closeMenu}
-              className={`px-4 py-3 rounded-lg text-base font-medium flex items-center gap-3 transition-colors ${
+              className={`px-4 py-3 rounded-xl text-base font-medium flex items-center gap-3 transition-colors ${
                 isActive('/apply')
-                  ? 'bg-red-700 text-white shadow-sm'
-                  : 'text-red-100 hover:bg-red-800/50'
+                  ? 'bg-red-50 text-red-700'
+                  : 'text-stone-600 hover:bg-stone-50'
               }`}
             >
               <FilePlus size={20} />
@@ -285,19 +303,19 @@ export default function Header() {
             <Link
               to={`${BASE_PATH}/profile`}
               onClick={closeMenu}
-              className={`px-4 py-3 rounded-lg text-base font-medium flex items-center gap-3 transition-colors ${
+              className={`px-4 py-3 rounded-xl text-base font-medium flex items-center gap-3 transition-colors ${
                 isActive('/profile')
-                  ? 'bg-red-700 text-white shadow-sm'
-                  : 'text-red-100 hover:bg-red-800/50'
+                  ? 'bg-red-50 text-red-700'
+                  : 'text-stone-600 hover:bg-stone-50'
               }`}
             >
               <div className="relative">
                 <User size={20} />
                 {isProfileIncomplete && (
-                  <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-amber-400" />
+                  <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-white" />
                 )}
               </div>
-              <span className={isProfileIncomplete ? "text-amber-300 font-bold" : ""}>
+              <span className={isProfileIncomplete ? "text-amber-600 font-bold" : ""}>
                 個人資料設定
               </span>
             </Link>
@@ -306,10 +324,10 @@ export default function Header() {
               <Link
                 to={`${BASE_PATH}/admin`}
                 onClick={closeMenu}
-                className={`px-4 py-3 rounded-lg text-base font-medium flex items-center gap-3 transition-colors ${
+                className={`px-4 py-3 rounded-xl text-base font-medium flex items-center gap-3 transition-colors ${
                   isActive('/admin')
-                    ? 'bg-red-700 text-white shadow-sm'
-                    : 'text-red-100 hover:bg-red-800/50'
+                    ? 'bg-red-50 text-red-700'
+                    : 'text-stone-600 hover:bg-stone-50'
                 }`}
               >
                 <Shield size={18} />
@@ -317,10 +335,10 @@ export default function Header() {
               </Link>
             )}
 
-            <div className="border-t border-red-700 my-2 pt-2">
+            <div className="border-t border-stone-100 my-2 pt-2">
               <button
                 onClick={handleLogout}
-                className="w-full px-4 py-3 flex items-center gap-3 text-red-200 hover:text-white hover:bg-white/10 rounded-lg transition-colors font-medium"
+                className="w-full px-4 py-3 flex items-center gap-3 text-red-600 hover:bg-red-50 rounded-xl transition-colors font-medium"
               >
                 <LogOut size={20} />
                 登出系統
@@ -328,14 +346,6 @@ export default function Header() {
             </div>
           </nav>
         </div>
-      )}
-
-      {/* 點擊外部關閉選單的遮罩 */}
-      {isMenuOpen && (
-        <div
-          className="fixed inset-0 top-16 bg-black/20 z-[-1] md:hidden backdrop-blur-[1px]"
-          onClick={closeMenu}
-        />
       )}
     </header>
   );
