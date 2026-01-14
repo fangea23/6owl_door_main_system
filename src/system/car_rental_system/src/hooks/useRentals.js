@@ -28,6 +28,17 @@ export const useRentals = (userId = null) => {
             id,
             purpose,
             destination
+          ),
+          renter:renter_id (
+            id,
+            employee_id,
+            name,
+            email,
+            department:department_id (
+              id,
+              name
+            ),
+            position
           )
         `)
         .order('created_at', { ascending: false });
@@ -65,6 +76,17 @@ export const useRentals = (userId = null) => {
             model,
             vehicle_type,
             color
+          ),
+          renter:renter_id (
+            id,
+            employee_id,
+            name,
+            email,
+            department:department_id (
+              id,
+              name
+            ),
+            position
           )
         `)
         .single();

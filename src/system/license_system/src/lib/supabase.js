@@ -7,10 +7,17 @@ export const supabase = {
   auth: mainClient.auth,
   storage: mainClient.storage,
   channel: (name, config) => mainClient.channel(name, config),
-  
-  // 2. 針對資料庫查詢，強制指定 'software_maintenance' schema
-  from: (table) => mainClient.schema('software_maintenance').from(table),
-  
+
+  // 2. 針對資料庫查詢，根據表格自動選擇 schema
+  from: (table) => {
+    // employees 和 departments 使用統一的 public schema
+    if (table === 'employees' || table === 'departments') {
+      return mainClient.from(table); // public schema
+    }
+    // 其他表格使用 software_maintenance schema
+    return mainClient.schema('software_maintenance').from(table);
+  },
+
   // 3. RPC 呼叫 (通常不需要 schema，若有需要可在此調整)
   rpc: (fn, args) => mainClient.rpc(fn, args),
 };
