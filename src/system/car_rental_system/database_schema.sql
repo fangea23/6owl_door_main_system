@@ -236,65 +236,79 @@ ALTER TABLE car_rental.rental_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE car_rental.rentals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE car_rental.maintenance_records ENABLE ROW LEVEL SECURITY;
 
+-- 輔助函數：獲取當前用戶的員工 ID
+CREATE OR REPLACE FUNCTION car_rental.get_current_employee_id()
+RETURNS UUID AS $$
+BEGIN
+  RETURN (
+    SELECT id FROM public.employees
+    WHERE user_id = auth.uid()
+    AND deleted_at IS NULL
+    LIMIT 1
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 輔助函數：檢查當前用戶是否為管理員
+CREATE OR REPLACE FUNCTION car_rental.is_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.employees
+    WHERE user_id = auth.uid()
+    AND role IN ('admin', 'hr')
+    AND deleted_at IS NULL
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- 政策：所有已登入用戶可讀取車輛資訊
+DROP POLICY IF EXISTS "Anyone can view available vehicles" ON car_rental.vehicles;
 CREATE POLICY "Anyone can view available vehicles"
   ON car_rental.vehicles FOR SELECT
   USING (auth.uid() IS NOT NULL AND deleted_at IS NULL);
 
 -- 政策：管理員可完全管理車輛
+DROP POLICY IF EXISTS "Admins can manage vehicles" ON car_rental.vehicles;
 CREATE POLICY "Admins can manage vehicles"
   ON car_rental.vehicles FOR ALL
-  USING (
-    auth.uid() IN (
-      SELECT id FROM auth.users
-      WHERE raw_user_meta_data->>'role' = 'admin'
-    )
-  );
+  USING (car_rental.is_admin());
 
 -- 政策：用戶可查看自己的申請
+DROP POLICY IF EXISTS "Users can view own rental requests" ON car_rental.rental_requests;
 CREATE POLICY "Users can view own rental requests"
   ON car_rental.rental_requests FOR SELECT
-  USING (auth.uid() = requester_id);
+  USING (requester_id = car_rental.get_current_employee_id());
 
 -- 政策：用戶可創建申請
+DROP POLICY IF EXISTS "Users can create rental requests" ON car_rental.rental_requests;
 CREATE POLICY "Users can create rental requests"
   ON car_rental.rental_requests FOR INSERT
-  WITH CHECK (auth.uid() = requester_id);
+  WITH CHECK (requester_id = car_rental.get_current_employee_id());
 
 -- 政策：管理員可查看所有申請
+DROP POLICY IF EXISTS "Admins can view all rental requests" ON car_rental.rental_requests;
 CREATE POLICY "Admins can view all rental requests"
   ON car_rental.rental_requests FOR SELECT
-  USING (
-    auth.uid() IN (
-      SELECT id FROM auth.users
-      WHERE raw_user_meta_data->>'role' = 'admin'
-    )
-  );
+  USING (car_rental.is_admin());
 
 -- 政策：管理員可審核申請
+DROP POLICY IF EXISTS "Admins can review rental requests" ON car_rental.rental_requests;
 CREATE POLICY "Admins can review rental requests"
   ON car_rental.rental_requests FOR UPDATE
-  USING (
-    auth.uid() IN (
-      SELECT id FROM auth.users
-      WHERE raw_user_meta_data->>'role' = 'admin'
-    )
-  );
+  USING (car_rental.is_admin());
 
 -- 政策：用戶可查看自己的租借記錄
+DROP POLICY IF EXISTS "Users can view own rentals" ON car_rental.rentals;
 CREATE POLICY "Users can view own rentals"
   ON car_rental.rentals FOR SELECT
-  USING (auth.uid() = renter_id);
+  USING (renter_id = car_rental.get_current_employee_id());
 
 -- 政策：管理員可完全管理租借記錄
+DROP POLICY IF EXISTS "Admins can manage rentals" ON car_rental.rentals;
 CREATE POLICY "Admins can manage rentals"
   ON car_rental.rentals FOR ALL
-  USING (
-    auth.uid() IN (
-      SELECT id FROM auth.users
-      WHERE raw_user_meta_data->>'role' = 'admin'
-    )
-  );
+  USING (car_rental.is_admin());
 
 -- 政策：所有人可查看維護記錄
 CREATE POLICY "Anyone can view maintenance records"
