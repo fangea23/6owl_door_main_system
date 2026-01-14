@@ -1,10 +1,9 @@
 import { useState } from 'react'
-import { Plus, Search, Monitor, Edit2, Trash2, ExternalLink, Package } from 'lucide-react'
+import { Plus, Search, Monitor, Edit2, Trash2, ExternalLink, Package, Building2 } from 'lucide-react'
 import { Card, CardContent } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input, Select, Textarea } from '../components/ui/Input'
 import { Badge } from '../components/ui/Badge'
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, EmptyState } from '../components/ui/Table'
 import { Modal, ConfirmModal } from '../components/ui/Modal'
 import { Loading } from '../components/ui/Loading'
 import { useSoftware, useVendors } from '../hooks/useSoftware'
@@ -201,78 +200,96 @@ export function Software() {
         </CardContent>
       </Card>
 
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>軟體名稱</TableHead>
-              <TableHead>廠商</TableHead>
-              <TableHead>版本</TableHead>
-              <TableHead>類別</TableHead>
-              <TableHead>網站</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredSoftware.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6}>
-                  <EmptyState message="暫無軟體" icon={Monitor} />
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredSoftware.map((s) => (
-                <TableRow key={s.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Package className="h-4 w-4 text-gray-400" />
-                      <span className="font-medium text-gray-900">{s.name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-gray-600">{s.vendor?.name || '-'}</TableCell>
-                  <TableCell className="text-gray-600">{s.version || '-'}</TableCell>
-                  <TableCell>
-                    {s.category ? (
-                      <Badge className={getCategoryColor(s.category)}>
-                        {getCategoryLabel(s.category)}
-                      </Badge>
-                    ) : '-'}
-                  </TableCell>
-                  <TableCell>
-                    {s.website ? (
-                      <a
-                        href={s.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        連結
-                      </a>
-                    ) : '-'}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => { setSelectedItem(s); setShowEditModal(true) }}
-                        className="p-1 text-gray-400 hover:text-blue-600 rounded"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => { setSelectedItem(s); setShowDeleteModal(true) }}
-                        className="p-1 text-gray-400 hover:text-red-600 rounded"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </Card>
+      {/* 軟體卡片網格 */}
+      {filteredSoftware.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+          <Monitor size={48} className="mx-auto mb-3 text-gray-300" />
+          <p className="text-gray-500">暫無軟體</p>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="mt-4 text-blue-600 hover:text-blue-700 font-medium"
+          >
+            立即新增
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredSoftware.map((s) => (
+            <div
+              key={s.id}
+              className="bg-white rounded-xl border border-gray-200 p-5 transition-all hover:shadow-lg"
+            >
+              {/* 卡片頭部：軟體名稱和操作按鈕 */}
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="h-10 w-10 bg-purple-100 rounded-full flex items-center justify-center shrink-0">
+                    <Package className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-gray-800 text-lg truncate">{s.name}</h3>
+                    {s.version && (
+                      <p className="text-sm text-gray-500">版本 {s.version}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-1 ml-2">
+                  <button
+                    onClick={() => { setSelectedItem(s); setShowEditModal(true) }}
+                    className="p-2 hover:bg-blue-50 text-gray-500 hover:text-blue-600 rounded-lg transition-colors"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button
+                    onClick={() => { setSelectedItem(s); setShowDeleteModal(true) }}
+                    className="p-2 hover:bg-red-50 text-gray-500 hover:text-red-600 rounded-lg transition-colors"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* 類別標籤 */}
+              {s.category && (
+                <div className="mb-3">
+                  <Badge className={getCategoryColor(s.category)}>
+                    {getCategoryLabel(s.category)}
+                  </Badge>
+                </div>
+              )}
+
+              {/* 軟體資訊 */}
+              <div className="space-y-2 text-sm text-gray-600">
+                {s.vendor?.name && (
+                  <p className="flex items-center gap-2">
+                    <Building2 size={16} className="text-gray-400 shrink-0" />
+                    {s.vendor.name}
+                  </p>
+                )}
+                {s.website && (
+                  <p className="flex items-center gap-2">
+                    <ExternalLink size={16} className="text-gray-400 shrink-0" />
+                    <a
+                      href={s.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 truncate"
+                    >
+                      官方網站
+                    </a>
+                  </p>
+                )}
+              </div>
+
+              {/* 描述 */}
+              {s.description && (
+                <p className="mt-3 text-xs text-gray-400 line-clamp-2 pt-3 border-t border-gray-100">
+                  {s.description}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="新增軟體" size="lg">
         <SoftwareForm vendors={vendors} onSubmit={handleCreate} onClose={() => setShowCreateModal(false)} />

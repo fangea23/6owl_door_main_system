@@ -1,10 +1,9 @@
 import { useState } from 'react'
-import { Plus, Search, Users, Eye, Edit2, Trash2, Mail, Phone, Building } from 'lucide-react'
+import { Plus, Search, Users, Eye, Edit2, Trash2, Mail, Phone, Building, Calendar } from 'lucide-react'
 import { Card, CardContent } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input, Textarea } from '../components/ui/Input'
 import { Badge } from '../components/ui/Badge'
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, EmptyState } from '../components/ui/Table'
 import { Modal, ConfirmModal } from '../components/ui/Modal'
 import { Loading } from '../components/ui/Loading'
 import { useCustomers } from '../hooks/useCustomers'
@@ -251,87 +250,92 @@ export function Customers() {
         </CardContent>
       </Card>
 
-      {/* Table */}
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>客戶名稱</TableHead>
-              <TableHead>電子郵件</TableHead>
-              <TableHead>公司</TableHead>
-              <TableHead>電話</TableHead>
-              <TableHead>狀態</TableHead>
-              <TableHead>建立日期</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredCustomers.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7}>
-                  <EmptyState message="暫無客戶" icon={Users} />
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredCustomers.map((customer) => (
-                <TableRow key={customer.id}>
-                  <TableCell className="font-medium text-gray-900">
-                    {customer.name}
-                  </TableCell>
-                  <TableCell className="text-gray-600">
-                    {customer.email || '-'}
-                  </TableCell>
-                  <TableCell className="text-gray-600">
-                    {customer.company || '-'}
-                  </TableCell>
-                  <TableCell className="text-gray-600">
-                    {customer.phone || '-'}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={customer.is_active ? 'success' : 'default'}>
-                      {customer.is_active ? '啟用' : '停用'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-gray-600">
-                    {formatDate(customer.created_at)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => {
-                          setSelectedCustomer(customer)
-                          setShowDetailModal(true)
-                        }}
-                        className="p-1 text-gray-400 hover:text-gray-600 rounded"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSelectedCustomer(customer)
-                          setShowEditModal(true)
-                        }}
-                        className="p-1 text-gray-400 hover:text-blue-600 rounded"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSelectedCustomer(customer)
-                          setShowDeleteModal(true)
-                        }}
-                        className="p-1 text-gray-400 hover:text-red-600 rounded"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </Card>
+      {/* 客戶卡片網格 */}
+      {filteredCustomers.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+          <Users size={48} className="mx-auto mb-3 text-gray-300" />
+          <p className="text-gray-500">暫無客戶</p>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="mt-4 text-blue-600 hover:text-blue-700 font-medium"
+          >
+            立即新增
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredCustomers.map((customer) => (
+            <div
+              key={customer.id}
+              className={`bg-white rounded-xl border p-5 transition-all hover:shadow-lg ${
+                customer.is_active ? 'border-gray-200' : 'border-gray-100 opacity-60'
+              }`}
+            >
+              {/* 卡片頭部：名稱和操作按鈕 */}
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
+                    <Users className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-gray-800 text-lg truncate">{customer.name}</h3>
+                    {customer.company && (
+                      <p className="text-sm text-gray-500 truncate">{customer.company}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-1 ml-2">
+                  <button
+                    onClick={() => { setSelectedCustomer(customer); setShowDetailModal(true) }}
+                    className="p-2 hover:bg-gray-50 text-gray-500 hover:text-gray-600 rounded-lg transition-colors"
+                  >
+                    <Eye size={16} />
+                  </button>
+                  <button
+                    onClick={() => { setSelectedCustomer(customer); setShowEditModal(true) }}
+                    className="p-2 hover:bg-blue-50 text-gray-500 hover:text-blue-600 rounded-lg transition-colors"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button
+                    onClick={() => { setSelectedCustomer(customer); setShowDeleteModal(true) }}
+                    className="p-2 hover:bg-red-50 text-gray-500 hover:text-red-600 rounded-lg transition-colors"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* 狀態標籤 */}
+              <div className="mb-3">
+                <Badge variant={customer.is_active ? 'success' : 'default'}>
+                  {customer.is_active ? '啟用' : '停用'}
+                </Badge>
+              </div>
+
+              {/* 聯絡資訊 */}
+              <div className="space-y-2 text-sm text-gray-600">
+                {customer.email && (
+                  <p className="flex items-center gap-2 truncate">
+                    <Mail size={16} className="text-gray-400 shrink-0" />
+                    <span className="truncate">{customer.email}</span>
+                  </p>
+                )}
+                {customer.phone && (
+                  <p className="flex items-center gap-2">
+                    <Phone size={16} className="text-gray-400 shrink-0" />
+                    {customer.phone}
+                  </p>
+                )}
+                <p className="flex items-center gap-2">
+                  <Calendar size={16} className="text-gray-400 shrink-0" />
+                  建立於 {formatDate(customer.created_at)}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Create Modal */}
       <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="新增客戶" size="md">
