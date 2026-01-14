@@ -22,6 +22,23 @@ export const useRentalRequests = (userId = null) => {
             brand,
             model,
             vehicle_type
+          ),
+          requester:requester_id (
+            id,
+            employee_id,
+            name,
+            email,
+            phone,
+            department:department_id (
+              id,
+              name
+            ),
+            position
+          ),
+          reviewer:reviewer_id (
+            id,
+            employee_id,
+            name
           )
         `)
         .order('created_at', { ascending: false });
@@ -58,6 +75,18 @@ export const useRentalRequests = (userId = null) => {
             brand,
             model,
             vehicle_type
+          ),
+          requester:requester_id (
+            id,
+            employee_id,
+            name,
+            email,
+            phone,
+            department:department_id (
+              id,
+              name
+            ),
+            position
           )
         `)
         .single();
@@ -153,7 +182,6 @@ export const useRentalRequests = (userId = null) => {
         request_id: request.id,
         vehicle_id: request.vehicle_id,
         renter_id: request.requester_id,
-        renter_name: request.requester_name,
         start_date: request.start_date,
         end_date: request.end_date,
         status: 'confirmed',
@@ -191,6 +219,23 @@ export const useRentalRequests = (userId = null) => {
             model,
             vehicle_type,
             color
+          ),
+          requester:requester_id (
+            id,
+            employee_id,
+            name,
+            email,
+            phone,
+            department:department_id (
+              id,
+              name
+            ),
+            position
+          ),
+          reviewer:reviewer_id (
+            id,
+            employee_id,
+            name
           )
         `)
         .eq('id', id)

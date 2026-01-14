@@ -67,11 +67,8 @@ CREATE INDEX IF NOT EXISTS idx_vehicles_plate ON car_rental.vehicles(plate_numbe
 CREATE TABLE IF NOT EXISTS car_rental.rental_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
-  -- 申請人資訊
-  requester_id UUID NOT NULL REFERENCES auth.users(id),  -- 申請人
-  requester_name VARCHAR(100) NOT NULL,                  -- 申請人姓名
-  requester_department VARCHAR(100),                     -- 申請人部門
-  requester_phone VARCHAR(50),                           -- 申請人電話
+  -- 申請人資訊（關聯統一員工表）
+  requester_id UUID NOT NULL REFERENCES public.employees(id),  -- 申請人（員工 ID）
 
   -- 租借需求
   vehicle_id UUID REFERENCES car_rental.vehicles(id),    -- 指定車輛（可為空，表示不指定）
@@ -90,7 +87,7 @@ CREATE TABLE IF NOT EXISTS car_rental.rental_requests (
 
   -- 審核流程
   status VARCHAR(50) DEFAULT 'pending',                  -- pending, approved, rejected, cancelled
-  reviewer_id UUID REFERENCES auth.users(id),            -- 審核者
+  reviewer_id UUID REFERENCES public.employees(id),      -- 審核者（員工 ID）
   reviewed_at TIMESTAMP WITH TIME ZONE,
   review_comment TEXT,                                   -- 審核意見
 
@@ -115,10 +112,9 @@ CREATE TABLE IF NOT EXISTS car_rental.rentals (
   -- 關聯申請
   request_id UUID REFERENCES car_rental.rental_requests(id),
 
-  -- 車輛與用戶
+  -- 車輛與用戶（關聯統一員工表）
   vehicle_id UUID NOT NULL REFERENCES car_rental.vehicles(id),
-  renter_id UUID NOT NULL REFERENCES auth.users(id),
-  renter_name VARCHAR(100) NOT NULL,
+  renter_id UUID NOT NULL REFERENCES public.employees(id),  -- 租借人（員工 ID）
 
   -- 租借時間
   start_date DATE NOT NULL,

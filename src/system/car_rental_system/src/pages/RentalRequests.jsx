@@ -121,11 +121,14 @@ export const RentalRequests = () => {
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <h3 className="text-lg font-semibold text-gray-900">
-                      {request.requester_name}
+                      {request.requester?.name || '未知'}
                     </h3>
                     {getStatusBadge(request.status)}
                   </div>
-                  <p className="text-sm text-gray-500">{request.requester_department}</p>
+                  <p className="text-sm text-gray-500">
+                    {request.requester?.department?.name || '未設定部門'}
+                    {request.requester?.position && ` • ${request.requester.position}`}
+                  </p>
                 </div>
                 <Clock className="w-5 h-5 text-gray-400" />
               </div>
@@ -199,7 +202,11 @@ export const RentalRequests = () => {
             <div className="p-6 space-y-4">
               <div>
                 <p className="text-sm text-gray-500">申請人</p>
-                <p className="font-medium">{reviewingRequest.requester_name}</p>
+                <p className="font-medium">
+                  {reviewingRequest.requester?.name || '未知'}
+                  {reviewingRequest.requester?.department?.name &&
+                    ` (${reviewingRequest.requester.department.name})`}
+                </p>
               </div>
 
               <div>

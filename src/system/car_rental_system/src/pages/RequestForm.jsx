@@ -10,10 +10,11 @@ export const RequestForm = () => {
   const { createRequest } = useRentalRequests();
   const { fetchAvailableVehicles, vehicles } = useVehicles();
 
+  // TODO: 從認證系統獲取當前員工資訊
+  // 示例: const { employee } = useAuth(); 或從 Supabase 查詢 public.employees
+  const currentEmployeeId = 'current-employee-id'; // 實際使用時需要從認證系統獲取員工 ID
+
   const [formData, setFormData] = useState({
-    requester_name: '',
-    requester_department: '',
-    requester_phone: '',
     vehicle_id: '',
     preferred_vehicle_type: 'sedan',
     start_date: '',
@@ -49,10 +50,10 @@ export const RequestForm = () => {
       return;
     }
 
-    // 準備提交數據（需要從認證系統獲取實際用戶 ID）
+    // 準備提交數據
     const submitData = {
       ...formData,
-      requester_id: 'current-user-id', // 實際使用時需要從認證系統獲取
+      requester_id: currentEmployeeId, // 使用員工 ID（從 public.employees 表）
       vehicle_id: formData.vehicle_id || null,
       estimated_mileage: formData.estimated_mileage ? parseInt(formData.estimated_mileage) : null,
     };
@@ -84,49 +85,14 @@ export const RequestForm = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* 申請人資訊 */}
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">申請人資訊</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  姓名 *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.requester_name}
-                  onChange={(e) => setFormData({...formData, requester_name: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  部門 *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.requester_department}
-                  onChange={(e) => setFormData({...formData, requester_department: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  聯絡電話 *
-                </label>
-                <input
-                  type="tel"
-                  required
-                  value={formData.requester_phone}
-                  onChange={(e) => setFormData({...formData, requester_phone: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
-                />
-              </div>
-            </div>
+          {/* 申請人資訊說明 */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-sm text-blue-800">
+              <strong>申請人：</strong>系統將自動使用您的員工資訊提交申請
+            </p>
+            <p className="text-xs text-blue-600 mt-1">
+              註：實際使用時會從認證系統自動獲取員工姓名、部門等資訊
+            </p>
           </div>
 
           {/* 用車時間 */}
