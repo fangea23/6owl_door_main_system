@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, Car } from 'lucide-react';
+import { ArrowLeft, Calendar, Car, AlertCircle } from 'lucide-react';
 import { useRentalRequests } from '../hooks/useRentalRequests';
 import { useVehicles } from '../hooks/useVehicles';
+import { useCurrentEmployee } from '../hooks/useCurrentEmployee';
 import toast from 'react-hot-toast';
 
 export const RequestForm = () => {
   const navigate = useNavigate();
   const { createRequest } = useRentalRequests();
   const { fetchAvailableVehicles, vehicles } = useVehicles();
-
-  // TODO: 從認證系統獲取當前員工資訊
-  // 示例: const { employee } = useAuth(); 或從 Supabase 查詢 public.employees
-  const currentEmployeeId = 'current-employee-id'; // 實際使用時需要從認證系統獲取員工 ID
+  const { employee, loading: employeeLoading, error: employeeError } = useCurrentEmployee();
 
   const [formData, setFormData] = useState({
     vehicle_id: '',
@@ -50,10 +48,16 @@ export const RequestForm = () => {
       return;
     }
 
+    // 檢查員工資訊
+    if (!employee) {
+      toast.error('無法獲取員工資訊，請重新登入');
+      return;
+    }
+
     // 準備提交數據
     const submitData = {
       ...formData,
-      requester_id: currentEmployeeId, // 使用員工 ID（從 public.employees 表）
+      requester_id: employee.id, // 使用員工 ID（從 public.employees 表）
       vehicle_id: formData.vehicle_id || null,
       estimated_mileage: formData.estimated_mileage ? parseInt(formData.estimated_mileage) : null,
     };
@@ -67,6 +71,52 @@ export const RequestForm = () => {
       toast.error(result.error || '提交失敗');
     }
   };
+
+  // 載入中
+  if (employeeLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">載入員工資訊...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 錯誤或沒有員工資料
+  if (employeeError || !employee) {
+    return (
+      <div className="max-w-4xl mx-auto">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          返回
+        </button>
+        <div className="bg-white rounded-lg border border-red-200 p-8">
+          <div className="flex items-center gap-3 text-red-600 mb-4">
+            <AlertCircle className="w-8 h-8" />
+            <h2 className="text-2xl font-bold">無法載入員工資訊</h2>
+          </div>
+          <p className="text-gray-700 mb-4">
+            {employeeError || '您的帳號尚未關聯員工資料，請聯繫 HR 部門設定。'}
+          </p>
+          <p className="text-sm text-gray-600 mb-4">
+            需要在 <code className="bg-gray-100 px-2 py-1 rounded">public.employees</code> 表中設定您的員工記錄，
+            並將 <code className="bg-gray-100 px-2 py-1 rounded">user_id</code> 欄位關聯到您的登入帳號。
+          </p>
+          <button
+            onClick={() => navigate('/systems/car-rental/dashboard')}
+            className="px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700"
+          >
+            返回儀表板
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -85,14 +135,29 @@ export const RequestForm = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* 申請人資訊說明 */}
+          {/* 申請人資訊顯示 */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="text-sm text-blue-800">
-              <strong>申請人：</strong>系統將自動使用您的員工資訊提交申請
-            </p>
-            <p className="text-xs text-blue-600 mt-1">
-              註：實際使用時會從認證系統自動獲取員工姓名、部門等資訊
-            </p>
+            <p className="text-sm font-medium text-blue-900 mb-2">申請人資訊</p>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <span className="text-blue-700">姓名：</span>
+                <span className="text-blue-900 font-medium">{employee.name}</span>
+              </div>
+              <div>
+                <span className="text-blue-700">員工編號：</span>
+                <span className="text-blue-900 font-medium">{employee.employee_id}</span>
+              </div>
+              <div>
+                <span className="text-blue-700">部門：</span>
+                <span className="text-blue-900 font-medium">
+                  {employee.department?.name || '未設定'}
+                </span>
+              </div>
+              <div>
+                <span className="text-blue-700">職位：</span>
+                <span className="text-blue-900 font-medium">{employee.position || '未設定'}</span>
+              </div>
+            </div>
           </div>
 
           {/* 用車時間 */}
