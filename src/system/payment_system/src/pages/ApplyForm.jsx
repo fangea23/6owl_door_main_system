@@ -537,7 +537,7 @@ export default function ApplyForm() {
             </div>
 
                 {successMsg && (
-                    <div className="bg-emerald-50 border-l-4 border-green-500 text-green-700 p-4 m-6 rounded shadow-sm flex items-center whitespace-pre-line">
+                    <div className="bg-red-50 border-l-4 border-green-500 text-green-700 p-4 m-6 rounded shadow-sm flex items-center whitespace-pre-line">
                         <CheckCircle className="mr-2" />
                         <p>{successMsg}</p>
                     </div>
@@ -641,57 +641,57 @@ export default function ApplyForm() {
                                 />
                             </div>
 
-                            {/* 6. 金額與稅別 (手機垂直/電腦水平) */}
-                            <div className="col-span-1 md:col-span-2 bg-white p-4 rounded-lg border border-stone-200 shadow-sm">
-                                <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-center">
+                        {/* 6. 金額與稅別 */}
+                        <div className="col-span-1 md:col-span-2 bg-white p-5 rounded-xl shadow-sm"> {/* 🔴 移除了 border class */}
+                            <div className="flex flex-col md:flex-row gap-6 md:items-center">
+                                
+                                {/* 選項區 */}
+                                <div className="flex gap-6 shrink-0">
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                        <input
+                                            type="radio"
+                                            name="taxType"
+                                            value="tax_included"
+                                            checked={formData.taxType === 'tax_included'}
+                                            onChange={handleChange}
+                                            className="w-5 h-5 text-red-600 focus:ring-red-500 border-stone-300"
+                                        />
+                                        <span className="text-base font-medium text-stone-700 group-hover:text-red-600 transition-colors">含稅</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                        <input
+                                            type="radio"
+                                            name="taxType"
+                                            value="tax_excluded"
+                                            checked={formData.taxType === 'tax_excluded'}
+                                            onChange={handleChange}
+                                            className="w-5 h-5 text-red-600 focus:ring-red-500 border-stone-300"
+                                        />
+                                        <span className="text-base font-medium text-stone-700 group-hover:text-red-600 transition-colors">未稅</span>
+                                    </label>
+                                </div>
 
-                                    {/* 選項區：手機橫向排列，不會被擠壓 */}
-                                    <div className="flex gap-6 shrink-0">
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                            <input
-                                                type="radio"
-                                                name="taxType"
-                                                value="tax_included"
-                                                checked={formData.taxType === 'tax_included'}
-                                                onChange={handleChange}
-                                                className="w-5 h-5 text-red-500 focus:ring-red-500"
-                                            />
-                                            <span className="text-base font-medium text-gray-700">含稅</span>
-                                        </label>
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                            <input
-                                                type="radio"
-                                                name="taxType"
-                                                value="tax_excluded"
-                                                checked={formData.taxType === 'tax_excluded'}
-                                                onChange={handleChange}
-                                                className="w-5 h-5 text-red-500 focus:ring-red-500"
-                                            />
-                                            <span className="text-base font-medium text-gray-700">未稅</span>
-                                        </label>
+                                {/* 金額輸入區 */}
+                                <div className="flex-1 w-full relative mt-2 md:mt-0">
+                                    <label className="absolute -top-2.5 left-0 text-xs text-stone-400 font-bold bg-white px-1">
+                                        付款金額 (TWD)
+                                    </label>
+                                    <div className="relative">
+                                        <span className="absolute left-0 bottom-2 text-2xl font-bold text-stone-300 pl-1">$</span>
+                                        <input
+                                            type="number"
+                                            name="amount"
+                                            value={formData.amount}
+                                            onChange={handleChange}
+                                            placeholder="0"
+                                            required
+                                            // 🔴 重點：border-b-2 (底線), border-stone-200 (淺灰), focus:border-red-600 (點擊變紅)
+                                            className="w-full pl-8 pr-2 py-1 text-3xl font-bold text-stone-800 border-b-2 border-stone-200 focus:border-red-600 outline-none bg-transparent placeholder-stone-200 transition-colors font-mono"
+                                        />
                                     </div>
-
-                                    {/* 金額輸入區：相對定位，確保標籤不跑版 */}
-                                    <div className="flex-1 w-full relative mt-2 md:mt-0">
-                                        <label className="absolute -top-2 left-0 text-xs text-gray-400 font-medium bg-white px-1">
-                                            付款金額 (TWD)
-                                        </label>
-                                        <div className="relative">
-                                            <span className="absolute left-0 bottom-2 text-xl font-bold text-gray-400 pl-1">$</span>
-                                            <input
-                                                type="number"
-                                                name="amount"
-                                                value={formData.amount}
-                                                onChange={handleChange}
-                                                placeholder="0"
-                                                required
-                                                className="w-full pl-6 pr-2 py-1 text-2xl font-bold text-gray-800 border-b-2 border-stone-200 focus:border-red-600 outline-none bg-transparent placeholder-gray-300"
-                                            />
-                                        </div>
-                                    </div>
-
                                 </div>
                             </div>
+                        </div>
 
                         </div>
                     </section>
@@ -1003,7 +1003,7 @@ export default function ApplyForm() {
                                 <label className="block text-sm font-medium text-gray-700 mb-2">發票狀態</label>
                                 <div className="flex flex-wrap gap-4">
                                     {['yes', 'no_yet', 'none'].map(val => (
-                                        <label key={val} className="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded border border-gray-200 hover:border-emerald-300">
+                                        <label key={val} className="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded border border-gray-200 hover:border-red-300">
                                             <input
                                                 type="radio"
                                                 name="hasInvoice"
