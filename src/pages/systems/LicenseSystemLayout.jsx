@@ -3,7 +3,7 @@
  * 整合授權系統到六扇門企業入口的單一入口 (SSO)
  */
 import React, { useState, useRef, useEffect } from 'react';
-import { Routes, Route, Navigate, Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet, NavLink, useNavigate, useLocation,Link } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
 // 使用主系統的認證
