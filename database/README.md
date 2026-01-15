@@ -7,17 +7,62 @@
 ### 執行順序
 
 1. **首先執行統一員工表** - 這是所有系統的基礎
-2. 然後執行各子系統的資料庫腳本
+2. **執行 profiles 表修正** - 確保認證系統與員工系統正確整合
+3. **執行管理中心 RPC 函數** - 提供統一管理功能
+4. 然後執行各子系統的資料庫腳本
 
 ```bash
 # 1. 先執行統一員工表（必須）
 database/unified_employees.sql
 
-# 2. 再執行各子系統的資料庫腳本
+# 2. 執行 profiles 表修正（必須）- 修正認證系統與員工系統的整合
+database/fix_profiles_table.sql
+
+# 3. 執行管理中心 RPC 函數（必須）- 提供統一管理功能
+database/management_rpc_functions.sql
+
+# 4. 再執行各子系統的資料庫腳本
 src/system/car_rental_system/database_schema.sql
 src/system/license_system/database_schema.sql  # 如果有
 src/system/payment_system/database_schema.sql  # 如果有
 ```
+
+### 重要說明
+
+#### 三層架構
+
+- **profiles 表（認證層）**：用於 Supabase 認證系統，僅包含認證相關資訊（email, full_name, role, avatar_url）
+  - 用途：快速權限檢查、登入登出
+  - 關聯：`profiles.id = auth.users.id`
+
+- **employees 表（資料層）**：用於員工組織管理，包含完整的員工資料（部門、職位、聯絡方式等）
+  - 用途：員工管理 CRUD、完整資料查詢
+  - 關聯：`employees.user_id = profiles.id`
+
+- **employees_with_details 視圖（顯示層）**：自動 JOIN 員工 + 部門 + 主管資訊
+  - 用途：列表顯示、報表統計
+  - 優勢：避免多次查詢關聯資料
+
+#### 資料流程
+
+```
+auth.users (Supabase 認證)
+    ↓
+profiles (認證資料: email, role, full_name)
+    ↓ (user_id)
+employees (員工資料: employee_id, name, department, position...)
+    ↓ (department_id)
+departments (部門資料: name, code, manager...)
+```
+
+#### RPC 函數
+
+- `delete_user_by_admin()` - 管理員刪除用戶
+- `get_current_user_full_info()` - 獲取完整用戶資訊
+- `get_user_display_name()` - 智能獲取顯示名稱
+- `get_user_avatar_url()` - 智能獲取頭像 URL
+- `sync_profile_to_employee()` - 自動同步資料
+- `get_management_stats()` - 統計資訊
 
 ## 統一員工表 (unified_employees.sql)
 

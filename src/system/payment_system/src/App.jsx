@@ -3,13 +3,12 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom
 import ForgotPassword from './pages/ForgotPassword';
 import UpdatePassword from './pages/UpdatePassword';
 import Header from './components/Header';
-import ProtectedRoute from './components/ProtectedRoute'; 
-import UserProfile from './pages/UserProfile'; 
+import ProtectedRoute from './components/ProtectedRoute';
+import UserProfile from './pages/UserProfile';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import ApplyForm from './pages/ApplyForm';
 import RequestDetail from './pages/RequestDetail';
-import AdminPanel from './pages/AdminPanel';
 import './App.css'; // 確保引入了樣式
 
 // 主版面配置 (修改背景風格)
@@ -38,7 +37,7 @@ export default function App() {
              <Route path="/apply" element={<ApplyForm />} />
              <Route path="/request/:id" element={<RequestDetail />} />
              <Route path="/profile" element={<UserProfile />} />
-             <Route path="/admin" element={<AdminPanel />} />
+             {/* AdminPanel 已移至統一管理中心 /management */}
              <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Route>
         </Route>

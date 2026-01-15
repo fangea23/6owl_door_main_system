@@ -147,13 +147,13 @@ export default function Header() {
             新增申請
           </Link>
 
-          {(role === 'admin' || role === 'boss') && (
+          {(role === 'admin' || role === 'hr') && (
             <Link
-              to={`${BASE_PATH}/admin`}
-              className={getNavLinkClass(isActive('/admin'))}
+              to="/management"
+              className={getNavLinkClass(false)}
             >
               <Shield size={18} />
-              系統管理
+              統一管理中心
             </Link>
           )}
         </nav>
@@ -317,18 +317,14 @@ export default function Header() {
               </span>
             </Link>
 
-            {(role === 'admin' || role === 'boss') && (
+            {(role === 'admin' || role === 'hr') && (
               <Link
-                to={`${BASE_PATH}/admin`}
+                to="/management"
                 onClick={closeMenu}
-                className={`px-4 py-3 rounded-xl text-base font-medium flex items-center gap-3 transition-colors ${
-                  isActive('/admin')
-                    ? 'bg-red-50 text-red-700'
-                    : 'text-stone-600 hover:bg-stone-50'
-                }`}
+                className="px-4 py-3 rounded-xl text-base font-medium flex items-center gap-3 transition-colors text-stone-600 hover:bg-stone-50"
               >
                 <Shield size={18} />
-                系統管理
+                統一管理中心
               </Link>
             )}
 
