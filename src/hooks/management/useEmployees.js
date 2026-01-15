@@ -4,6 +4,9 @@ import { supabase } from '../../lib/supabase';
 /**
  * 統一的員工管理 Hook
  * 管理 public.employees 表（員工組織資訊）
+ * * 修改重點：
+ * - createEmployee 改為呼叫 'invite-employee' Edge Function
+ * - 加入邀請機制的錯誤處理
  */
 export const useEmployees = () => {
   const [employees, setEmployees] = useState([]);
@@ -49,28 +52,55 @@ export const useEmployees = () => {
     fetchEmployees();
   }, []);
 
-  // 創建新員工
+  // -------------------------------------------------------------------
+  // 修改部分開始：創建新員工 (改為發送邀請)
+  // -------------------------------------------------------------------
   const createEmployee = async (employeeData) => {
     try {
-      const { data, error: insertError } = await supabase
-        .from('employees')
-        .insert([employeeData])
-        .select()
-        .single();
+      // 呼叫 Edge Function: invite-employee
+      // 這會觸發：發送 Email -> 建立 Auth 帳號 -> 觸發 Database Trigger -> 寫入員工資料
+      const { data, error } = await supabase.functions.invoke('invite-employee', {
+        body: {
+          email: employeeData.email,
+          name: employeeData.name,
+          employee_id: employeeData.employee_id,
+          department_id: employeeData.department_id,
+          position: employeeData.position,
+          role: employeeData.role,
+          phone: employeeData.phone,   // 記得把電話也傳過去
+          mobile: employeeData.mobile
+        }
+      });
 
-      if (insertError) throw insertError;
+      if (error) {
+        // 解析 Edge Function 回傳的錯誤訊息 (通常是 JSON 格式)
+        let errorMessage = error.message;
+        try {
+           // 嘗試解析回應本體中的錯誤訊息
+           if (error.context && typeof error.context.json === 'function') {
+             const errorBody = await error.context.json();
+             errorMessage = errorBody.error || errorMessage;
+           }
+        } catch (e) {
+          // 解析失敗就用原始訊息
+        }
+        throw new Error(errorMessage);
+      }
 
-      // 重新載入列表
+      // 成功後，重新載入列表以顯示新員工
       await fetchEmployees();
 
       return { success: true, employee: data };
     } catch (err) {
-      console.error('Error creating employee:', err);
-      return { success: false, error: err.message };
+      console.error('Error creating/inviting employee:', err);
+      return { success: false, error: err.message || '邀請發送失敗' };
     }
   };
+  // -------------------------------------------------------------------
+  // 修改部分結束
+  // -------------------------------------------------------------------
 
-  // 更新員工資訊
+  // 更新員工資訊 (保持不變)
   const updateEmployee = async (employeeId, updates) => {
     try {
       const { error: updateError } = await supabase
@@ -90,7 +120,7 @@ export const useEmployees = () => {
     }
   };
 
-  // 軟刪除員工
+  // 軟刪除員工 (保持不變)
   const deleteEmployee = async (employeeId) => {
     try {
       const { error: deleteError } = await supabase
@@ -110,7 +140,7 @@ export const useEmployees = () => {
     }
   };
 
-  // 關聯員工與用戶帳號
+  // 關聯員工與用戶帳號 (保持不變，雖然有了邀請功能後這個比較少用到了)
   const linkEmployeeToUser = async (employeeId, userId) => {
     try {
       const { error: updateError } = await supabase
@@ -120,7 +150,6 @@ export const useEmployees = () => {
 
       if (updateError) throw updateError;
 
-      // 重新載入列表
       await fetchEmployees();
 
       return { success: true };
@@ -130,7 +159,7 @@ export const useEmployees = () => {
     }
   };
 
-  // 取消關聯
+  // 取消關聯 (保持不變)
   const unlinkEmployeeFromUser = async (employeeId) => {
     try {
       const { error: updateError } = await supabase
@@ -140,7 +169,6 @@ export const useEmployees = () => {
 
       if (updateError) throw updateError;
 
-      // 重新載入列表
       await fetchEmployees();
 
       return { success: true };

@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import Account from './pages/Account';
 import UserProfile from './pages/UserProfile';
 import ManagementCenter from './pages/management/ManagementCenter';
+import UpdatePassword from './pages/UpdatePassword';
 import './App.css';
 
 // 子系統 Layout
@@ -88,6 +89,12 @@ function App() {
             path="/systems/car-rental/*"
             element={<CarRentalSystemLayout />}
           />
+
+          <Route 
+            path="/update-password"
+            element={<UpdatePassword />} 
+          />
+
         </Routes>
       </AuthProvider>
     </BrowserRouter>

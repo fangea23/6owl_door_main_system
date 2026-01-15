@@ -1,0 +1,162 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+import { Lock, Loader2, CheckCircle, AlertCircle, Eye, EyeOff } from 'lucide-react';
+
+export default function UpdatePassword() {
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // 檢查是否有 Session (邀請連結會自動建立 Session)
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        // 如果沒有 Session，代表連結可能失效或使用者直接闖入
+        setError('無效的連結或連結已過期，請重新登入或聯繫管理員。');
+      }
+    };
+    checkSession();
+  }, []);
+
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(false);
+
+    if (password.length < 6) {
+      setError('密碼長度至少需要 6 個字元');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('兩次輸入的密碼不一致');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // 呼叫 Supabase 更新使用者密碼
+      const { error } = await supabase.auth.updateUser({
+        password: password
+      });
+
+      if (error) throw error;
+
+      setSuccess(true);
+      
+      // 成功後 2 秒跳轉首頁
+      setTimeout(() => {
+        navigate('/'); 
+      }, 2000);
+
+    } catch (err) {
+      console.error('Password update failed:', err);
+      setError(err.message || '密碼更新失敗，請稍後再試');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+        {/* Header */}
+        <div className="bg-blue-600 px-8 py-6 text-center">
+          <div className="mx-auto w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mb-4 shadow-inner">
+            <Lock className="text-white" size={32} />
+          </div>
+          <h2 className="text-2xl font-bold text-white">設定新密碼</h2>
+          <p className="text-blue-100 mt-2 text-sm">請輸入您的新密碼以完成帳號啟用</p>
+        </div>
+
+        {/* Content */}
+        <div className="p-8">
+          {success ? (
+            <div className="text-center py-8 animate-in fade-in zoom-in duration-300">
+              <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-800 mb-2">密碼設定成功！</h3>
+              <p className="text-gray-500">正在為您登入系統...</p>
+            </div>
+          ) : (
+            <form onSubmit={handleUpdate} className="space-y-5">
+              
+              {/* Error Message */}
+              {error && (
+                <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm flex items-start gap-3">
+                  <AlertCircle size={18} className="mt-0.5 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {/* Password Input */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  新密碼
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="至少 6 個字元"
+                    className="w-full pl-4 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm Password Input */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  確認新密碼
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="再次輸入新密碼"
+                    className="w-full pl-4 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="animate-spin" size={20} />
+                    <span>更新中...</span>
+                  </>
+                ) : (
+                  <span>設定密碼並登入</span>
+                )}
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
