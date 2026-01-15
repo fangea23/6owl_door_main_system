@@ -22,7 +22,11 @@ function App() {
         <Routes>
           {/* 公開路由 */}
           <Route path="/login" element={<Login />} />
-
+          
+          <Route 
+            path="/update-password"
+            element={<UpdatePassword />} 
+          />
           {/* 受保護路由 */}
           <Route
             path="/"
@@ -90,10 +94,7 @@ function App() {
             element={<CarRentalSystemLayout />}
           />
 
-          <Route 
-            path="/update-password"
-            element={<UpdatePassword />} 
-          />
+
 
         </Routes>
       </AuthProvider>
