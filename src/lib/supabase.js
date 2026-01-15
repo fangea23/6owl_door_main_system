@@ -13,7 +13,7 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
     persistSession: true,
     detectSessionInUrl: true,
     // ⬇️ 加入這行：將 Token 檢查間隔縮短，減少過期機會
-    // 但這無法完全解決「瀏覽器睡眠」問題，還是要靠上面的 visibilitychange
+    // 但這無法完全解決「瀏覽器睡眠」問題，還是要靠上面的 visibilitychange12
     flowType: 'pkce', 
   },
 });
