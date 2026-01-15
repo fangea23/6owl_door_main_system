@@ -20,81 +20,39 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* 公開路由 */}
+          {/* ========================================
+              1. 公開路由 (任何人都能看)
+             ======================================== */}
           <Route path="/login" element={<Login />} />
           
-          <Route 
-            path="/update-password"
-            element={<UpdatePassword />} 
-          />
-          {/* 受保護路由 */}
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Portal />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/account"
-            element={
-              <ProtectedRoute>
-                <Account />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* 統一用戶資料頁面 */}
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute>
-                <UserProfile />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* 統一管理中心 */}
-          <Route
-            path="/management/*"
-            element={
-              <ProtectedRoute>
-                <ManagementCenter />
-              </ProtectedRoute>
-            }
-          />
+          {/* ✅ 正確：更新密碼頁面放在這裡，不需先登入 */}
+          <Route path="/update-password" element={<UpdatePassword />} />
+          
 
           {/* ========================================
-              子系統路由
-              ======================================== */}
+              2. 受保護路由 (必須登入才能看)
+             ======================================== */}
+          <Route element={<ProtectedRoute />}>
+             {/* 主入口 */}
+             <Route path="/" element={<Portal />} />
+             <Route path="/account" element={<Account />} />
+             <Route path="/profile" element={<UserProfile />} />
+             <Route path="/management/*" element={<ManagementCenter />} />
 
-          {/* 付款簽核系統 */}
-          <Route
-            path="/systems/payment-approval/*"
-            element={<PaymentSystemLayout />}
-          />
+             {/* 👇 修正：子系統應該要放在 ProtectedRoute 裡面！ */}
+             
+             {/* 付款簽核系統 */}
+             <Route path="/systems/payment-approval/*" element={<PaymentSystemLayout />} />
 
-          {/* 軟體授權系統 */}
-          <Route
-            path="/systems/software-license/*"
-            element={<LicenseSystemLayout />}
-          />
+             {/* 軟體授權系統 */}
+             <Route path="/systems/software-license/*" element={<LicenseSystemLayout />} />
 
-          {/* 會議室租借系統 */}
-          <Route
-            path="/systems/meeting-room/*"
-            element={<MeetingRoomSystemLayout />}
-          />
+             {/* 會議室租借系統 */}
+             <Route path="/systems/meeting-room/*" element={<MeetingRoomSystemLayout />} />
 
-          {/* 公司車租借系統 */}
-          <Route
-            path="/systems/car-rental/*"
-            element={<CarRentalSystemLayout />}
-          />
-
-
+             {/* 公司車租借系統 */}
+             <Route path="/systems/car-rental/*" element={<CarRentalSystemLayout />} />
+          </Route>
 
         </Routes>
       </AuthProvider>
