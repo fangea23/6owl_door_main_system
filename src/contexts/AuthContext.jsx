@@ -32,27 +32,28 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let mounted = true;
 
-    const initAuth = async () => {
+const initAuth = async () => {
       try {
-        // 設定 3 秒超時限制，避免因 LocalStorage 損壞而無限轉圈
+        // 1. 修改：將超時時間延長至 10 秒 (10000ms)
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Auth timeout')), 3000)
+          setTimeout(() => reject(new Error('Auth timeout')), 10000)
         );
 
         const sessionPromise = supabase.auth.getSession();
 
-        // 競賽：看是先取得 Session 還是先超時
         const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise])
           .catch(async (err) => {
-            console.warn('Auth init timeout or error, forcing cleanup...', err);
-            // 如果超時或出錯，強制登出以清除壞掉的 cache
-            await supabase.auth.signOut(); 
+            console.warn('Auth init timeout or error:', err);
+            
+            // 2. 刪除或註解掉這行：不要在初始化超時時強制登出！
+            // await supabase.auth.signOut(); 
+            
+            // 讓它單純回傳 null，保持應用程式繼續運行，不要中斷連線
             return { data: { session: null } };
           });
 
         if (session?.user && mounted) {
           setUser(session.user);
-          // 嘗試取得 Profile，如果失敗也不要卡住整個 App
           const userProfile = await fetchProfile(session.user.id).catch(() => null);
           if (mounted) setProfile(userProfile);
         }

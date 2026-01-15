@@ -57,7 +57,15 @@ useEffect(() => {
     setLoading(true);
 
     try {
-      // 呼叫 Supabase 更新使用者密碼
+      // 1. 新增：先檢查是否擁有有效的 Session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        // 如果沒有 Session，可能是 Token 過期或被清除了
+        throw new Error('驗證階段已過期，請重新點擊信件中的邀請連結');
+      }
+
+      // 2. 執行更新
       const { error } = await supabase.auth.updateUser({
         password: password
       });
@@ -65,20 +73,24 @@ useEffect(() => {
       if (error) throw error;
 
       setSuccess(true);
-      
-      // 成功後 2 秒跳轉首頁
       setTimeout(() => {
         navigate('/'); 
       }, 2000);
 
     } catch (err) {
       console.error('Password update failed:', err);
-      setError(err.message || '密碼更新失敗，請稍後再試');
+      
+      // 3. 優化錯誤訊息顯示
+      if (err.message?.includes('AbortError') || err.name === 'AbortError') {
+         setError('連線逾時，請重新整理頁面後再試一次');
+      } else {
+         setError(err.message || '密碼更新失敗，請稍後再試');
+      }
     } finally {
       setLoading(false);
     }
   };
-
+  
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
