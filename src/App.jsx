@@ -13,7 +13,8 @@ import './App.css';
 import PaymentSystemLayout from './pages/systems/PaymentSystemLayout';
 import LicenseSystemLayout from './pages/systems/LicenseSystemLayout';
 import MeetingRoomSystemLayout from './pages/systems/MeetingRoomSystemLayout';
-import CarRentalSystemLayout from './pages/systems/CarRentalSystemLayout'; 
+import CarRentalSystemLayout from './pages/systems/CarRentalSystemLayout';
+import StoreManagementSystemLayout from './pages/systems/StoreManagementSystemLayout'; 
 
 function App() {
   return (
@@ -52,6 +53,9 @@ function App() {
 
              {/* 公司車租借系統 */}
              <Route path="/systems/car-rental/*" element={<CarRentalSystemLayout />} />
+
+             {/* 店舖管理系統 */}
+             <Route path="/systems/store-management/*" element={<StoreManagementSystemLayout />} />
           </Route>
 
         </Routes>

@@ -98,6 +98,15 @@ export const categories = [
         status: 'active',
         isExternal: false,
       },
+      {
+        id: 'store-management',
+        name: '店舖管理系統',
+        description: '品牌與店舖資料管理',
+        icon: '🏪',
+        url: '/systems/store-management',
+        status: 'active',
+        isExternal: false,
+      },
     ],
   },
 ];
