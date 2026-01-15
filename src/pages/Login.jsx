@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation,  useEffect } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 // 確保您已將 App.css 的新樣式套用
 import logoSrc from '../assets/logo.png';
