@@ -11,12 +11,29 @@ export default function Login() {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const from = location.state?.from?.pathname || '/';
+// 2. 放在這裡：組件載入後的自動跳轉邏輯
+  useEffect(() => {
+    if (isAuthenticated) {
+      // 檢查網址，如果目的是要重設密碼，就「不要」跳轉到首頁
+      const isUpdatingPassword = 
+        window.location.hash.includes('access_token') || 
+        window.location.pathname === '/update-password';
 
+      if (isUpdatingPassword) {
+        console.log("偵測到密碼更新流程，停止自動導向首頁");
+        return; 
+      }
+
+      // 如果只是普通登入狀態，才導向首頁或來源頁
+      navigate(from, { replace: true });
+    }
+  }, [isAuthenticated, navigate, from]);
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
