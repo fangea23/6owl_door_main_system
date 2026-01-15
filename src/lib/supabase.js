@@ -7,7 +7,7 @@ if (!supabaseUrl || !supabaseKey) {
   console.error('Missing Supabase environment variables. Please set VITE_SUPABASE_URL and VITE_SUPABASE_KEY.');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
