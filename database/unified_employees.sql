@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS public.employees (
 
   -- 組織資訊
   department_id UUID REFERENCES public.departments(id),  -- 部門
-  position VARCHAR(100),                          -- 職位
+  "position" VARCHAR(100),                        -- 職位（position 是保留字，需加引號）
   job_title VARCHAR(100),                         -- 職稱
   employee_type VARCHAR(50) DEFAULT 'full-time',  -- 員工類型（full-time, part-time, contractor）
   level VARCHAR(50),                              -- 職級
@@ -250,7 +250,7 @@ ON CONFLICT (name) DO NOTHING;
 -- 插入範例員工（需要在實際使用時根據 auth.users 調整）
 -- 注意：這裡的 user_id 需要從 auth.users 表中獲取實際的 UUID
 INSERT INTO public.employees (
-  employee_id, name, email, department_id, position, status, role, hire_date
+  employee_id, name, email, department_id, "position", status, role, hire_date
 )
 SELECT
   'EMP001', '系統管理員', 'admin@company.com',
@@ -268,7 +268,7 @@ RETURNS TABLE (
   name VARCHAR,
   email VARCHAR,
   department_name VARCHAR,
-  position VARCHAR,
+  "position" VARCHAR,
   status VARCHAR
 ) AS $$
 BEGIN
@@ -279,7 +279,7 @@ BEGIN
     e.name,
     e.email,
     d.name as department_name,
-    e.position,
+    e."position",
     e.status
   FROM public.employees e
   LEFT JOIN public.departments d ON e.department_id = d.id
@@ -300,7 +300,7 @@ RETURNS TABLE (
   email VARCHAR,
   department_id UUID,
   department_name VARCHAR,
-  position VARCHAR,
+  "position" VARCHAR,
   role VARCHAR,
   status VARCHAR
 ) AS $$
@@ -313,7 +313,7 @@ BEGIN
     e.email,
     e.department_id,
     d.name as department_name,
-    e.position,
+    e."position",
     e.role,
     e.status
   FROM public.employees e
