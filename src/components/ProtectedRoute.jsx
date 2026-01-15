@@ -1,4 +1,4 @@
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation, Outlet } from 'react-router-dom'; // 👈 1. 記得引入 Outlet
 import { useAuth } from '../contexts/AuthContext';
 
 /**
@@ -69,5 +69,5 @@ export default function ProtectedRoute({ children, requiredPermission }) {
     }
   }
 
-  return children;
+return children ? children : <Outlet />;
 }
