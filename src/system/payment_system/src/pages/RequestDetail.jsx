@@ -78,7 +78,7 @@ export default function RequestDetail() {
         fetchRequestDetail();
         const subscription = supabase
             .channel('request-detail')
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'payment_requests', filter: `id=eq.${id}` },
+            .on('postgres_changes', { event: 'UPDATE', schema: 'payment_approval', table: 'payment_requests', filter: `id=eq.${id}` },
                 (payload) => setRequest(payload.new))
             .subscribe();
         return () => { supabase.removeChannel(subscription); };

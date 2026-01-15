@@ -73,7 +73,7 @@ export default function Dashboard() {
 
     const subscription = supabase
       .channel('dashboard-updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_requests' }, 
+      .on('postgres_changes', { event: '*', schema: 'payment_approval', table: 'payment_requests' }, 
         () => { if(user) fetchRequests(); }
       )
       .subscribe();
