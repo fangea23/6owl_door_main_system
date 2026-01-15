@@ -28,13 +28,35 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 初始化時檢查登入狀態
+  // 🟢 新增：檢查連線是否還活著 (用來對付瀏覽器休眠後的殭屍狀態)
+  const checkConnection = async () => {
+    try {
+      // 設定一個超短的 2 秒限制
+      // 如果 Supabase Client 已經殭屍化，它會無視請求，我們不能讓它無限轉圈
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Wake-up timeout')), 2000)
+      );
+
+      // 嘗試取得 Session，看 Client 是否還活著
+      await Promise.race([
+        supabase.auth.getSession(),
+        timeoutPromise
+      ]);
+      
+      return true; // 連線正常
+    } catch (err) {
+      console.warn('偵測到連線凍結或逾時，準備重整頁面...', err);
+      return false; // 連線已死
+    }
+  };
+
+  // 初始化與監聽
   useEffect(() => {
     let mounted = true;
 
-const initAuth = async () => {
+    const initAuth = async () => {
       try {
-        // 1. 修改：將超時時間延長至 10 秒 (10000ms)
+        // ✅ 修正 1：將超時時間延長至 10 秒 (10000ms)
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Auth timeout')), 10000)
         );
@@ -45,15 +67,14 @@ const initAuth = async () => {
           .catch(async (err) => {
             console.warn('Auth init timeout or error:', err);
             
-            // 2. 刪除或註解掉這行：不要在初始化超時時強制登出！
-            // await supabase.auth.signOut(); 
-            
-            // 讓它單純回傳 null，保持應用程式繼續運行，不要中斷連線
+            // ✅ 修正 2：不要在初始化超時時強制登出！
+            // 這避免了網路稍慢時，正在進行的 Token 交換被中斷
             return { data: { session: null } };
           });
 
         if (session?.user && mounted) {
           setUser(session.user);
+          // 嘗試取得 Profile，如果失敗也不要卡住整個 App
           const userProfile = await fetchProfile(session.user.id).catch(() => null);
           if (mounted) setProfile(userProfile);
         }
@@ -70,6 +91,28 @@ const initAuth = async () => {
     };
 
     initAuth();
+
+    // 🟢 新增：監聽「視窗喚醒」事件 (解決閒置 5 分鐘後卡死的問題)
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        // console.log('使用者回到視窗，檢查連線健康度...');
+        
+        // 只有在已登入狀態下才需要檢查
+        // 這裡不能直接用 user 變數，因為閉包問題，要直接問 supabase
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+           const isAlive = await checkConnection();
+           if (!isAlive) {
+             console.warn('連線已失效，執行自動修復...');
+             // 💀 如果連線已死，強制重新整理頁面來復活 Supabase Client
+             window.location.reload(); 
+           }
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // 監聽認證狀態變化
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -89,6 +132,8 @@ const initAuth = async () => {
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      // 記得移除監聽器
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
@@ -132,7 +177,11 @@ const initAuth = async () => {
       setUser(null);
       setProfile(null);
       // 清除可能殘留的 LocalStorage (針對 Supabase)
-      localStorage.removeItem(`sb-${import.meta.env.VITE_SUPABASE_PROJECT_ID}-auth-token`);
+      // 請確認這裡的 VITE_SUPABASE_PROJECT_ID 環境變數是否正確設定
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      if (projectId) {
+        localStorage.removeItem(`sb-${projectId}-auth-token`);
+      }
     }
   };
 
