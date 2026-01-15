@@ -6,6 +6,7 @@
 -- 函數 1: 刪除用戶（Admin 專用）
 -- ============================================================================
 -- 此函數允許管理員刪除用戶帳號（包括 auth.users 和 profiles）
+DROP FUNCTION IF EXISTS public.delete_user_by_admin(UUID);
 CREATE OR REPLACE FUNCTION public.delete_user_by_admin(target_user_id UUID)
 RETURNS JSON AS $$
 DECLARE
@@ -59,6 +60,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- ============================================================================
 -- 函數 2: 獲取當前用戶完整資訊（使用 employees_with_details）
 -- ============================================================================
+DROP FUNCTION IF EXISTS public.get_current_user_full_info();
 CREATE OR REPLACE FUNCTION public.get_current_user_full_info()
 RETURNS JSON AS $$
 DECLARE
@@ -80,6 +82,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- 函數 3: 獲取用戶顯示名稱（智能選擇）
 -- ============================================================================
 -- 優先順序: employees.name > profiles.full_name > profiles.email
+DROP FUNCTION IF EXISTS public.get_user_display_name(UUID);
 CREATE OR REPLACE FUNCTION public.get_user_display_name(user_id UUID)
 RETURNS VARCHAR AS $$
 DECLARE
@@ -102,6 +105,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- 函數 4: 獲取用戶頭像 URL（智能選擇）
 -- ============================================================================
 -- 優先順序: employees.avatar_url > profiles.avatar_url
+DROP FUNCTION IF EXISTS public.get_user_avatar_url(UUID);
 CREATE OR REPLACE FUNCTION public.get_user_avatar_url(user_id UUID)
 RETURNS TEXT AS $$
 DECLARE
@@ -123,6 +127,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- 函數 5: 同步 profiles 和 employees 的基本資料
 -- ============================================================================
 -- 當更新 profiles 時，自動同步到 employees
+DROP FUNCTION IF EXISTS public.sync_profile_to_employee();
 CREATE OR REPLACE FUNCTION public.sync_profile_to_employee()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -155,6 +160,7 @@ CREATE TRIGGER sync_profile_to_employee_trigger
 -- ============================================================================
 -- 函數 6: 獲取用戶統計資訊
 -- ============================================================================
+DROP FUNCTION IF EXISTS public.get_management_stats();
 CREATE OR REPLACE FUNCTION public.get_management_stats()
 RETURNS JSON AS $$
 DECLARE

@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS car_rental.vehicles (
   -- 其他資訊
   purchase_date DATE,                              -- 購買日期
   purchase_price DECIMAL(12, 2),                   -- 購買價格
-  location VARCHAR(200),                           -- 停放位置
+  "location" VARCHAR(200),                         -- 停放位置（location 是保留字，需加引號）
   notes TEXT,                                      -- 備註
 
   -- 系統欄位
@@ -338,7 +338,7 @@ CREATE POLICY "Admins can manage maintenance records"
 -- 示範資料 (可選)
 -- ============================================================================
 -- 插入測試車輛
-INSERT INTO car_rental.vehicles (plate_number, brand, model, year, color, vehicle_type, seating_capacity, fuel_type, transmission, status, location)
+INSERT INTO car_rental.vehicles (plate_number, brand, model, year, color, vehicle_type, seating_capacity, fuel_type, transmission, status, "location")
 VALUES
   ('ABC-1234', 'Toyota', 'Camry', 2022, 'White', 'sedan', 5, 'gasoline', 'automatic', 'available', '總公司停車場'),
   ('XYZ-5678', 'Honda', 'CR-V', 2021, 'Black', 'suv', 7, 'gasoline', 'automatic', 'available', '總公司停車場'),
