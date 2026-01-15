@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Portal from './pages/Portal';
 import Login from './pages/Login';
 import Account from './pages/Account';
+import UserProfile from './pages/UserProfile';
 import ManagementCenter from './pages/management/ManagementCenter';
 import './App.css';
 
@@ -36,6 +37,16 @@ function App() {
             element={
               <ProtectedRoute>
                 <Account />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* 統一用戶資料頁面 */}
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <UserProfile />
               </ProtectedRoute>
             }
           />
