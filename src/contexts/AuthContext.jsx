@@ -90,9 +90,18 @@ export function AuthProvider({ children }) {
           .catch(async (err) => {
             console.warn('Auth init timeout or error:', err);
 
-            // ✅ 修正 2：超時或錯誤時，清除可能損壞的 localStorage token
-            // 這避免下次進入網頁時再次卡住
-            clearStoredSession();
+            // ✅ 修正 2：超時或錯誤時，檢查是否在密碼重設頁面
+            // 如果在密碼重設頁面，不要清除 token（它可能正在處理 URL hash）
+            const isPasswordResetPage = window.location.pathname.includes('update-password') ||
+                                       window.location.hash.includes('access_token') ||
+                                       window.location.hash.includes('type=recovery');
+
+            if (!isPasswordResetPage) {
+              // 只有不在密碼重設流程時才清除
+              clearStoredSession();
+            } else {
+              console.log('在密碼重設頁面，不清除 session，讓 Supabase 繼續處理 URL hash');
+            }
 
             // ✅ 修正 3：不要在初始化超時時強制登出
             // 這避免了網路稍慢時，正在進行的 Token 交換被中斷
@@ -107,8 +116,16 @@ export function AuthProvider({ children }) {
         }
       } catch (error) {
         console.error('Auth initialization failed:', error);
-        // 發生嚴重錯誤時確保狀態重置並清除 localStorage
-        clearStoredSession();
+
+        // 發生嚴重錯誤時，檢查是否在密碼重設頁面
+        const isPasswordResetPage = window.location.pathname.includes('update-password') ||
+                                   window.location.hash.includes('access_token') ||
+                                   window.location.hash.includes('type=recovery');
+
+        if (!isPasswordResetPage) {
+          clearStoredSession();
+        }
+
         if (mounted) {
           setUser(null);
           setProfile(null);

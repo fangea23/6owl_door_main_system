@@ -16,58 +16,73 @@ export default function UpdatePassword() {
 
 useEffect(() => {
   let mounted = true;
+  let sessionCheckTimeout = null;
 
-  // 初始化時檢查 session
-  const checkInitialSession = async () => {
-    try {
-      // 給 Supabase 一些時間處理 URL 中的 hash token
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      const { data: { session }, error } = await supabase.auth.getSession();
-
-      if (!mounted) return;
-
-      if (error || !session) {
-        console.warn('密碼重設 session 無效:', error);
-        setIsSessionValid(false);
-        setError('驗證連結已過期或無效。密碼重設連結通常在 1 小時內有效。');
-      } else {
-        console.log('密碼重設 session 驗證成功');
-        setIsSessionValid(true);
-      }
-    } catch (err) {
-      console.error('檢查 session 時發生錯誤:', err);
-      if (mounted) {
-        setIsSessionValid(false);
-        setError('無法驗證重設連結，請稍後再試');
-      }
-    } finally {
-      if (mounted) setIsCheckingSession(false);
-    }
-  };
-
-  checkInitialSession();
-
-  // 監聽 Auth 狀態變化
+  // 監聽 Auth 狀態變化 (這是最可靠的方式)
   // 因為邀請連結帶有 hash (#access_token=...), Supabase 會自動處理登入
   const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
     if (!mounted) return;
 
+    console.log('Auth 狀態變化:', event, session ? '有 session' : '無 session');
+
     if (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') {
       // 成功抓到邀請連結的 Token，使用者已登入
-      console.log('邀請連結驗證成功，可以設定密碼');
+      console.log('✅ 邀請連結驗證成功，可以設定密碼');
       setIsSessionValid(true);
       setIsCheckingSession(false);
       setError(null);
+      // 清除超時檢查
+      if (sessionCheckTimeout) clearTimeout(sessionCheckTimeout);
     } else if (event === 'SIGNED_OUT') {
       // Session 被登出了
       setIsSessionValid(false);
+      setIsCheckingSession(false);
       setError('驗證階段已結束，請重新點擊信件中的連結');
+    } else if (event === 'INITIAL_SESSION' && session) {
+      // 已有有效的 session (可能是從 localStorage 恢復的)
+      console.log('✅ 找到現有 session');
+      setIsSessionValid(true);
+      setIsCheckingSession(false);
+      setError(null);
+      if (sessionCheckTimeout) clearTimeout(sessionCheckTimeout);
     }
   });
 
+  // 備用檢查：如果 3 秒後還沒收到任何 auth 事件，手動檢查
+  sessionCheckTimeout = setTimeout(async () => {
+    if (!mounted) return;
+
+    console.log('⏰ 3 秒超時，手動檢查 session...');
+
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+
+      if (!mounted) return;
+
+      if (session) {
+        console.log('✅ 手動檢查找到 session');
+        setIsSessionValid(true);
+        setIsCheckingSession(false);
+        setError(null);
+      } else {
+        console.warn('❌ 手動檢查未找到 session:', error);
+        setIsSessionValid(false);
+        setIsCheckingSession(false);
+        setError('驗證連結已過期或無效。密碼重設連結通常在 1 小時內有效。');
+      }
+    } catch (err) {
+      console.error('手動檢查 session 時發生錯誤:', err);
+      if (mounted) {
+        setIsSessionValid(false);
+        setIsCheckingSession(false);
+        setError('無法驗證重設連結，請檢查網路連線後重試');
+      }
+    }
+  }, 3000);
+
   return () => {
     mounted = false;
+    if (sessionCheckTimeout) clearTimeout(sessionCheckTimeout);
     authListener.subscription.unsubscribe();
   };
 }, []);
@@ -152,7 +167,8 @@ useEffect(() => {
           {isCheckingSession ? (
             <div className="text-center py-8">
               <Loader2 className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-4" />
-              <p className="text-gray-600">驗證連結中...</p>
+              <p className="text-gray-600 font-medium">驗證連結中...</p>
+              <p className="text-gray-400 text-sm mt-2">正在處理您的重設連結，請稍候</p>
             </div>
           ) : !isSessionValid ? (
             <div className="text-center py-8">
