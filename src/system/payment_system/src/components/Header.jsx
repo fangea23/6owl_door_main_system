@@ -164,7 +164,7 @@ export default function Header() {
           {/* 電腦版使用者資訊 */}
           {user && (
             <Link
-              to={`${BASE_PATH}/profile`}
+              to="/profile"
               // 修改：移除深色背景邏輯，改為灰底/琥珀色底
               className={`hidden md:flex items-center gap-3 p-1.5 pr-3 rounded-xl transition-all border ${
                 isProfileIncomplete
@@ -298,7 +298,7 @@ export default function Header() {
             </Link>
 
             <Link
-              to={`${BASE_PATH}/profile`}
+              to="/profile"
               onClick={closeMenu}
               className={`px-4 py-3 rounded-xl text-base font-medium flex items-center gap-3 transition-colors ${
                 isActive('/profile')

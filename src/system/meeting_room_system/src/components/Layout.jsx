@@ -106,7 +106,11 @@ export default function Layout() {
 
             {/* User Menu */}
             <div className="flex items-center gap-3">
-              <div className="hidden sm:flex items-center gap-2">
+              <Link 
+                to="/profile" 
+                className="hidden sm:flex items-center gap-2 hover:bg-stone-50 p-1.5 rounded-lg transition-colors"
+                title="個人資料設定"
+              >
                 <div className="w-8 h-8 bg-gradient-to-br from-red-700 to-red-900 rounded-lg flex items-center justify-center text-white font-medium text-sm shadow-md shadow-red-500/20">
                   {user?.user_metadata?.full_name?.charAt(0) || user?.email?.charAt(0)?.toUpperCase() || 'U'}
                 </div>
@@ -115,7 +119,7 @@ export default function Layout() {
                     {user?.user_metadata?.full_name || user?.email?.split('@')[0] || '使用者'}
                   </p>
                 </div>
-              </div>
+              </Link>
 
               {/* Mobile Menu Button */}
               <button
