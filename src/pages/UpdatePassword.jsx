@@ -12,17 +12,32 @@ export default function UpdatePassword() {
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    // 檢查是否有 Session (邀請連結會自動建立 Session)
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        // 如果沒有 Session，代表連結可能失效或使用者直接闖入
-        setError('無效的連結或連結已過期，請重新登入或聯繫管理員。');
-      }
-    };
-    checkSession();
-  }, []);
+useEffect(() => {
+  // 監聽 Auth 狀態變化
+  // 因為邀請連結帶有 hash (#access_token=...), Supabase 會自動處理登入
+  const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') {
+      // 成功抓到邀請連結的 Token，使用者已登入
+      console.log('邀請連結驗證成功，請設定密碼');
+    } else if (!session) {
+      // 如果過了一陣子還是沒 session，代表連結無效
+      // 這裡可以延遲一下再導向，避免剛進來還在讀取就被踢走
+      setTimeout(() => {
+         // 再次確認
+         supabase.auth.getSession().then(({ data: { session: finalSession } }) => {
+            if (!finalSession) {
+               setError('連結無效或已過期，請重新登入');
+               // 或者 navigate('/login');
+            }
+         });
+      }, 1000);
+    }
+  });
+
+  return () => {
+    authListener.subscription.unsubscribe();
+  };
+}, []);
 
   const handleUpdate = async (e) => {
     e.preventDefault();
