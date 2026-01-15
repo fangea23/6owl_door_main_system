@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
       {
         data: { full_name: name },
         // 請確保這個網址是正確的 (前端路由要有這一頁)
-        redirect_to: 'https://6owl-door-main-system.vercel.app/update-password' 
+        redirectTo: 'https://6owl-door-main-system.vercel.app/update-password'
       }
     )
 
