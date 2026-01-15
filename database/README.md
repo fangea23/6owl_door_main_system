@@ -9,7 +9,8 @@
 1. **首先執行統一員工表** - 這是所有系統的基礎
 2. **執行 profiles 表修正** - 確保認證系統與員工系統正確整合
 3. **執行管理中心 RPC 函數** - 提供統一管理功能
-4. 然後執行各子系統的資料庫腳本
+4. **執行登入錯誤修正** - 修正 500 Internal Server Error（重要！）
+5. 然後執行各子系統的資料庫腳本
 
 ```bash
 # 1. 先執行統一員工表（必須）
@@ -21,7 +22,10 @@ database/fix_profiles_table.sql
 # 3. 執行管理中心 RPC 函數（必須）- 提供統一管理功能
 database/management_rpc_functions.sql
 
-# 4. 再執行各子系統的資料庫腳本
+# 4. 執行登入錯誤修正（重要！）- 修正 500 Internal Server Error
+database/fix_login_500_error.sql
+
+# 5. 再執行各子系統的資料庫腳本
 src/system/car_rental_system/database_schema.sql
 src/system/license_system/database_schema.sql  # 如果有
 src/system/payment_system/database_schema.sql  # 如果有
@@ -324,6 +328,71 @@ export const supabase = {
   rpc: (fn, args) => mainClient.rpc(fn, args),
 };
 ```
+
+## 故障排除
+
+### 登入時出現 500 Internal Server Error
+
+**症狀：**
+```
+POST https://xxx.supabase.co/auth/v1/token?grant_type=password 500 (Internal Server Error)
+```
+
+**原因：**
+`handle_new_user()` 觸發器設定為在 `INSERT OR UPDATE` 時執行。每次登入時，Supabase 會更新 `auth.users` 表（更新 `last_sign_in_at` 欄位），導致觸發器執行並可能發生錯誤。
+
+**解決方案：**
+執行 `database/fix_login_500_error.sql`，該腳本會：
+1. 將觸發器改為只在 `INSERT` 時執行（僅新用戶註冊時）
+2. 增加錯誤處理，避免中斷認證流程
+3. 確保所有現有用戶都有 profile 記錄
+4. 改進 `sync_profile_to_employee` 觸發器的錯誤處理
+
+**驗證修正：**
+```sql
+-- 檢查觸發器是否正確
+SELECT
+  tgname as trigger_name,
+  tgtype,
+  CASE
+    WHEN tgtype & 2 = 2 THEN 'BEFORE'
+    WHEN tgtype & 4 = 4 THEN 'AFTER'
+  END as timing,
+  CASE
+    WHEN tgtype & 16 = 16 THEN 'UPDATE'
+    WHEN tgtype & 8 = 8 THEN 'DELETE'
+    WHEN tgtype & 4 = 4 THEN 'INSERT'
+  END as event
+FROM pg_trigger
+WHERE tgname = 'on_auth_user_created';
+
+-- 應該只顯示 INSERT，不包含 UPDATE
+```
+
+### SQL 保留關鍵字錯誤
+
+**症狀：**
+```
+ERROR: 42601: syntax error at or near "position"
+ERROR: 42703: column p.avatar_url does not exist
+```
+
+**解決方案：**
+參考 `database/SQL_RESERVED_KEYWORDS.md` 文件，確保所有保留關鍵字都加上雙引號：
+- `"position"` (職位)
+- `"location"` (位置)
+- `"level"` (職級)
+
+### 函數返回類型變更錯誤
+
+**症狀：**
+```
+ERROR: 42P13: cannot change return type of existing function
+HINT: Use DROP FUNCTION function_name(args) first.
+```
+
+**解決方案：**
+在 `CREATE OR REPLACE FUNCTION` 之前先執行 `DROP FUNCTION IF EXISTS`。所有腳本已更新為包含此語法。
 
 ## 常見問題
 
