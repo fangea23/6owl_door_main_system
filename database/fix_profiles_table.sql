@@ -47,6 +47,19 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 如果 avatar_url 欄位不存在，新增它
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = 'profiles'
+        AND column_name = 'avatar_url'
+    ) THEN
+        ALTER TABLE public.profiles ADD COLUMN avatar_url TEXT;
+    END IF;
+END $$;
+
 -- 如果舊的 department 欄位存在，移除它（因為現在在 employees 表中）
 DO $$
 BEGIN
@@ -181,7 +194,7 @@ SELECT
   e.department_id,
   d.name as department_name,
   d.code as department_code,
-  e.position,
+  e."position",
   e.job_title,
   e.status as employee_status,
   e.role as employee_role,
@@ -206,7 +219,7 @@ RETURNS TABLE (
   employee_name VARCHAR,
   department_id UUID,
   department_name VARCHAR,
-  position VARCHAR,
+  "position" VARCHAR,
   employee_role VARCHAR
 ) AS $$
 BEGIN
@@ -221,7 +234,7 @@ BEGIN
     u.employee_name,
     u.department_id,
     u.department_name,
-    u.position,
+    u."position",
     u.employee_role
   FROM public.users_with_employee_info u
   WHERE u.user_id = auth.uid();

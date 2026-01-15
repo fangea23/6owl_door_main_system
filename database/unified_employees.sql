@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS public.departments (
   -- 聯絡資訊
   email VARCHAR(255),                             -- 部門信箱
   phone VARCHAR(50),                              -- 部門電話
-  location VARCHAR(200),                          -- 辦公地點
+  "location" VARCHAR(200),                        -- 辦公地點（location 是保留字，需加引號）
 
   -- 狀態
   is_active BOOLEAN DEFAULT true,                 -- 是否啟用
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS public.employees (
   "position" VARCHAR(100),                        -- 職位（position 是保留字，需加引號）
   job_title VARCHAR(100),                         -- 職稱
   employee_type VARCHAR(50) DEFAULT 'full-time',  -- 員工類型（full-time, part-time, contractor）
-  level VARCHAR(50),                              -- 職級
+  "level" VARCHAR(50),                            -- 職級（level 是保留字，需加引號）
 
   -- 主管資訊
   supervisor_id UUID REFERENCES public.employees(id),  -- 直屬主管
