@@ -132,7 +132,7 @@ export default function Dashboard() {
                           <div className="flex-1">
                             <div className="font-semibold text-gray-900">{brand.name}</div>
                             <div className="text-xs text-gray-500 mt-1">
-                              ID: {brand.id.substring(0, 8)}...
+                              ID: {brand.id ? String(brand.id).substring(0, 8) + '...' : 'N/A'}
                             </div>
                           </div>
                           <div className="flex items-center gap-1">
