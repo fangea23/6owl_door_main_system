@@ -10,8 +10,9 @@ export const supabase = {
 
   // 2. 針對資料庫查詢，根據表格自動選擇 schema
   from: (table) => {
-    // employees 和 departments 使用統一的 public schema
-    if (table === 'employees' || table === 'departments') {
+    // 修改這裡：將 'profiles' 加入白名單
+    // employees, departments, profiles 使用統一的 public schema
+    if (table === 'employees' || table === 'departments' || table === 'profiles') {
       return mainClient.from(table); // public schema
     }
     // 其他表格使用 software_maintenance schema
