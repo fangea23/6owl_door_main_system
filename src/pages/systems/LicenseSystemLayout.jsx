@@ -274,7 +274,7 @@ const LicenseInternalLayout = () => {
             {/* User Menu：將 div 改為 Link 並增加 hover 樣式 */}
             <div className="flex items-center gap-3">
               <Link 
-                to="/profile" 
+                to="/account" 
                 className="hidden sm:flex items-center gap-2 hover:bg-gray-100 p-1.5 rounded-lg transition-colors"
                 title="個人資料設定"
               >

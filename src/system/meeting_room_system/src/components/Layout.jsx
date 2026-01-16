@@ -107,7 +107,7 @@ export default function Layout() {
             {/* User Menu */}
             <div className="flex items-center gap-3">
               <Link 
-                to="/profile" 
+                to="/account" 
                 className="hidden sm:flex items-center gap-2 hover:bg-stone-50 p-1.5 rounded-lg transition-colors"
                 title="個人資料設定"
               >

@@ -68,7 +68,7 @@ export default function PaymentSystemLayout() {
           <Route path="apply" element={<ApplyForm />} />
           <Route path="request/:id" element={<RequestDetail />} />
           <Route path="admin" element={<AdminPanel />} />
-          <Route path="profile" element={<UserProfile />} />
+          <Route path="account" element={<UserProfile />} />
         </Route>
       </Route>
 

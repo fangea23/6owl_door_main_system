@@ -37,7 +37,7 @@ function App() {
              {/* 主入口 */}
              <Route path="/" element={<Portal />} />
              <Route path="/account" element={<Account />} />
-             <Route path="/profile" element={<UserProfile />} />
+             <Route path="/account" element={<UserProfile />} />
              <Route path="/management/*" element={<ManagementCenter />} />
 
              {/* 👇 修正：子系統應該要放在 ProtectedRoute 裡面！ */}
