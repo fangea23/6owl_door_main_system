@@ -480,7 +480,7 @@ export default function Account() {
                           }}
                           className="px-6 py-2.5 border border-stone-200 text-stone-600 font-medium rounded-xl hover:bg-stone-50 transition-colors"
                         >
-                          取消ㄍ
+                          取消
                         </button>
                       </div>
                     )}
