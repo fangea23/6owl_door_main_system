@@ -102,22 +102,39 @@ export default function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between relative">
 
         {/* ================= 左側：Logo 與標題 ================= */}
-        <Link to={`${BASE_PATH}/dashboard`} onClick={closeMenu} className="flex items-center gap-3 group select-none">
-          <Logo />
-          <div>
-            {/* 修改：文字顏色改為 Stone-800，Hover 變紅 */}
-            <h1 className="font-bold text-lg sm:text-xl text-stone-800 tracking-tight group-hover:text-red-800 transition-colors leading-tight">
-              六扇門付款簽核
-            </h1>
-            <div className="flex items-center gap-1.5">
-               {/* 裝飾線條 */}
-               <div className="h-[1px] w-3 bg-amber-500/50"></div>
-               <p className="text-[10px] text-stone-500 font-medium tracking-[0.15em] group-hover:text-amber-600 transition-colors">
-                 PAYMENT APPROVAL
-               </p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/')}
+            className="group flex items-center gap-3 hover:opacity-100 transition-opacity"
+            title="回到入口"
+          >
+            <Logo />
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold text-stone-800 tracking-tight group-hover:text-red-800 transition-colors">
+                六扇門
+              </h1>
+              <div className="flex items-center gap-1.5">
+                <div className="h-[1px] w-3 bg-amber-500/50"></div>
+                <p className="text-[10px] text-stone-500 font-medium tracking-[0.2em] group-hover:text-amber-600 transition-colors">
+                  6OWL DOOR
+                </p>
+              </div>
+            </div>
+          </button>
+
+          <div className="h-8 w-px bg-stone-200 mx-2" />
+
+          {/* 子系統標題 */}
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-blue-50 rounded-lg">
+              <LayoutDashboard size={18} className="text-blue-600" />
+            </div>
+            <div className="hidden sm:block">
+              <p className="text-sm font-bold text-stone-700">付款簽核</p>
+              <p className="text-[10px] text-stone-400 tracking-wider">PAYMENT APPROVAL</p>
             </div>
           </div>
-        </Link>
+        </div>
 
         {/* ================= 中間：電腦版導覽選單 ================= */}
         <nav className="hidden md:flex items-center gap-1">

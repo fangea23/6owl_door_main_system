@@ -1,11 +1,27 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Store, Plus, Edit2, Trash2, Search, Building2, ToggleLeft, ToggleRight, AlertCircle, User, LogOut } from 'lucide-react';
 import { useBrands } from '../hooks/useBrands';
 import { useStores } from '../hooks/useStores';
 import { useAuth } from '../AuthContext';
+import logoSrc from '../../../../assets/logo.png';
+
+// 六扇門 Logo 組件
+const Logo = ({ size = 'default' }) => {
+  const sizeClasses = size === 'small' ? 'w-8 h-8' : 'w-10 h-10';
+  return (
+    <div className={`${sizeClasses} relative flex items-center justify-center`}>
+      <img
+        src={logoSrc}
+        alt="六扇門 Logo"
+        className="w-full h-full object-contain filter drop-shadow-md"
+      />
+    </div>
+  );
+};
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [selectedBrand, setSelectedBrand] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showBrandModal, setShowBrandModal] = useState(false);
@@ -81,45 +97,66 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-stone-50">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-red-600 to-amber-500 text-white shadow-lg shadow-red-500/20">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4 lg:py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <Store className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 flex-shrink-0" />
-              <div>
-                <h1 className="text-lg sm:text-xl lg:text-3xl font-bold leading-tight">店舖管理系統</h1>
-                <p className="text-red-50 mt-0.5 sm:mt-1 text-xs sm:text-sm hidden sm:block">管理品牌與店舖資料</p>
+    <div className="min-h-screen bg-stone-50 bg-pattern-diagonal">
+      {/* Header - 與主系統統一風格 */}
+      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-stone-200 shadow-sm">
+        <div className="absolute inset-0 bg-pattern-diagonal opacity-50 pointer-events-none" />
+
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16 sm:h-20">
+            {/* Logo & Title */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate('/')}
+                className="group flex items-center gap-3 hover:opacity-100 transition-opacity"
+                title="回到入口"
+              >
+                <Logo />
+                <div>
+                  <h1 className="text-lg sm:text-xl font-bold text-stone-800 tracking-tight group-hover:text-red-800 transition-colors">
+                    六扇門
+                  </h1>
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-[1px] w-3 bg-amber-500/50"></div>
+                    <p className="text-[10px] text-stone-500 font-medium tracking-[0.2em] group-hover:text-amber-600 transition-colors">
+                      6OWL DOOR
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              <div className="h-8 w-px bg-stone-200 mx-2" />
+
+              {/* 子系統標題 */}
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-amber-50 rounded-lg">
+                  <Store size={18} className="text-amber-600" />
+                </div>
+                <div className="hidden sm:block">
+                  <p className="text-sm font-bold text-stone-700">店舖管理</p>
+                  <p className="text-[10px] text-stone-400 tracking-wider">STORE MANAGEMENT</p>
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-3 lg:gap-4">
-              {/* 使用者資訊 */}
-              {user && (
-                <Link
-                  to="/account"
-                  className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-white/90 hover:text-white hover:bg-white/10 rounded-lg transition-colors touch-manipulation active:scale-95"
-                >
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 lg:w-9 lg:h-9 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center text-white font-medium shadow-sm flex-shrink-0">
-                    {displayName?.charAt(0) || <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-                  </div>
-                  <span className="font-medium hidden md:inline text-sm lg:text-base">{displayName}</span>
-                </Link>
-              )}
-
+            {/* User Menu */}
+            <div className="flex items-center gap-3">
               <Link
-                to="/"
-                className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 text-white/90 hover:text-white hover:bg-white/10 rounded-lg transition-colors touch-manipulation active:scale-95"
+                to="/account"
+                className="hidden sm:flex items-center gap-2 hover:bg-stone-50 p-1.5 rounded-lg transition-colors"
+                title="個人資料設定"
               >
-                <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                <span className="text-xs sm:text-sm lg:text-base hidden sm:inline">返回主系統</span>
-                <span className="text-xs sm:hidden">返回</span>
+                <div className="w-8 h-8 bg-gradient-to-br from-red-700 to-red-900 rounded-lg flex items-center justify-center text-white font-medium text-sm shadow-md shadow-red-500/20">
+                  {displayName?.charAt(0) || 'U'}
+                </div>
+                <div className="text-sm">
+                  <p className="font-medium text-stone-700">{displayName}</p>
+                </div>
               </Link>
             </div>
           </div>
         </div>
-      </div>
+      </header>
 
       <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6 lg:py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
