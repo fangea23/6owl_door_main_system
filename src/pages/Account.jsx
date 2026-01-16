@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useCurrentUser } from '../hooks/useCurrentUser'; // ✅ 改用這個 Hook 以取得完整員工資料
-import { supabase } from '../lib/supabase'; // ✅ 直接引入 supabase 以進行多表更新
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import { supabase } from '../lib/supabase';
 import Header from '../components/Header';
 import { 
   User, 
@@ -16,8 +16,7 @@ import {
   Phone,
   Smartphone,
   Users,
-  Calendar,
-  Briefcase
+  Calendar
 } from 'lucide-react';
 
 // ------------------------------------------------------------------
@@ -50,7 +49,6 @@ const PasswordInput = ({ name, value, onChange, placeholder, required = true, mi
 
 export default function Account() {
   const { changePassword } = useAuth();
-  // ✅ 使用 useCurrentUser 獲取包含 employees 資料表的完整資訊
   const { user, loading, refetch } = useCurrentUser();
   
   const [activeTab, setActiveTab] = useState('profile');
@@ -58,21 +56,19 @@ export default function Account() {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  // 表單狀態 - 擴充欄位以符合 DB Schema
+  // 表單狀態
   const [profileForm, setProfileForm] = useState({
-    name: '',           // profiles.full_name / employees.name
-    phone: '',          // employees.phone (市話)
-    mobile: '',         // employees.mobile (手機) - ✨ 新增
-    department: '',     // employees.department_name (唯讀)
-    position: '',       // employees.position (唯讀)
-    employeeId: '',     // employees.employee_id (唯讀)
-    hireDate: '',       // employees.hire_date (唯讀) - ✨ 新增
-    supervisor: '',     // employees.supervisor_name (唯讀) - ✨ 新增
-    
-    // 緊急聯絡人 - ✨ 新增
-    emergencyName: '',  // employees.emergency_contact_name
-    emergencyPhone: '', // employees.emergency_contact_phone
-    emergencyRel: '',   // employees.emergency_contact_relationship
+    name: '',           
+    phone: '',          
+    mobile: '',        
+    department: '',     
+    position: '',       
+    employeeId: '',     
+    hireDate: '',       
+    supervisor: '',     
+    emergencyName: '',  
+    emergencyPhone: '', 
+    emergencyRel: '',   
   });
 
   const [passwordForm, setPasswordForm] = useState({
@@ -81,7 +77,7 @@ export default function Account() {
     confirmPassword: '',
   });
 
-  // 初始化資料：當 user 資料載入後填入表單
+  // 初始化資料
   useEffect(() => {
     if (user && !loading) {
       setProfileForm({
@@ -93,7 +89,6 @@ export default function Account() {
         employeeId: user.employeeId || 'N/A',
         hireDate: user.employee?.hire_date || '',
         supervisor: user.supervisor || '無',
-        
         emergencyName: user.employee?.emergency_contact_name || '',
         emergencyPhone: user.employee?.emergency_contact_phone || '',
         emergencyRel: user.employee?.emergency_contact_relationship || '',
@@ -101,19 +96,17 @@ export default function Account() {
     }
   }, [user, loading]);
 
-  // Handler: 個人資料變更
   const handleProfileChange = (e) => {
     const { name, value } = e.target;
     setProfileForm(prev => ({ ...prev, [name]: value }));
   };
 
-  // Handler: 密碼變更
   const handlePasswordChange = (e) => {
     const { name, value } = e.target;
     setPasswordForm(prev => ({ ...prev, [name]: value }));
   };
 
-  // Submit: 更新個人資料 (雙表更新邏輯)
+  // Submit: 更新個人資料
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
@@ -121,15 +114,12 @@ export default function Account() {
     
     try {
       const updates = [];
-
-      // 1. 更新 profiles 表 (基本資料)
       const profileUpdate = supabase
         .from('profiles')
         .update({ full_name: profileForm.name })
         .eq('id', user.id);
       updates.push(profileUpdate);
 
-      // 2. 如果有員工記錄，更新 employees 表 (詳細資料)
       if (user.hasEmployeeRecord) {
         const employeeUpdate = supabase
           .from('employees')
@@ -139,25 +129,19 @@ export default function Account() {
             emergency_contact_name: profileForm.emergencyName || null,
             emergency_contact_phone: profileForm.emergencyPhone || null,
             emergency_contact_relationship: profileForm.emergencyRel || null,
-            // 注意：不更新 name, department, position 等 HR 管理欄位
           })
           .eq('user_id', user.id);
         updates.push(employeeUpdate);
       }
 
-      // 平行執行所有更新
       const results = await Promise.all(updates);
-      
-      // 檢查是否有錯誤
       const errors = results.filter(r => r.error).map(r => r.error.message);
       
-      if (errors.length > 0) {
-        throw new Error(errors.join(', '));
-      }
+      if (errors.length > 0) throw new Error(errors.join(', '));
 
       setMessage({ type: 'success', text: '個人資料已更新成功' });
       setIsEditing(false);
-      refetch(); // 重新獲取最新資料
+      refetch(); 
       
     } catch (error) {
       console.error('Update error:', error);
@@ -167,7 +151,7 @@ export default function Account() {
     }
   };
 
-  // Submit: 變更密碼
+  // Submit: 變更密碼 (🔥 已修正卡住問題 + 新增檢查)
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     setMessage({ type: '', text: '' });
@@ -177,23 +161,42 @@ export default function Account() {
       setMessage({ type: 'error', text: '新密碼與確認密碼不符' });
       return;
     }
-
     // 2. 檢查長度
     if (passwordForm.newPassword.length < 6) {
       setMessage({ type: 'error', text: '密碼長度至少需要 6 個字元' });
       return;
     }
-
-    // ✅ 3. 新增：檢查新密碼是否與舊密碼相同
+    // 3. ✅ 新增：檢查新密碼是否與舊密碼相同
     if (passwordForm.newPassword === passwordForm.currentPassword) {
-      setMessage({ type: 'error', text: '新密碼不能與舊密碼相同' }); // New password should be different from the old password
+      setMessage({ type: 'error', text: '新密碼不能與舊密碼相同' });
       return;
     }
 
-    setIsSaving(true);
+    setIsSaving(true); // 開啟 Loading
+
+    try {
+      // 呼叫 AuthContext 的變更密碼函式
+      const result = await changePassword(passwordForm.currentPassword, passwordForm.newPassword);
+      
+      console.log('Password change result:', result); // Debug log
+
+      if (result && result.success) {
+        setMessage({ type: 'success', text: '密碼已成功變更' });
+        // 清空表單
+        setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      } else {
+        // 如果 result 為 undefined 或 success 為 false
+        setMessage({ type: 'error', text: result?.error || '變更失敗，請稍後再試' });
+      }
+    } catch (err) {
+      console.error('Unexpected error changing password:', err);
+      setMessage({ type: 'error', text: '系統發生錯誤，請聯絡管理員' });
+    } finally {
+      // 🔥 無論成功或失敗，這裡一定會執行，確保按鈕恢復
+      setIsSaving(false);
+    }
   };
 
-  // 導航選項
   const tabs = [
     { id: 'profile', name: '個人資料', icon: <User size={20} /> },
     { id: 'security', name: '安全設定', icon: <Shield size={20} /> },
@@ -205,8 +208,7 @@ export default function Account() {
       <Header />
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
-        
-        {/* 用戶資訊卡片 (Header Card) */}
+        {/* 用戶資訊卡片 */}
         <div className="relative overflow-hidden bg-gradient-to-r from-red-900 via-red-800 to-rose-900 rounded-3xl p-6 sm:p-8 mb-8 sm:mb-10 text-white shadow-2xl shadow-red-900/20 group">
           <div className="absolute inset-0 bg-pattern-hex opacity-20" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
@@ -314,8 +316,7 @@ export default function Account() {
                   </div>
 
                   <form onSubmit={handleProfileSubmit} className="space-y-8">
-                    
-                    {/* 第一區塊：基本資訊 */}
+                    {/* ... (表單內容維持不變) ... */}
                     <div className="space-y-4">
                       <h4 className="text-sm font-bold text-stone-400 uppercase tracking-wider mb-3">聯絡資訊</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -368,7 +369,6 @@ export default function Account() {
                       </div>
                     </div>
 
-                    {/* 第二區塊：緊急聯絡人 (擴充) */}
                     <div className="space-y-4 pt-4 border-t border-stone-100">
                       <h4 className="text-sm font-bold text-stone-400 uppercase tracking-wider mb-3">緊急聯絡人</h4>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -409,7 +409,6 @@ export default function Account() {
                       </div>
                     </div>
 
-                    {/* 第三區塊：公司資料 (唯讀) */}
                     <div className="space-y-4 pt-4 border-t border-stone-100">
                        <h4 className="text-sm font-bold text-stone-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                          公司資料 <span className="text-xs font-normal text-stone-400 normal-case">(如需修改請聯繫 HR)</span>
@@ -465,7 +464,6 @@ export default function Account() {
                           type="button"
                           onClick={() => {
                             setIsEditing(false);
-                            // 重置表單為原始值
                             if (user) {
                                 setProfileForm(prev => ({
                                     ...prev,
