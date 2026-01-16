@@ -28,7 +28,7 @@ const navigation = [
 ]
 
 export function LicenseSidebar() {
-  const { profile, signOut, logout } = useAuth()
+  const { profiles, signOut, logout } = useAuth()
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(false)
 
@@ -112,15 +112,15 @@ export function LicenseSidebar() {
 
       {/* User section */}
       <div className="border-t border-stone-700 p-4">
-        {!collapsed && profile && (
+        {!collapsed && profiles && (
           <div className="mb-3">
             <p className="text-sm font-medium truncate">
-              {profile.full_name || profile.name || profile.email}
+              {profiles.full_name || profiles.name || profiles.email}
             </p>
-            <p className="text-xs text-stone-400 truncate">{profile.email}</p>
-            {profile.role && (
+            <p className="text-xs text-stone-400 truncate">{profiles.email}</p>
+            {profiles.role && (
               <span className="inline-block mt-1 px-2 py-0.5 text-xs bg-red-600/30 text-red-300 rounded-full">
-                {profile.role === 'admin' ? '管理員' : '一般用戶'}
+                {profiles.role === 'admin' ? '管理員' : '一般用戶'}
               </span>
             )}
           </div>
