@@ -28,12 +28,35 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // 🟢 新增：清除過期的 localStorage token
+  const clearStoredSession = () => {
+    try {
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      if (projectId) {
+        const key = `sb-${projectId}-auth-token`;
+        const stored = localStorage.getItem(key);
+        if (stored) {
+          console.log('清除殘留的 session token...');
+          localStorage.removeItem(key);
+        }
+      }
+      // 也清除可能的其他 supabase 相關 keys
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('sb-') && key.includes('-auth-token')) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch (error) {
+      console.error('清除 localStorage 時發生錯誤:', error);
+    }
+  };
+
   // 🟢 新增：檢查連線是否還活著 (用來對付瀏覽器休眠後的殭屍狀態)
   const checkConnection = async () => {
     try {
       // 設定一個超短的 2 秒限制
       // 如果 Supabase Client 已經殭屍化，它會無視請求，我們不能讓它無限轉圈
-      const timeoutPromise = new Promise((_, reject) => 
+      const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Wake-up timeout')), 2000)
       );
 
@@ -42,7 +65,7 @@ export function AuthProvider({ children }) {
         supabase.auth.getSession(),
         timeoutPromise
       ]);
-      
+
       return true; // 連線正常
     } catch (err) {
       console.warn('偵測到連線凍結或逾時，準備重整頁面...', err);
@@ -57,7 +80,7 @@ export function AuthProvider({ children }) {
     const initAuth = async () => {
       try {
         // ✅ 修正 1：將超時時間延長至 10 秒 (10000ms)
-        const timeoutPromise = new Promise((_, reject) => 
+        const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Auth timeout')), 10000)
         );
 
@@ -66,8 +89,21 @@ export function AuthProvider({ children }) {
         const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise])
           .catch(async (err) => {
             console.warn('Auth init timeout or error:', err);
-            
-            // ✅ 修正 2：不要在初始化超時時強制登出！
+
+            // ✅ 修正 2：超時或錯誤時，檢查是否在密碼重設頁面
+            // 如果在密碼重設頁面，不要清除 token（它可能正在處理 URL hash）
+            const isPasswordResetPage = window.location.pathname.includes('update-password') ||
+                                       window.location.hash.includes('access_token') ||
+                                       window.location.hash.includes('type=recovery');
+
+            if (!isPasswordResetPage) {
+              // 只有不在密碼重設流程時才清除
+              clearStoredSession();
+            } else {
+              console.log('在密碼重設頁面，不清除 session，讓 Supabase 繼續處理 URL hash');
+            }
+
+            // ✅ 修正 3：不要在初始化超時時強制登出
             // 這避免了網路稍慢時，正在進行的 Token 交換被中斷
             return { data: { session: null } };
           });
@@ -80,7 +116,16 @@ export function AuthProvider({ children }) {
         }
       } catch (error) {
         console.error('Auth initialization failed:', error);
-        // 發生嚴重錯誤時確保狀態重置
+
+        // 發生嚴重錯誤時，檢查是否在密碼重設頁面
+        const isPasswordResetPage = window.location.pathname.includes('update-password') ||
+                                   window.location.hash.includes('access_token') ||
+                                   window.location.hash.includes('type=recovery');
+
+        if (!isPasswordResetPage) {
+          clearStoredSession();
+        }
+
         if (mounted) {
           setUser(null);
           setProfile(null);
@@ -96,18 +141,27 @@ export function AuthProvider({ children }) {
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
         // console.log('使用者回到視窗，檢查連線健康度...');
-        
+
         // 只有在已登入狀態下才需要檢查
         // 這裡不能直接用 user 變數，因為閉包問題，要直接問 supabase
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session) {
-           const isAlive = await checkConnection();
-           if (!isAlive) {
-             console.warn('連線已失效，執行自動修復...');
-             // 💀 如果連線已死，強制重新整理頁面來復活 Supabase Client
-             window.location.reload(); 
-           }
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+
+          if (session) {
+            const isAlive = await checkConnection();
+            if (!isAlive) {
+              console.warn('連線已失效，執行自動修復...');
+              // 清除可能損壞的 session
+              clearStoredSession();
+              // 💀 如果連線已死，強制重新整理頁面來復活 Supabase Client
+              window.location.reload();
+            }
+          }
+        } catch (error) {
+          console.error('檢查連線時發生錯誤:', error);
+          // 如果檢查時發生錯誤，也清除並重新加載
+          clearStoredSession();
+          window.location.reload();
         }
       }
     };
@@ -176,12 +230,8 @@ export function AuthProvider({ children }) {
     } finally {
       setUser(null);
       setProfile(null);
-      // 清除可能殘留的 LocalStorage (針對 Supabase)
-      // 請確認這裡的 VITE_SUPABASE_PROJECT_ID 環境變數是否正確設定
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-      if (projectId) {
-        localStorage.removeItem(`sb-${projectId}-auth-token`);
-      }
+      // 使用統一的清除函數
+      clearStoredSession();
     }
   };
 
