@@ -28,7 +28,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 🟢 新增：清除過期的 localStorage token
+  // 清除過期的 localStorage token
   const clearStoredSession = () => {
     try {
       const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
@@ -51,43 +51,35 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 🟢 新增：檢查連線是否還活著 (用來對付瀏覽器休眠後的殭屍狀態)
+  // 檢查連線是否還活著
   const checkConnection = async () => {
     try {
-      // 設定一個超短的 2 秒限制
-      // 如果 Supabase Client 已經殭屍化，它會無視請求，我們不能讓它無限轉圈
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Wake-up timeout')), 2000)
       );
 
-      // 嘗試取得 Session，看 Client 是否還活著
       await Promise.race([
         supabase.auth.getSession(),
         timeoutPromise
       ]);
 
-      return true; // 連線正常
+      return true;
     } catch (err) {
       console.warn('偵測到連線凍結或逾時，準備重整頁面...', err);
-      return false; // 連線已死
+      return false;
     }
   };
 
   // 初始化與監聽
   useEffect(() => {
     let mounted = true;
-
-    // 🔥 重要：在 update-password 頁面上完全跳過初始化
-    // 因為該頁面有自己的 session 管理，不需要 AuthContext 干預
     const isPasswordResetPage = window.location.pathname.includes('update-password');
 
     if (isPasswordResetPage) {
       console.log('🔒 在 update-password 頁面，跳過 AuthContext 初始化');
       setIsLoading(false);
-      // 仍然監聽 auth 狀態變化，但不執行初始化
       const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (!mounted) return;
-        // 只更新狀態，不做其他操作
         if (session?.user) {
           setUser(session.user);
         }
@@ -101,7 +93,6 @@ export function AuthProvider({ children }) {
 
     const initAuth = async () => {
       try {
-        // ✅ 修正 1：將超時時間延長至 10 秒 (10000ms)
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Auth timeout')), 10000)
         );
@@ -111,35 +102,24 @@ export function AuthProvider({ children }) {
         const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise])
           .catch(async (err) => {
             console.warn('Auth init timeout or error:', err);
-
-            // 超時或錯誤時，檢查是否在特殊頁面
             const hasAccessToken = window.location.hash.includes('access_token') ||
                                   window.location.hash.includes('type=recovery') ||
                                   window.location.hash.includes('type=invite');
-
             const isLoginPage = window.location.pathname === '/login';
 
-            // 在登入頁面或有 access_token 時，不清除 session
             if (!hasAccessToken && !isLoginPage) {
-              // 只有不在特殊流程時才清除
               clearStoredSession();
-            } else {
-              console.log('檢測到 access_token 或在登入頁面，不清除 session');
             }
-
             return { data: { session: null } };
           });
 
         if (session?.user && mounted) {
           setUser(session.user);
-          // 嘗試取得 Profile，如果失敗也不要卡住整個 App
           const userProfile = await fetchProfile(session.user.id).catch(() => null);
           if (mounted) setProfile(userProfile);
         }
       } catch (error) {
         console.error('Auth initialization failed:', error);
-
-        // 發生嚴重錯誤時，檢查是否有 access_token 或在登入頁面
         const hasAccessToken = window.location.hash.includes('access_token');
         const isLoginPage = window.location.pathname === '/login';
 
@@ -158,36 +138,21 @@ export function AuthProvider({ children }) {
 
     initAuth();
 
-    // 🟢 新增：監聽「視窗喚醒」事件 (解決閒置 5 分鐘後卡死的問題)
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
-        // console.log('使用者回到視窗，檢查連線健康度...');
-
-        // ⚠️ 在登入頁面不要執行連線檢查，避免干擾登入流程
         const isLoginPage = window.location.pathname === '/login';
-        if (isLoginPage) {
-          console.log('📍 在登入頁面，跳過連線檢查');
-          return;
-        }
+        if (isLoginPage) return;
 
-        // 只有在已登入狀態下才需要檢查
-        // 這裡不能直接用 user 變數，因為閉包問題，要直接問 supabase
         try {
           const { data: { session } } = await supabase.auth.getSession();
-
           if (session) {
             const isAlive = await checkConnection();
             if (!isAlive) {
-              console.warn('連線已失效，執行自動修復...');
-              // 清除可能損壞的 session
               clearStoredSession();
-              // 💀 如果連線已死，強制重新整理頁面來復活 Supabase Client
               window.location.reload();
             }
           }
         } catch (error) {
-          console.error('檢查連線時發生錯誤:', error);
-          // 如果檢查時發生錯誤，也清除並重新加載
           clearStoredSession();
           window.location.reload();
         }
@@ -196,7 +161,6 @@ export function AuthProvider({ children }) {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // 監聽認證狀態變化
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (session?.user && mounted) {
@@ -214,7 +178,6 @@ export function AuthProvider({ children }) {
     return () => {
       mounted = false;
       subscription.unsubscribe();
-      // 記得移除監聽器
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
@@ -224,15 +187,12 @@ export function AuthProvider({ children }) {
     setIsLoading(true);
     try {
       const { email, password } = credentials;
-
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) {
-        return { success: false, error: error.message };
-      }
+      if (error) return { success: false, error: error.message };
 
       if (data.user) {
         setUser(data.user);
@@ -240,7 +200,6 @@ export function AuthProvider({ children }) {
         setProfile(userProfile);
         return { success: true };
       }
-
       return { success: false, error: '登入失敗' };
     } catch (error) {
       return { success: false, error: '登入失敗，請稍後再試' };
@@ -258,16 +217,13 @@ export function AuthProvider({ children }) {
     } finally {
       setUser(null);
       setProfile(null);
-      // 使用統一的清除函數
       clearStoredSession();
     }
   };
 
   // 更新用戶資料
   const updateProfile = async (updates) => {
-    if (!user) {
-      return { success: false, error: '請先登入' };
-    }
+    if (!user) return { success: false, error: '請先登入' };
 
     try {
       const { error } = await supabase
@@ -275,9 +231,7 @@ export function AuthProvider({ children }) {
         .update(updates)
         .eq('id', user.id);
 
-      if (error) {
-        return { success: false, error: error.message };
-      }
+      if (error) return { success: false, error: error.message };
 
       const updatedProfile = await fetchProfile(user.id);
       setProfile(updatedProfile);
@@ -287,16 +241,14 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 變更密碼
-// 變更密碼 (修正版：加入舊密碼驗證)
+  // 變更密碼 (修正版：加入舊密碼驗證)
   const changePassword = async (currentPassword, newPassword) => {
     if (!user || !user.email) {
       return { success: false, error: '使用者未登入' };
     }
 
     try {
-      // 1. 先驗證舊密碼 (透過嘗試重新登入來驗證)
-      // 這一步非常重要，確保是本人操作
+      // 1. 先驗證舊密碼
       const { error: verifyError } = await supabase.auth.signInWithPassword({
         email: user.email,
         password: currentPassword,
@@ -321,6 +273,39 @@ export function AuthProvider({ children }) {
       return { success: false, error: '密碼變更失敗，請稍後再試' };
     }
   };
+
+  // 合併 user 和 profile 資訊
+  const combinedUser = user ? {
+    ...user,
+    ...profile,
+    id: user.id,
+    email: user.email,
+    name: profile?.name || profile?.full_name || user.email,
+    role: profile?.role || 'user',
+    permissions: profile?.role === 'admin' ? ['all'] : [],
+  } : null;
+
+  // 構建 Context Value
+  const value = {
+    user: combinedUser,
+    supabaseUser: user,
+    profile,
+    role: profile?.role,
+    isLoading,
+    loading: isLoading,
+    isAuthenticated: !!user,
+    login,
+    logout,
+    updateProfile,
+    changePassword,
+  };
+
+  // 🔥 這是之前缺失的 Return 部分，沒有它就會白屏
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {
