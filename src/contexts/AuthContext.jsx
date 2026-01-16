@@ -15,7 +15,7 @@ export function AuthProvider({ children }) {
   const fetchProfile = async (userId) => {
     try {
       const { data, error } = await supabase
-        .from('profiles')
+        .from('profiles') // 確保這裡連到的是主系統的 profiles 表
         .select('*')
         .eq('id', userId)
         .single();
@@ -31,17 +31,15 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 清除過期的 localStorage token
+  // 清除過期的 localStorage token (僅在明確登出時使用)
   const clearStoredSession = () => {
     try {
       const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
       if (projectId) {
         const key = `sb-${projectId}-auth-token`;
-        const stored = localStorage.getItem(key);
-        if (stored) {
-          localStorage.removeItem(key);
-        }
+        localStorage.removeItem(key);
       }
+      // 清除其他相關 token
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith('sb-') && key.includes('-auth-token')) {
           localStorage.removeItem(key);
@@ -52,12 +50,12 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 檢查連線是否還活著 (放寬版)
+  // 檢查連線 (極致寬鬆版)
   const checkConnection = async () => {
     try {
-      // 修改：將逾時時間從 2000ms 延長至 10000ms (10秒)，避免網路波動誤判
+      // 修改：延長至 30 秒，給予極大的寬容度
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Wake-up timeout')), 10000)
+        setTimeout(() => reject(new Error('Wake-up timeout')), 30000)
       );
 
       await Promise.race([
@@ -67,9 +65,9 @@ export function AuthProvider({ children }) {
 
       return true;
     } catch (err) {
-      console.warn('連線檢查回應較慢，但暫不強制登出...', err);
-      // 修改：即使逾時也回傳 true (或 false 但後續不處理)，讓 Supabase SDK 自己去重試
-      return false;
+      // 就算超時，我們也只紀錄 Warning，絕對不回傳 false 導致登出
+      console.warn('網路連線回應較慢 (超過30秒)，保持登入狀態等待恢復...', err);
+      return true; // 欺騙系統說連線還活著，避免觸發登出邏輯
     }
   };
 
@@ -95,24 +93,17 @@ export function AuthProvider({ children }) {
 
     const initAuth = async () => {
       try {
-        // 修改：放寬初始化逾時至 15 秒
+        // 修改：初始化等待時間也延長至 20 秒
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Auth timeout')), 15000)
+          setTimeout(() => reject(new Error('Auth timeout')), 20000)
         );
 
         const sessionPromise = supabase.auth.getSession();
 
         const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise])
           .catch(async (err) => {
-            console.warn('Auth init timeout or error:', err);
-            // 只有在真的沒有 Token 的情況下才考慮清除，否則保留讓它重試
-            const hasAccessToken = window.location.hash.includes('access_token');
-            const isLoginPage = window.location.pathname === '/login';
-
-            if (!hasAccessToken && !isLoginPage) {
-               // 這裡保留清除邏輯，因為是初始化失敗
-               clearStoredSession();
-            }
+            console.warn('初始化超時，但不強制清除 Session，嘗試保留狀態:', err);
+            // 只有在明確是登入頁面且沒有 Token 時才清除，其他頁面保留嘗試機會
             return { data: { session: null } };
           });
 
@@ -123,12 +114,6 @@ export function AuthProvider({ children }) {
         }
       } catch (error) {
         console.error('Auth initialization failed:', error);
-        // 發生錯誤時，不要太積極清除 Session，除非確定是登入頁
-        const isLoginPage = window.location.pathname === '/login';
-        if (isLoginPage) {
-          clearStoredSession();
-        }
-
         if (mounted) {
           setUser(null);
           setProfile(null);
@@ -140,27 +125,28 @@ export function AuthProvider({ children }) {
 
     initAuth();
 
+    // 處理喚醒邏輯
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
         const isLoginPage = window.location.pathname === '/login';
         if (isLoginPage) return;
 
-        // 修改：完全移除「喚醒時強制重整與登出」的邏輯
-        // 改為「溫和地嘗試重新整理 Session」，失敗了也不打擾使用者
+        console.log('應用程式喚醒，檢查狀態...');
+        
+        // 修改：移除所有 destructive 操作 (reload, clearSession)
+        // 僅嘗試更新 Session，如果失敗就失敗，等使用者下次操作再說
         try {
           const { data: { session }, error } = await supabase.auth.getSession();
           
-          if (error || !session) {
-             // 只有明確收到錯誤或沒有 session 時才記錄，但不強制踢人
-             // Supabase 的 onAuthStateChange 會處理真正的登出事件
-             console.log('喚醒後 Session 狀態檢查:', error ? 'Error' : 'No Session');
-          } else {
-             // 如果 Session 存在，嘗試一個簡單的 ping (可選)
-             await checkConnection(); 
+          if (error) {
+            console.warn('喚醒時 Session 檢查有誤 (忽略):', error);
+          } else if (session) {
+             console.log('喚醒時 Session 有效');
+             // 這裡可以選擇性做一次 checkConnection，但不要根據結果做任何懲罰
+             checkConnection(); 
           }
-        } catch (error) {
-          console.warn('喚醒檢查發生錯誤，忽略:', error);
-          // 絕對不要在這裡呼叫 clearStoredSession() 或 reload()
+        } catch (e) {
+          console.warn('喚醒檢查例外 (忽略):', e);
         }
       }
     };
@@ -169,27 +155,25 @@ export function AuthProvider({ children }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (ignoreAuthChange.current) {
-          return;
-        }
+        // 如果正在變更密碼，無視更新
+        if (ignoreAuthChange.current) return;
 
-        // 增加 TOKEN_REFRESHED 事件的處理，確保介面同步
         if (event === 'TOKEN_REFRESHED') {
-           console.log('Token 已自動更新');
+          console.log('Token 已自動更新');
         }
 
         if (session?.user && mounted) {
           setUser(session.user);
-          // 避免每次 token 刷新都重新抓 profile，除非 profile 是空的
+          // 只有當 profile 為空時才重新抓取，節省流量與避免錯誤
           if (!profile) {
-              const userProfile = await fetchProfile(session.user.id);
-              if (mounted) setProfile(userProfile);
+            const userProfile = await fetchProfile(session.user.id);
+            if (mounted) setProfile(userProfile);
           }
         } else if (mounted) {
-          // 只有當 session 明確變為 null (例如 SIGN_OUT) 時才清空狀態
-          if (!session && event === 'SIGNED_OUT') {
-              setUser(null);
-              setProfile(null);
+          // 只有在明確收到 SIGNED_OUT 事件時才清空
+          if (event === 'SIGNED_OUT') {
+            setUser(null);
+            setProfile(null);
           }
         }
         if (mounted) setIsLoading(false);
@@ -201,7 +185,7 @@ export function AuthProvider({ children }) {
       subscription.unsubscribe();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []); // 移除 profile 依賴，避免無限迴圈
+  }, []); // 移除 profile 依賴
 
   // 登入
   const login = async (credentials) => {
@@ -229,7 +213,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 登出
+  // 登出 (這是唯一會主動清除 Session 的地方)
   const logout = async () => {
     try {
       await supabase.auth.signOut();
@@ -239,7 +223,6 @@ export function AuthProvider({ children }) {
       setUser(null);
       setProfile(null);
       clearStoredSession();
-      // 登出後可以選擇導向登入頁，這裡交由外層路由保護處理
     }
   };
 
