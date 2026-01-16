@@ -326,63 +326,63 @@ useEffect(() => {
   };
   123
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-        {/* Header */}
-        <div className="bg-blue-600 px-8 py-6 text-center">
-          <div className="mx-auto w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mb-4 shadow-inner">
-            <Lock className="text-white" size={32} />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center p-4 sm:p-6">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-gray-100">
+        {/* Header - 手機版優化 */}
+        <div className="bg-gradient-to-br from-blue-600 to-blue-700 px-6 sm:px-8 py-6 sm:py-8 text-center">
+          <div className="mx-auto w-14 h-14 sm:w-16 sm:h-16 bg-blue-500 rounded-full flex items-center justify-center mb-3 sm:mb-4 shadow-inner">
+            <Lock className="text-white" size={28} />
           </div>
-          <h2 className="text-2xl font-bold text-white">設定新密碼</h2>
-          <p className="text-blue-100 mt-2 text-sm">請輸入您的新密碼以完成帳號啟用</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-white">設定新密碼</h2>
+          <p className="text-blue-100 mt-2 text-xs sm:text-sm leading-relaxed">請輸入您的新密碼以完成帳號啟用</p>
         </div>
 
-        {/* Content */}
-        <div className="p-8">
+        {/* Content - 手機版優化 */}
+        <div className="p-6 sm:p-8">
           {isCheckingSession ? (
-            <div className="text-center py-8">
-              <Loader2 className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-4" />
-              <p className="text-gray-600 font-medium">驗證連結中...</p>
-              <p className="text-gray-400 text-sm mt-2">正在處理您的重設連結，請稍候</p>
+            <div className="text-center py-8 sm:py-10">
+              <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 text-blue-600 animate-spin mx-auto mb-3 sm:mb-4" />
+              <p className="text-gray-600 font-medium text-sm sm:text-base">驗證連結中...</p>
+              <p className="text-gray-400 text-xs sm:text-sm mt-2">正在處理您的重設連結，請稍候</p>
             </div>
           ) : !isSessionValid ? (
-            <div className="text-center py-8">
-              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertCircle size={32} />
+            <div className="text-center py-8 sm:py-10">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                <AlertCircle size={28} className="sm:w-8 sm:h-8" />
               </div>
-              <h3 className="text-xl font-bold text-gray-800 mb-2">驗證連結已過期</h3>
-              <p className="text-gray-600 mb-6">
+              <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-2 px-4">驗證連結已過期</h3>
+              <p className="text-gray-600 text-sm sm:text-base mb-6 px-4 leading-relaxed">
                 密碼重設連結通常在 1 小時內有效。<br />
                 請重新申請密碼重設。
               </p>
               <button
                 onClick={handleResendEmail}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2.5 rounded-xl transition-colors"
+                className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-medium px-6 py-2.5 rounded-xl transition-colors text-sm sm:text-base"
               >
                 返回登入頁面
               </button>
             </div>
           ) : success ? (
-            <div className="text-center py-8 animate-in fade-in zoom-in duration-300">
-              <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle size={32} />
+            <div className="text-center py-8 sm:py-10 animate-in fade-in zoom-in duration-300">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                <CheckCircle size={28} className="sm:w-8 sm:h-8" />
               </div>
-              <h3 className="text-xl font-bold text-gray-800 mb-2">密碼設定成功！</h3>
-              <p className="text-gray-500">正在為您登入系統...</p>
+              <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-2 px-4">密碼設定成功！</h3>
+              <p className="text-gray-500 text-sm sm:text-base px-4">正在為您登入系統...</p>
             </div>
           ) : (
-            <form onSubmit={handleUpdate} className="space-y-5">
+            <form onSubmit={handleUpdate} className="space-y-4 sm:space-y-5">
 
-              {/* Error Message */}
+              {/* Error Message - 手機版優化 */}
               {error && (
-                <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm flex items-start gap-3">
-                  <AlertCircle size={18} className="mt-0.5 shrink-0" />
-                  <div className="flex-1">
+                <div className="bg-red-50 text-red-600 p-3 sm:p-4 rounded-xl text-xs sm:text-sm flex items-start gap-2 sm:gap-3">
+                  <AlertCircle size={16} className="sm:w-[18px] sm:h-[18px] mt-0.5 shrink-0" />
+                  <div className="flex-1 leading-relaxed">
                     <span>{error}</span>
                     {!isSessionValid && (
                       <button
                         onClick={handleResendEmail}
-                        className="block mt-2 text-blue-600 hover:text-blue-700 font-medium underline"
+                        className="block mt-2 text-blue-600 hover:text-blue-700 active:text-blue-800 font-medium underline"
                       >
                         返回登入頁面重新申請
                       </button>
@@ -391,9 +391,9 @@ useEffect(() => {
                 </div>
               )}
 
-              {/* Password Input */}
+              {/* Password Input - 手機版優化 */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1.5 sm:mb-2">
                   新密碼
                 </label>
                 <div className="relative">
@@ -403,21 +403,22 @@ useEffect(() => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="至少 6 個字元"
-                    className="w-full pl-4 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    className="w-full pl-3 sm:pl-4 pr-11 sm:pr-12 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                    className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 active:text-gray-700 p-1.5 sm:p-2 touch-manipulation"
+                    aria-label={showPassword ? "隱藏密碼" : "顯示密碼"}
                   >
-                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    {showPassword ? <EyeOff size={18} className="sm:w-5 sm:h-5" /> : <Eye size={18} className="sm:w-5 sm:h-5" />}
                   </button>
                 </div>
               </div>
 
-              {/* Confirm Password Input */}
+              {/* Confirm Password Input - 手機版優化 */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1.5 sm:mb-2">
                   確認新密碼
                 </label>
                 <div className="relative">
@@ -427,20 +428,20 @@ useEffect(() => {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="再次輸入新密碼"
-                    className="w-full pl-4 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    className="w-full pl-3 sm:pl-4 pr-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                   />
                 </div>
               </div>
 
-              {/* Submit Button */}
+              {/* Submit Button - 手機版優化 */}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold py-3 sm:py-3.5 rounded-xl shadow-lg hover:shadow-xl active:shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed text-sm sm:text-base touch-manipulation"
               >
                 {loading ? (
                   <>
-                    <Loader2 className="animate-spin" size={20} />
+                    <Loader2 className="animate-spin" size={18} />
                     <span>更新中...</span>
                   </>
                 ) : (

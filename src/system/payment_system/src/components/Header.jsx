@@ -9,7 +9,6 @@ import {
   User,
   Settings,
   AlertCircle,
-  Shield,
   Home
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
@@ -146,16 +145,6 @@ export default function Header() {
             <FilePlus size={18} />
             新增申請
           </Link>
-
-          {(role === 'admin' || role === 'hr') && (
-            <Link
-              to="/management"
-              className={getNavLinkClass(false)}
-            >
-              <Shield size={18} />
-              統一管理中心
-            </Link>
-          )}
         </nav>
 
         {/* ================= 右側：使用者資訊 & 手機選單按鈕 ================= */}
@@ -316,17 +305,6 @@ export default function Header() {
                 個人資料設定
               </span>
             </Link>
-
-            {(role === 'admin' || role === 'hr') && (
-              <Link
-                to="/management"
-                onClick={closeMenu}
-                className="px-4 py-3 rounded-xl text-base font-medium flex items-center gap-3 transition-colors text-stone-600 hover:bg-stone-50"
-              >
-                <Shield size={18} />
-                統一管理中心
-              </Link>
-            )}
 
             <div className="border-t border-stone-100 my-2 pt-2">
               <button

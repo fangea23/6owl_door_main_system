@@ -111,12 +111,19 @@ export default function Account() {
     e.preventDefault();
     setIsSaving(true);
     setMessage({ type: '', text: '' });
-    
+
     try {
+      // 驗證：顯示名稱不能為空
+      if (!profileForm.name || profileForm.name.trim() === '') {
+        setMessage({ type: 'error', text: '顯示名稱不能為空' });
+        setIsSaving(false);
+        return;
+      }
+
       const updates = [];
       const profileUpdate = supabase
         .from('profiles')
-        .update({ full_name: profileForm.name })
+        .update({ full_name: profileForm.name.trim() })
         .eq('id', user.id);
       updates.push(profileUpdate);
 

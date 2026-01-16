@@ -132,11 +132,24 @@ CREATE OR REPLACE FUNCTION public.sync_profile_to_employee()
 RETURNS TRIGGER AS $$
 BEGIN
   -- 如果 profiles.full_name 或 email 變更，同步到 employees
+  -- 修正：只在值非空時才更新，避免空字串清空資料
   UPDATE public.employees
   SET
-    name = COALESCE(NEW.full_name, name),
-    email = COALESCE(NEW.email, email),
-    role = COALESCE(NEW.role, role),
+    name = CASE
+      WHEN NEW.full_name IS NOT NULL AND NEW.full_name != ''
+      THEN NEW.full_name
+      ELSE name
+    END,
+    email = CASE
+      WHEN NEW.email IS NOT NULL AND NEW.email != ''
+      THEN NEW.email
+      ELSE email
+    END,
+    role = CASE
+      WHEN NEW.role IS NOT NULL AND NEW.role != ''
+      THEN NEW.role
+      ELSE role
+    END,
     updated_at = NOW()
   WHERE user_id = NEW.id
     AND deleted_at IS NULL;
