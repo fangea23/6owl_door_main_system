@@ -19,15 +19,18 @@ useEffect(() => {
   let sessionCheckTimeout = null;
 
   // 監聽 Auth 狀態變化 (這是最可靠的方式)
-  // 因為邀請連結帶有 hash (#access_token=...), Supabase 會自動處理登入
+  // 支援兩種連結：邀請連結 (type=invite) 和密碼重設連結 (type=recovery)
   const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
     if (!mounted) return;
 
     console.log('Auth 狀態變化:', event, session ? '有 session' : '無 session');
 
-    if (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') {
-      // 成功抓到邀請連結的 Token，使用者已登入
-      console.log('✅ 邀請連結驗證成功，可以設定密碼');
+    // ✅ 支援所有可能的成功事件
+    if (event === 'SIGNED_IN' ||
+        event === 'PASSWORD_RECOVERY' ||
+        event === 'USER_UPDATED') {
+      // 成功處理連結（邀請或密碼重設）
+      console.log(`✅ 連結驗證成功 (${event})，可以設定密碼`);
       setIsSessionValid(true);
       setIsCheckingSession(false);
       setError(null);
@@ -40,7 +43,7 @@ useEffect(() => {
       setError('驗證階段已結束，請重新點擊信件中的連結');
     } else if (event === 'INITIAL_SESSION' && session) {
       // 已有有效的 session (可能是從 localStorage 恢復的)
-      console.log('✅ 找到現有 session');
+      console.log('✅ 找到現有 session (INITIAL_SESSION)');
       setIsSessionValid(true);
       setIsCheckingSession(false);
       setError(null);
@@ -68,14 +71,14 @@ useEffect(() => {
         console.warn('❌ 手動檢查未找到 session:', error);
         setIsSessionValid(false);
         setIsCheckingSession(false);
-        setError('驗證連結已過期或無效。密碼重設連結通常在 1 小時內有效。');
+        setError('驗證連結已過期或無效。邀請連結通常在 7 天內有效，密碼重設連結在 1 小時內有效。');
       }
     } catch (err) {
       console.error('手動檢查 session 時發生錯誤:', err);
       if (mounted) {
         setIsSessionValid(false);
         setIsCheckingSession(false);
-        setError('無法驗證重設連結，請檢查網路連線後重試');
+        setError('無法驗證連結，請檢查網路連線後重試');
       }
     }
   }, 3000);
