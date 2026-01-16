@@ -117,11 +117,14 @@ export function AuthProvider({ children }) {
                                   window.location.hash.includes('type=recovery') ||
                                   window.location.hash.includes('type=invite');
 
-            if (!hasAccessToken) {
+            const isLoginPage = window.location.pathname === '/login';
+
+            // 在登入頁面或有 access_token 時，不清除 session
+            if (!hasAccessToken && !isLoginPage) {
               // 只有不在特殊流程時才清除
               clearStoredSession();
             } else {
-              console.log('檢測到 access_token，不清除 session');
+              console.log('檢測到 access_token 或在登入頁面，不清除 session');
             }
 
             return { data: { session: null } };
@@ -136,10 +139,11 @@ export function AuthProvider({ children }) {
       } catch (error) {
         console.error('Auth initialization failed:', error);
 
-        // 發生嚴重錯誤時，檢查是否有 access_token
+        // 發生嚴重錯誤時，檢查是否有 access_token 或在登入頁面
         const hasAccessToken = window.location.hash.includes('access_token');
+        const isLoginPage = window.location.pathname === '/login';
 
-        if (!hasAccessToken) {
+        if (!hasAccessToken && !isLoginPage) {
           clearStoredSession();
         }
 
@@ -158,6 +162,13 @@ export function AuthProvider({ children }) {
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
         // console.log('使用者回到視窗，檢查連線健康度...');
+
+        // ⚠️ 在登入頁面不要執行連線檢查，避免干擾登入流程
+        const isLoginPage = window.location.pathname === '/login';
+        if (isLoginPage) {
+          console.log('📍 在登入頁面，跳過連線檢查');
+          return;
+        }
 
         // 只有在已登入狀態下才需要檢查
         // 這裡不能直接用 user 變數，因為閉包問題，要直接問 supabase
