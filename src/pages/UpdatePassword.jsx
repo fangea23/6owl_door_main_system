@@ -12,6 +12,7 @@ export default function UpdatePassword() {
   const [success, setSuccess] = useState(false);
   const [isSessionValid, setIsSessionValid] = useState(true);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [linkType, setLinkType] = useState(null); // 記錄連結類型：invite 或 recovery
   const navigate = useNavigate();
 
 useEffect(() => {
@@ -40,8 +41,15 @@ useEffect(() => {
       type
     });
 
+    // 記錄連結類型
+    if (type && mounted) {
+      setLinkType(type);
+      console.log('📝 記錄連結類型:', type);
+    }
+
     if (accessToken) {
       console.log('🔑 發現 access_token，手動設置 session...');
+      console.log('🔗 連結類型:', type);
 
       try {
         // 手動設置 session
@@ -52,11 +60,33 @@ useEffect(() => {
 
         if (error) {
           console.error('❌ 手動設置 session 失敗:', error);
+          console.error('錯誤代碼:', error.code);
+          console.error('錯誤訊息:', error.message);
           return false;
         }
 
         if (data.session) {
           console.log('✅ 手動設置 session 成功');
+          console.log('👤 用戶詳細信息:', {
+            id: data.session.user.id,
+            email: data.session.user.email,
+            email_confirmed_at: data.session.user.email_confirmed_at,
+            confirmed_at: data.session.user.confirmed_at,
+            role: data.session.user.role,
+            aud: data.session.user.aud,
+          });
+
+          // 對於邀請連結，檢查 email 是否已確認
+          if (type === 'invite') {
+            if (!data.session.user.email_confirmed_at) {
+              console.warn('⚠️ 警告: 邀請連結的 email 尚未確認');
+              console.warn('   這可能導致密碼更新時出現 invalid_credentials 錯誤');
+              console.warn('   請檢查 Supabase Auth 設定');
+            } else {
+              console.log('✅ 邀請連結的 email 已確認');
+            }
+          }
+
           if (mounted) {
             setIsSessionValid(true);
             setIsCheckingSession(false);
@@ -193,24 +223,53 @@ useEffect(() => {
       }
 
       console.log('✅ Session 有效，準備更新密碼...');
+      console.log('🔗 連結類型:', linkType || 'unknown');
+
+      // 記錄用戶狀態以供診斷
+      console.log('👤 當前用戶狀態:', {
+        id: session.user.id,
+        email: session.user.email,
+        email_confirmed_at: session.user.email_confirmed_at,
+        confirmed_at: session.user.confirmed_at,
+        last_sign_in_at: session.user.last_sign_in_at,
+      });
 
       // 2. 執行更新（添加超時處理）
       console.log('🔐 步驟 2: 調用 updateUser API...');
 
-      const updatePromise = supabase.auth.updateUser({
-        password: password
-      });
+      // 構建更新參數
+      const updatePayload = { password: password };
+
+      if (linkType === 'invite') {
+        console.log('📧 邀請連結：使用邀請流程更新密碼');
+        // 對於邀請連結，確保提供完整的用戶數據
+        // 這有助於 Supabase 正確處理邀請確認流程
+        updatePayload.data = {
+          ...session.user.user_metadata,
+        };
+      } else {
+        console.log('🔑 密碼重設連結：使用標準密碼更新流程');
+      }
+
+      const updatePromise = supabase.auth.updateUser(updatePayload);
 
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('更新密碼請求超時')), 15000) // 15 秒超時
       );
 
-      const { error } = await Promise.race([updatePromise, timeoutPromise]);
+      const { data: userData, error } = await Promise.race([updatePromise, timeoutPromise]);
 
       if (error) {
         console.error('❌ 更新密碼失敗:', error);
+        console.error('錯誤詳情:', {
+          code: error.code,
+          message: error.message,
+          status: error.status
+        });
         throw error;
       }
+
+      console.log('✅ API 回應成功:', userData);
 
       console.log('✅ 密碼更新成功！');
       setSuccess(true);
@@ -222,6 +281,13 @@ useEffect(() => {
 
     } catch (err) {
       console.error('❌ Password update failed:', err);
+      console.error('錯誤詳細信息:', {
+        message: err.message,
+        code: err.code,
+        status: err.status,
+        name: err.name,
+        linkType: linkType,
+      });
 
       // 優化錯誤訊息顯示
       if (err.message?.includes('超時') || err.message?.includes('timeout')) {
@@ -230,6 +296,18 @@ useEffect(() => {
         setError('連線逾時，請檢查網路連線後重試');
       } else if (err.message?.includes('expired') || err.message?.includes('過期')) {
         setError('驗證連結已過期，請重新申請密碼重設');
+        setIsSessionValid(false);
+      } else if (err.code === 'invalid_credentials' || err.message?.includes('Invalid login credentials')) {
+        // 針對 invalid_credentials 錯誤的特殊處理
+        if (linkType === 'invite') {
+          setError('邀請連結處理失敗。請確認連結未過期，或聯繫管理員重新發送邀請。');
+          console.error('💡 邀請連結錯誤提示: 請檢查 Supabase Dashboard 中的以下設置:');
+          console.error('   1. Authentication > Settings > 確認 "Enable email confirmations" 的配置');
+          console.error('   2. Authentication > Email Templates > 確認邀請郵件模板正確');
+          console.error('   3. 確認 Site URL 設置正確');
+        } else {
+          setError('密碼重設失敗，驗證連結可能已過期。請重新申請密碼重設。');
+        }
         setIsSessionValid(false);
       } else {
         setError(err.message || '密碼更新失敗，請稍後再試');
