@@ -37,11 +37,18 @@ export default function UserProfile() {
     try {
       setSaving(true);
 
+      // 驗證：full_name 不能為空
+      if (!formData.full_name || formData.full_name.trim() === '') {
+        alert('❌ 顯示名稱不能為空');
+        setSaving(false);
+        return;
+      }
+
       // 更新 profiles
       if (formData.full_name !== user?.profile?.full_name) {
         const { error: profileError } = await supabase
           .from('profiles')
-          .update({ full_name: formData.full_name })
+          .update({ full_name: formData.full_name.trim() })
           .eq('id', user.id);
 
         if (profileError) throw profileError;
