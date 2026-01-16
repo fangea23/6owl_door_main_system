@@ -26,7 +26,7 @@ function SoftwareForm({ item, vendors, onSubmit, onClose }) {
     version: item?.version || '',
     category: item?.category || '',
     description: item?.description || '',
-    website: item?.website || ''
+    // 已移除 website 初始化，因為軟體表沒有此欄位
   })
   const [loading, setLoading] = useState(false)
 
@@ -75,13 +75,7 @@ function SoftwareForm({ item, vendors, onSubmit, onClose }) {
         />
       </div>
 
-      <Input
-        label="官方網站"
-        type="url"
-        value={formData.website}
-        onChange={(e) => setFormData(prev => ({ ...prev, website: e.target.value }))}
-        placeholder="https://..."
-      />
+      {/* 已移除官方網站 Input */}
 
       <Textarea
         label="描述"
@@ -265,16 +259,17 @@ export function Software() {
                     {s.vendor.name}
                   </p>
                 )}
-                {s.website && (
+                {/* 修改部分：改為顯示廠商網站 */}
+                {s.vendor?.website && (
                   <p className="flex items-center gap-2">
                     <ExternalLink size={16} className="text-gray-400 shrink-0" />
                     <a
-                      href={s.website}
+                      href={s.vendor.website}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:text-blue-800 truncate"
                     >
-                      官方網站
+                      廠商網站
                     </a>
                   </p>
                 )}

@@ -59,6 +59,46 @@ function LicenseForm({ license, softwareList, onSubmit, onClose }) {
   })
   const [loading, setLoading] = useState(false)
 
+  // 判斷是否為不需要到期日與續約價的模式 (永久、OEM、免費)
+  const isPerpetual = ['perpetual', 'free', 'oem'].includes(formData.license_model)
+
+  // 處理軟體選擇變更：自動帶入該軟體的預設授權模式
+  const handleSoftwareChange = (e) => {
+    const softwareId = e.target.value
+    const selectedSoftware = softwareList.find(s => s.id === softwareId)
+
+    setFormData(prev => {
+      // 如果軟體有設定 license_model，就優先使用，否則維持原狀
+      const newModel = selectedSoftware?.license_model || prev.license_model
+      
+      // 檢查新的模式是否為永久類
+      const isNewModelPerpetual = ['perpetual', 'free', 'oem'].includes(newModel)
+
+      return {
+        ...prev,
+        software_id: softwareId,
+        license_model: newModel,
+        // 如果是永久類，自動清空日期與續約價
+        expiry_date: isNewModelPerpetual ? '' : prev.expiry_date,
+        renewal_price: isNewModelPerpetual ? '' : prev.renewal_price
+      }
+    })
+  }
+
+  // 處理授權模式變更
+  const handleModelChange = (e) => {
+    const model = e.target.value
+    const isModelPerpetual = ['perpetual', 'free', 'oem'].includes(model)
+    
+    setFormData(prev => ({
+      ...prev,
+      license_model: model,
+      // 切換成永久類時，清空相關欄位
+      expiry_date: isModelPerpetual ? '' : prev.expiry_date,
+      renewal_price: isModelPerpetual ? '' : prev.renewal_price
+    }))
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -80,7 +120,7 @@ function LicenseForm({ license, softwareList, onSubmit, onClose }) {
         <Select
           label="軟體"
           value={formData.software_id}
-          onChange={(e) => setFormData(prev => ({ ...prev, software_id: e.target.value }))}
+          onChange={handleSoftwareChange}
           options={softwareList.map(s => ({ value: s.id, label: `${s.name} ${s.version || ''}`.trim() }))}
           placeholder="選擇軟體"
           required
@@ -98,7 +138,7 @@ function LicenseForm({ license, softwareList, onSubmit, onClose }) {
         <Select
           label="授權模式"
           value={formData.license_model}
-          onChange={(e) => setFormData(prev => ({ ...prev, license_model: e.target.value }))}
+          onChange={handleModelChange}
           options={LICENSE_MODELS}
         />
         <Select
@@ -129,6 +169,9 @@ function LicenseForm({ license, softwareList, onSubmit, onClose }) {
           label="到期日期"
           value={formData.expiry_date}
           onChange={(e) => setFormData(prev => ({ ...prev, expiry_date: e.target.value }))}
+          disabled={isPerpetual}
+          placeholder={isPerpetual ? "永久/OEM 授權無到期日" : ""}
+          className={isPerpetual ? "bg-gray-100 cursor-not-allowed" : ""}
         />
       </div>
 
@@ -150,6 +193,8 @@ function LicenseForm({ license, softwareList, onSubmit, onClose }) {
           placeholder="0"
           min="0"
           step="1"
+          disabled={isPerpetual}
+          className={isPerpetual ? "bg-gray-100 cursor-not-allowed" : ""}
         />
       </div>
 
