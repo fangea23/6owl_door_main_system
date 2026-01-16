@@ -18,6 +18,79 @@ useEffect(() => {
   let mounted = true;
   let sessionCheckTimeout = null;
 
+  // 🔥 新增：手動處理 URL hash 中的 token
+  const processUrlHash = async () => {
+    const hash = window.location.hash;
+    console.log('🔍 檢查 URL hash:', hash);
+
+    if (!hash || hash.length <= 1) {
+      console.log('⚠️ 沒有 hash，等待 Supabase 自動處理');
+      return false;
+    }
+
+    // 嘗試從 hash 中提取參數
+    const params = new URLSearchParams(hash.substring(1));
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    const type = params.get('type');
+
+    console.log('📋 Hash 參數:', {
+      hasAccessToken: !!accessToken,
+      hasRefreshToken: !!refreshToken,
+      type
+    });
+
+    if (accessToken) {
+      console.log('🔑 發現 access_token，手動設置 session...');
+
+      try {
+        // 手動設置 session
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken || '',
+        });
+
+        if (error) {
+          console.error('❌ 手動設置 session 失敗:', error);
+          return false;
+        }
+
+        if (data.session) {
+          console.log('✅ 手動設置 session 成功');
+          if (mounted) {
+            setIsSessionValid(true);
+            setIsCheckingSession(false);
+            setError(null);
+          }
+          return true;
+        }
+      } catch (err) {
+        console.error('❌ 設置 session 時發生錯誤:', err);
+        return false;
+      }
+    }
+
+    return false;
+  };
+
+  // 初始化流程
+  const initAuth = async () => {
+    // 先嘗試手動處理 URL hash
+    const hashProcessed = await processUrlHash();
+
+    if (hashProcessed) {
+      console.log('✅ URL hash 已手動處理成功');
+      // 清除超時檢查（因為已經成功）
+      if (sessionCheckTimeout) clearTimeout(sessionCheckTimeout);
+      return;
+    }
+
+    // 如果沒有手動處理成功，繼續監聽 Supabase 自動處理
+    console.log('⏳ 等待 Supabase 自動處理或監聽事件...');
+  };
+
+  initAuth();
+
   // 監聽 Auth 狀態變化 (這是最可靠的方式)
   // 支援兩種連結：邀請連結 (type=invite) 和密碼重設連結 (type=recovery)
   const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -51,11 +124,11 @@ useEffect(() => {
     }
   });
 
-  // 備用檢查：如果 3 秒後還沒收到任何 auth 事件，手動檢查
+  // 備用檢查：如果 5 秒後還沒收到任何 auth 事件，手動檢查
   sessionCheckTimeout = setTimeout(async () => {
     if (!mounted) return;
 
-    console.log('⏰ 3 秒超時，手動檢查 session...');
+    console.log('⏰ 5 秒超時，最後檢查 session...');
 
     try {
       const { data: { session }, error } = await supabase.auth.getSession();
@@ -63,25 +136,25 @@ useEffect(() => {
       if (!mounted) return;
 
       if (session) {
-        console.log('✅ 手動檢查找到 session');
+        console.log('✅ 最後檢查找到 session');
         setIsSessionValid(true);
         setIsCheckingSession(false);
         setError(null);
       } else {
-        console.warn('❌ 手動檢查未找到 session:', error);
+        console.warn('❌ 最後檢查未找到 session:', error);
         setIsSessionValid(false);
         setIsCheckingSession(false);
         setError('驗證連結已過期或無效。邀請連結通常在 7 天內有效，密碼重設連結在 1 小時內有效。');
       }
     } catch (err) {
-      console.error('手動檢查 session 時發生錯誤:', err);
+      console.error('最後檢查 session 時發生錯誤:', err);
       if (mounted) {
         setIsSessionValid(false);
         setIsCheckingSession(false);
         setError('無法驗證連結，請檢查網路連線後重試');
       }
     }
-  }, 3000);
+  }, 5000); // 延長到 5 秒
 
   return () => {
     mounted = false;
