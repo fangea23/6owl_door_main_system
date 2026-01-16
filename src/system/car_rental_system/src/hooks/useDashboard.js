@@ -110,7 +110,7 @@ export const useDashboard = () => {
           created_at,
           status,
           renter_name,
-          vehicle:vehicle_id (
+          vehicle:vehicles!vehicle_id (
             plate_number,
             brand,
             model

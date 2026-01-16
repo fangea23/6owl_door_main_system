@@ -2,10 +2,8 @@ import { NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   Key,
-  Users,
   Monitor,
   UserCheck,
-  Settings,
   LogOut,
   Shield,
   ChevronLeft,
@@ -18,9 +16,7 @@ const navigation = [
   { name: '儀表板', href: '/', icon: LayoutDashboard },
   { name: '授權管理', href: '/licenses', icon: Key },
   { name: '授權分配', href: '/assignments', icon: UserCheck },
-  { name: '員工管理', href: '/employees', icon: Users },
-  { name: '軟體管理', href: '/software', icon: Monitor },
-  { name: '設定', href: '/settings', icon: Settings }
+  { name: '軟體管理', href: '/software', icon: Monitor }
 ]
 
 export function Sidebar() {

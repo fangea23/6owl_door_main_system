@@ -1,10 +1,15 @@
 import React from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Car, LayoutDashboard, FileText, History, Settings, LogOut } from 'lucide-react';
+import { Car, LayoutDashboard, FileText, History, Settings, LogOut, User } from 'lucide-react';
+import { useAuth } from '../../../../contexts/AuthContext';
 
 export const Layout = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, profile } = useAuth();
+
+  // 獲取顯示名稱（優先順序：profile.name > user_metadata.name > email）
+  const displayName = profile?.name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email;
 
   const handleLogout = () => {
     // 回到主系統
@@ -48,13 +53,29 @@ export const Layout = () => {
               <Car className="w-8 h-8 text-rose-600" />
               <h1 className="text-2xl font-bold text-gray-900">公司車租借系統</h1>
             </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              返回主系統
-            </button>
+
+            <div className="flex items-center gap-4">
+              {/* 使用者資訊 */}
+              {user && (
+                <Link
+                  to="/account"
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-600 to-rose-800 flex items-center justify-center text-white font-medium shadow-sm">
+                    {displayName?.charAt(0) || <User size={16} />}
+                  </div>
+                  <span className="font-medium">{displayName}</span>
+                </Link>
+              )}
+
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                返回主系統
+              </button>
+            </div>
           </div>
         </div>
       </header>

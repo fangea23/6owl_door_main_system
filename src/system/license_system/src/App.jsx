@@ -3,7 +3,7 @@ import { Layout } from './components/layout/Layout'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import { LoginForm } from './components/auth/LoginForm'
 import { RegisterForm } from './components/auth/RegisterForm'
-import { Dashboard, Licenses, Assignments, Employees, Software, Settings, VerifyLicense } from './pages'
+import { Dashboard, Licenses, Assignments, Software, VerifyLicense } from './pages'
 import { useAuth } from './contexts/AuthContext'
 
 function App() {
@@ -41,9 +41,7 @@ function App() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/licenses" element={<Licenses />} />
         <Route path="/assignments" element={<Assignments />} />
-        <Route path="/employees" element={<Employees />} />
         <Route path="/software" element={<Software />} />
-        <Route path="/settings" element={<Settings />} />
       </Route>
 
       {/* Catch all */}

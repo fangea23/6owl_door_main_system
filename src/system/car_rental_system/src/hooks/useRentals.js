@@ -16,7 +16,7 @@ export const useRentals = (userId = null) => {
         .from('rentals')
         .select(`
           *,
-          vehicle:vehicle_id (
+          vehicle:vehicles!vehicle_id (
             id,
             plate_number,
             brand,
@@ -24,17 +24,17 @@ export const useRentals = (userId = null) => {
             vehicle_type,
             color
           ),
-          request:request_id (
+          request:rental_requests!request_id (
             id,
             purpose,
             destination
           ),
-          renter:renter_id (
+          renter:employees!renter_id (
             id,
             employee_id,
             name,
             email,
-            department:department_id (
+            department:departments!department_id (
               id,
               name
             ),
@@ -69,7 +69,7 @@ export const useRentals = (userId = null) => {
         .insert([rentalData])
         .select(`
           *,
-          vehicle:vehicle_id (
+          vehicle:vehicles!vehicle_id (
             id,
             plate_number,
             brand,
@@ -77,12 +77,12 @@ export const useRentals = (userId = null) => {
             vehicle_type,
             color
           ),
-          renter:renter_id (
+          renter:employees!renter_id (
             id,
             employee_id,
             name,
             email,
-            department:department_id (
+            department:departments!department_id (
               id,
               name
             ),
@@ -118,7 +118,7 @@ export const useRentals = (userId = null) => {
         .eq('id', id)
         .select(`
           *,
-          vehicle:vehicle_id (
+          vehicle:vehicles!vehicle_id (
             id,
             plate_number,
             brand,
@@ -227,7 +227,7 @@ export const useRentals = (userId = null) => {
         .from('rentals')
         .select(`
           *,
-          vehicle:vehicle_id (
+          vehicle:vehicles!vehicle_id (
             id,
             plate_number,
             brand,
@@ -235,7 +235,7 @@ export const useRentals = (userId = null) => {
             vehicle_type,
             color
           ),
-          request:request_id (
+          request:rental_requests!request_id (
             id,
             purpose,
             destination,
@@ -263,7 +263,7 @@ export const useRentals = (userId = null) => {
         .from('rentals')
         .select(`
           *,
-          vehicle:vehicle_id (
+          vehicle:vehicles!vehicle_id (
             id,
             plate_number,
             brand,

@@ -1,8 +1,6 @@
 export { Dashboard } from './Dashboard'
 export { Licenses } from './Licenses'
 export { Assignments } from './Assignments'
-export { Employees } from './Employees'
 export { Devices } from './Devices'
 export { Software } from './Software'
-export { Settings } from './Settings'
 export { VerifyLicense } from './VerifyLicense'
