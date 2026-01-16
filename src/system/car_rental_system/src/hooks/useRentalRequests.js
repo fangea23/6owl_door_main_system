@@ -16,26 +16,26 @@ export const useRentalRequests = (userId = null) => {
         .from('rental_requests')
         .select(`
           *,
-          vehicle:vehicle_id (
+          vehicle:vehicles!vehicle_id (
             id,
             plate_number,
             brand,
             model,
             vehicle_type
           ),
-          requester:requester_id (
+          requester:employees!requester_id (
             id,
             employee_id,
             name,
             email,
             phone,
-            department:department_id (
+            department:departments!department_id (
               id,
               name
             ),
             position
           ),
-          reviewer:reviewer_id (
+          reviewer:employees!reviewer_id (
             id,
             employee_id,
             name
@@ -69,20 +69,20 @@ export const useRentalRequests = (userId = null) => {
         .insert([requestData])
         .select(`
           *,
-          vehicle:vehicle_id (
+          vehicle:vehicles!vehicle_id (
             id,
             plate_number,
             brand,
             model,
             vehicle_type
           ),
-          requester:requester_id (
+          requester:employees!requester_id (
             id,
             employee_id,
             name,
             email,
             phone,
-            department:department_id (
+            department:departments!department_id (
               id,
               name
             ),
@@ -110,7 +110,7 @@ export const useRentalRequests = (userId = null) => {
         .eq('id', id)
         .select(`
           *,
-          vehicle:vehicle_id (
+          vehicle:vehicles!vehicle_id (
             id,
             plate_number,
             brand,
@@ -148,7 +148,7 @@ export const useRentalRequests = (userId = null) => {
         .eq('id', id)
         .select(`
           *,
-          vehicle:vehicle_id (
+          vehicle:vehicles!vehicle_id (
             id,
             plate_number,
             brand,
@@ -212,7 +212,7 @@ export const useRentalRequests = (userId = null) => {
         .from('rental_requests')
         .select(`
           *,
-          vehicle:vehicle_id (
+          vehicle:vehicles!vehicle_id (
             id,
             plate_number,
             brand,
@@ -220,19 +220,19 @@ export const useRentalRequests = (userId = null) => {
             vehicle_type,
             color
           ),
-          requester:requester_id (
+          requester:employees!requester_id (
             id,
             employee_id,
             name,
             email,
             phone,
-            department:department_id (
+            department:departments!department_id (
               id,
               name
             ),
             position
           ),
-          reviewer:reviewer_id (
+          reviewer:employees!reviewer_id (
             id,
             employee_id,
             name

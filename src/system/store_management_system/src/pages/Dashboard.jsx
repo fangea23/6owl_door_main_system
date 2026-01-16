@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Store, Plus, Edit2, Trash2, Search, Building2, ToggleLeft, ToggleRight, AlertCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Store, Plus, Edit2, Trash2, Search, Building2, ToggleLeft, ToggleRight, AlertCircle, User, LogOut } from 'lucide-react';
 import { useBrands } from '../hooks/useBrands';
 import { useStores } from '../hooks/useStores';
+import { useAuth } from '../AuthContext';
 
 export default function Dashboard() {
   const [selectedBrand, setSelectedBrand] = useState(null);
@@ -13,6 +15,10 @@ export default function Dashboard() {
 
   const { brands, loading: brandsLoading, addBrand, updateBrand, deleteBrand } = useBrands();
   const { stores, loading: storesLoading, addStore, updateStore, deleteStore, toggleStoreStatus } = useStores(selectedBrand?.id);
+  const { user, profile } = useAuth();
+
+  // 獲取顯示名稱（優先順序：profile.name > user_metadata.name > email）
+  const displayName = profile?.name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email;
 
   // 過濾店舖
   const filteredStores = stores.filter(store =>
@@ -79,11 +85,36 @@ export default function Dashboard() {
       {/* Header */}
       <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white">
         <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="flex items-center gap-3">
-            <Store size={32} />
-            <div>
-              <h1 className="text-3xl font-bold">店舖管理系統</h1>
-              <p className="text-purple-100 mt-1">管理品牌與店舖資料</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Store size={32} />
+              <div>
+                <h1 className="text-3xl font-bold">店舖管理系統</h1>
+                <p className="text-purple-100 mt-1">管理品牌與店舖資料</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              {/* 使用者資訊 */}
+              {user && (
+                <Link
+                  to="/account"
+                  className="flex items-center gap-2 px-3 py-2 text-white/90 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center text-white font-medium shadow-sm">
+                    {displayName?.charAt(0) || <User size={18} />}
+                  </div>
+                  <span className="font-medium">{displayName}</span>
+                </Link>
+              )}
+
+              <Link
+                to="/"
+                className="flex items-center gap-2 px-4 py-2 text-white/90 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                返回主系統
+              </Link>
             </div>
           </div>
         </div>
@@ -240,6 +271,14 @@ export default function Dashboard() {
                             </div>
 
                             <div className="mt-2 space-y-1 text-sm text-gray-600">
+                              {store.store_code && (
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">店舖代碼:</span>
+                                  <code className="bg-blue-50 px-2 py-0.5 rounded text-xs text-blue-700 font-semibold">
+                                    {store.store_code}
+                                  </code>
+                                </div>
+                              )}
                               <div className="flex items-center gap-2">
                                 <span className="font-medium">店舖 ID:</span>
                                 <code className="bg-gray-100 px-2 py-0.5 rounded text-xs">
@@ -388,6 +427,7 @@ function BrandModal({ brand, onClose, onSave }) {
 // 店舖 Modal 組件
 function StoreModal({ store, brandId, onClose, onSave }) {
   const [name, setName] = useState(store?.name || '');
+  const [storeCode, setStoreCode] = useState(store?.store_code || '');
   const [isActive, setIsActive] = useState(store?.is_active ?? true);
   const [saving, setSaving] = useState(false);
 
@@ -401,6 +441,7 @@ function StoreModal({ store, brandId, onClose, onSave }) {
     setSaving(true);
     await onSave({
       name: name.trim(),
+      store_code: storeCode.trim() || null,
       brand_id: brandId,
       is_active: isActive,
     });
@@ -429,6 +470,22 @@ function StoreModal({ store, brandId, onClose, onSave }) {
               placeholder="請輸入店舖名稱"
               required
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              店舖代碼
+            </label>
+            <input
+              type="text"
+              value={storeCode}
+              onChange={(e) => setStoreCode(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="選填，例如: ST001"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              用於識別店舖的自訂代碼
+            </p>
           </div>
 
           <div>
