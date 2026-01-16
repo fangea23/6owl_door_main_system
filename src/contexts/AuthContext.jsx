@@ -288,52 +288,39 @@ export function AuthProvider({ children }) {
   };
 
   // 變更密碼
+// 變更密碼 (修正版：加入舊密碼驗證)
   const changePassword = async (currentPassword, newPassword) => {
+    if (!user || !user.email) {
+      return { success: false, error: '使用者未登入' };
+    }
+
     try {
-      const { error } = await supabase.auth.updateUser({
+      // 1. 先驗證舊密碼 (透過嘗試重新登入來驗證)
+      // 這一步非常重要，確保是本人操作
+      const { error: verifyError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+
+      if (verifyError) {
+        return { success: false, error: '目前密碼輸入錯誤，請重新確認' };
+      }
+
+      // 2. 舊密碼正確，才執行密碼更新
+      const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword,
       });
 
-      if (error) {
-        return { success: false, error: error.message };
+      if (updateError) {
+        return { success: false, error: updateError.message };
       }
 
-      return { success: true, message: '密碼已更新' };
+      return { success: true, message: '密碼已更新成功' };
     } catch (error) {
-      return { success: false, error: '密碼變更失敗' };
+      console.error('Password change error:', error);
+      return { success: false, error: '密碼變更失敗，請稍後再試' };
     }
   };
-
-  // 合併 user 和 profile 資訊
-  const combinedUser = user ? {
-    ...user,
-    ...profile,
-    id: user.id,
-    email: user.email,
-    name: profile?.name || profile?.full_name || user.email,
-    role: profile?.role || 'user',
-    permissions: profile?.role === 'admin' ? ['all'] : [],
-  } : null;
-
-  const value = {
-    user: combinedUser,
-    supabaseUser: user,
-    profile,
-    role: profile?.role,
-    isLoading,
-    loading: isLoading,
-    isAuthenticated: !!user,
-    login,
-    logout,
-    updateProfile,
-    changePassword,
-  };
-
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
 }
 
 export function useAuth() {
