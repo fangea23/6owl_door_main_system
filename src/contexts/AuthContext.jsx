@@ -77,6 +77,28 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let mounted = true;
 
+    // 🔥 重要：在 update-password 頁面上完全跳過初始化
+    // 因為該頁面有自己的 session 管理，不需要 AuthContext 干預
+    const isPasswordResetPage = window.location.pathname.includes('update-password');
+
+    if (isPasswordResetPage) {
+      console.log('🔒 在 update-password 頁面，跳過 AuthContext 初始化');
+      setIsLoading(false);
+      // 仍然監聽 auth 狀態變化，但不執行初始化
+      const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (!mounted) return;
+        // 只更新狀態，不做其他操作
+        if (session?.user) {
+          setUser(session.user);
+        }
+      });
+
+      return () => {
+        mounted = false;
+        authListener.subscription.unsubscribe();
+      };
+    }
+
     const initAuth = async () => {
       try {
         // ✅ 修正 1：將超時時間延長至 10 秒 (10000ms)
@@ -90,22 +112,18 @@ export function AuthProvider({ children }) {
           .catch(async (err) => {
             console.warn('Auth init timeout or error:', err);
 
-            // ✅ 修正 2：超時或錯誤時，檢查是否在密碼重設/邀請頁面
-            // 如果在密碼重設或邀請頁面，不要清除 token（它可能正在處理 URL hash）
-            const isPasswordResetPage = window.location.pathname.includes('update-password') ||
-                                       window.location.hash.includes('access_token') ||
-                                       window.location.hash.includes('type=recovery') ||
-                                       window.location.hash.includes('type=invite');
+            // 超時或錯誤時，檢查是否在特殊頁面
+            const hasAccessToken = window.location.hash.includes('access_token') ||
+                                  window.location.hash.includes('type=recovery') ||
+                                  window.location.hash.includes('type=invite');
 
-            if (!isPasswordResetPage) {
-              // 只有不在密碼重設/邀請流程時才清除
+            if (!hasAccessToken) {
+              // 只有不在特殊流程時才清除
               clearStoredSession();
             } else {
-              console.log('在密碼重設/邀請頁面，不清除 session，讓 Supabase 繼續處理 URL hash');
+              console.log('檢測到 access_token，不清除 session');
             }
 
-            // ✅ 修正 3：不要在初始化超時時強制登出
-            // 這避免了網路稍慢時，正在進行的 Token 交換被中斷
             return { data: { session: null } };
           });
 
@@ -118,13 +136,10 @@ export function AuthProvider({ children }) {
       } catch (error) {
         console.error('Auth initialization failed:', error);
 
-        // 發生嚴重錯誤時，檢查是否在密碼重設/邀請頁面
-        const isPasswordResetPage = window.location.pathname.includes('update-password') ||
-                                   window.location.hash.includes('access_token') ||
-                                   window.location.hash.includes('type=recovery') ||
-                                   window.location.hash.includes('type=invite');
+        // 發生嚴重錯誤時，檢查是否有 access_token
+        const hasAccessToken = window.location.hash.includes('access_token');
 
-        if (!isPasswordResetPage) {
+        if (!hasAccessToken) {
           clearStoredSession();
         }
 
