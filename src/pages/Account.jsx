@@ -172,25 +172,25 @@ export default function Account() {
     e.preventDefault();
     setMessage({ type: '', text: '' });
 
+    // 1. 檢查兩次新密碼是否相同
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       setMessage({ type: 'error', text: '新密碼與確認密碼不符' });
       return;
     }
+
+    // 2. 檢查長度
     if (passwordForm.newPassword.length < 6) {
       setMessage({ type: 'error', text: '密碼長度至少需要 6 個字元' });
       return;
     }
 
-    setIsSaving(true);
-    const result = await changePassword(passwordForm.currentPassword, passwordForm.newPassword);
-    
-    if (result.success) {
-      setMessage({ type: 'success', text: '密碼已成功變更' });
-      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    } else {
-      setMessage({ type: 'error', text: result.error });
+    // ✅ 3. 新增：檢查新密碼是否與舊密碼相同
+    if (passwordForm.newPassword === passwordForm.currentPassword) {
+      setMessage({ type: 'error', text: '新密碼不能與舊密碼相同' }); // New password should be different from the old password
+      return;
     }
-    setIsSaving(false);
+
+    setIsSaving(true);
   };
 
   // 導航選項
