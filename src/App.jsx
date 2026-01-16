@@ -15,7 +15,9 @@ import PaymentSystemLayout from './pages/systems/PaymentSystemLayout';
 import LicenseSystemLayout from './pages/systems/LicenseSystemLayout';
 import MeetingRoomSystemLayout from './pages/systems/MeetingRoomSystemLayout';
 import CarRentalSystemLayout from './pages/systems/CarRentalSystemLayout';
-import StoreManagementSystemLayout from './pages/systems/StoreManagementSystemLayout'; 
+import StoreManagementSystemLayout from './pages/systems/StoreManagementSystemLayout';
+import EIPKMSystemLayout from './pages/systems/EIPKMSystemLayout';
+import TicketingSystemLayout from './pages/systems/TicketingSystemLayout'; 
 
 function App() {
   return (
@@ -60,6 +62,12 @@ function App() {
 
              {/* 店舖管理系統 */}
              <Route path="/systems/store-management/*" element={<StoreManagementSystemLayout />} />
+
+             {/* 企業入口網與知識管理系統 */}
+             <Route path="/systems/eip-km/*" element={<EIPKMSystemLayout />} />
+
+             {/* 內部叫修/服務單系統 */}
+             <Route path="/systems/ticketing/*" element={<TicketingSystemLayout />} />
           </Route>
 
         </Routes>
