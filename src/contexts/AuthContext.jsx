@@ -8,7 +8,7 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 🟢 新增：用來鎖定 Auth 監聽的 Ref
+  // 用來鎖定 Auth 監聽的 Ref
   // 使用 useRef 是因為它的改變不會觸發重新渲染，適合用來解決 Race Condition
   const ignoreAuthChange = useRef(false);
 
@@ -40,7 +40,6 @@ export function AuthProvider({ children }) {
         const key = `sb-${projectId}-auth-token`;
         const stored = localStorage.getItem(key);
         if (stored) {
-          console.log('清除殘留的 session token...');
           localStorage.removeItem(key);
         }
       }
@@ -80,7 +79,6 @@ export function AuthProvider({ children }) {
     const isPasswordResetPage = window.location.pathname.includes('update-password');
 
     if (isPasswordResetPage) {
-      console.log('🔒 在 update-password 頁面，跳過 AuthContext 初始化');
       setIsLoading(false);
       const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (!mounted) return;
@@ -165,12 +163,10 @@ export function AuthProvider({ children }) {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // 🔥 修改過的 Auth 狀態監聽器
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        // 🔒 如果正在執行變更密碼，直接無視這次更新，避免打斷執行緒 (解決卡死問題的關鍵)
+        // 如果正在執行變更密碼，直接無視這次更新，避免打斷執行緒 (解決卡死問題的關鍵)
         if (ignoreAuthChange.current) {
-          console.log('🔒 [AuthContext] 檢測到密碼變更中，暫時忽略自動狀態更新');
           return;
         }
 
@@ -252,35 +248,28 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 變更密碼 (修正版：加入 useRef 鎖定機制)
-const changePassword = async (currentPassword, newPassword) => {
-    console.log("🔵 [AuthContext] 1. 收到變更密碼請求");
-    
+  // 變更密碼 (乾淨版：保留鎖定與舊密碼驗證邏輯)
+  const changePassword = async (currentPassword, newPassword) => {
     if (!user || !user.email) {
       return { success: false, error: '使用者未登入' };
     }
 
     try {
-      console.log("🔵 [AuthContext] 2. 啟動鎖定，開始驗證流程...");
-      
-      // 1. 上鎖：無視接下來所有的 Auth 狀態變化 (包含 signIn 造成的變化)
+      // 1. 上鎖：無視接下來所有的 Auth 狀態變化
       ignoreAuthChange.current = true;
 
-      // 2. 驗證舊密碼 (這一步原本會觸發 SIGNED_IN 事件，但現在會被擋住)
+      // 2. 驗證舊密碼
       const { error: verifyError } = await supabase.auth.signInWithPassword({
         email: user.email,
         password: currentPassword,
       });
 
       if (verifyError) {
-        console.warn("⚠️ 舊密碼驗證失敗");
         return { success: false, error: '目前密碼輸入錯誤，請重新確認' };
       }
 
-      console.log("🔵 [AuthContext] 3. 舊密碼正確，執行更新...");
-
       // 3. 執行更新
-      const { data, error: updateError } = await supabase.auth.updateUser({
+      const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword,
       });
 
@@ -288,16 +277,14 @@ const changePassword = async (currentPassword, newPassword) => {
         return { success: false, error: updateError.message };
       }
 
-      console.log("🟢 [AuthContext] 4. 全部完成！");
       return { success: true, message: '密碼已更新成功' };
 
     } catch (error) {
-      console.error('🔴 [AuthContext] 系統錯誤:', error);
+      console.error('Password change error:', error);
       return { success: false, error: '系統發生錯誤，請稍後再試' };
     } finally {
-       // 4. 解鎖：延遲一下再恢復監聽，確保 React 渲染完成
-       setTimeout(() => {
-        console.log("🔓 [AuthContext] 解除鎖定");
+      // 4. 解鎖：延遲一下再恢復監聽
+      setTimeout(() => {
         ignoreAuthChange.current = false;
       }, 1000);
     }
