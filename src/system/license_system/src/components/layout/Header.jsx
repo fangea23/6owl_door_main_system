@@ -2,7 +2,7 @@ import { Bell, Search, User } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
 export function Header({ title }) {
-  const { profiles } = useAuth()
+  const { profile } = useAuth()
 
   return (
     <header className="h-16 bg-white border-b border-gray-200 px-6 flex items-center justify-between">
@@ -28,10 +28,10 @@ export function Header({ title }) {
         {/* User menu */}
         <div className="flex items-center gap-3">
           <div className="h-8 w-8 bg-blue-500 rounded-full flex items-center justify-center">
-            {profiles?.avatar_url ? (
+            {profile?.avatar_url ? (
               <img
-                src={profiles.avatar_url}
-                alt={profiles.full_name}
+                src={profile.avatar_url}
+                alt={profile.full_name}
                 className="h-8 w-8 rounded-full object-cover"
               />
             ) : (

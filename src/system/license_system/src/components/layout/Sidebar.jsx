@@ -20,7 +20,7 @@ const navigation = [
 ]
 
 export function Sidebar() {
-  const { profiles, signOut } = useAuth()
+  const { profile, signOut } = useAuth()
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(false)
 
@@ -84,12 +84,12 @@ export function Sidebar() {
 
       {/* User section */}
       <div className="border-t border-gray-800 p-4">
-        {!collapsed && profiles && (
+        {!collapsed && profile && (
           <div className="mb-3">
             <p className="text-sm font-medium truncate">
-              {profiles.full_name || profiles.email}
+              {profile.full_name || profile.email}
             </p>
-            <p className="text-xs text-gray-400 truncate">{profiles.email}</p>
+            <p className="text-xs text-gray-400 truncate">{profile.email}</p>
           </div>
         )}
         <button
