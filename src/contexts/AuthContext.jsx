@@ -90,17 +90,18 @@ export function AuthProvider({ children }) {
           .catch(async (err) => {
             console.warn('Auth init timeout or error:', err);
 
-            // ✅ 修正 2：超時或錯誤時，檢查是否在密碼重設頁面
-            // 如果在密碼重設頁面，不要清除 token（它可能正在處理 URL hash）
+            // ✅ 修正 2：超時或錯誤時，檢查是否在密碼重設/邀請頁面
+            // 如果在密碼重設或邀請頁面，不要清除 token（它可能正在處理 URL hash）
             const isPasswordResetPage = window.location.pathname.includes('update-password') ||
                                        window.location.hash.includes('access_token') ||
-                                       window.location.hash.includes('type=recovery');
+                                       window.location.hash.includes('type=recovery') ||
+                                       window.location.hash.includes('type=invite');
 
             if (!isPasswordResetPage) {
-              // 只有不在密碼重設流程時才清除
+              // 只有不在密碼重設/邀請流程時才清除
               clearStoredSession();
             } else {
-              console.log('在密碼重設頁面，不清除 session，讓 Supabase 繼續處理 URL hash');
+              console.log('在密碼重設/邀請頁面，不清除 session，讓 Supabase 繼續處理 URL hash');
             }
 
             // ✅ 修正 3：不要在初始化超時時強制登出
@@ -117,10 +118,11 @@ export function AuthProvider({ children }) {
       } catch (error) {
         console.error('Auth initialization failed:', error);
 
-        // 發生嚴重錯誤時，檢查是否在密碼重設頁面
+        // 發生嚴重錯誤時，檢查是否在密碼重設/邀請頁面
         const isPasswordResetPage = window.location.pathname.includes('update-password') ||
                                    window.location.hash.includes('access_token') ||
-                                   window.location.hash.includes('type=recovery');
+                                   window.location.hash.includes('type=recovery') ||
+                                   window.location.hash.includes('type=invite');
 
         if (!isPasswordResetPage) {
           clearStoredSession();
