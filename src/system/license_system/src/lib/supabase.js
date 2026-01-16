@@ -13,7 +13,7 @@ export const supabase = {
     // 修改這裡：將 'profiles' 加入白名單
     // employees, departments, profiles 使用統一的 public schema
     if (table === 'employees' || table === 'departments' || table === 'profiles') {
-      return mainClient.from(table); // public schema
+      return mainClient.schema('public').from(table);
     }
     // 其他表格使用 software_maintenance schema
     return mainClient.schema('software_maintenance').from(table);
