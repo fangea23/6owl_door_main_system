@@ -7,117 +7,111 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  // 用來鎖定 Auth 監聽的 Ref
   const ignoreAuthChange = useRef(false);
 
   // 取得用戶 profile
   const fetchProfile = async (userId) => {
     try {
       const { data, error } = await supabase
-        .from('profiles') // 確保這裡連到的是主系統的 profiles 表
+        .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
 
-      if (error) {
-        console.warn('Profile fetch warning:', error);
+      if (error && error.code !== 'PGRST116') {
+        console.debug('Profile fetch info:', error.message);
         return null;
       }
       return data;
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      console.debug('Error fetching profile:', error.message);
       return null;
     }
   };
 
-  // 清除過期的 localStorage token (僅在明確登出時使用)
-  const clearStoredSession = () => {
-    try {
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-      if (projectId) {
-        const key = `sb-${projectId}-auth-token`;
-        localStorage.removeItem(key);
-      }
-      // 清除其他相關 token
-      Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('sb-') && key.includes('-auth-token')) {
-          localStorage.removeItem(key);
-        }
-      });
-    } catch (error) {
-      console.error('清除 localStorage 時發生錯誤:', error);
-    }
+  // 輔助函式：等待網路連線
+  const waitForNetwork = async () => {
+    if (navigator.onLine) return true;
+    
+    return new Promise((resolve) => {
+      const handleOnline = () => {
+        window.removeEventListener('online', handleOnline);
+        resolve(true);
+      };
+      window.addEventListener('online', handleOnline);
+      // 設定一個 10 秒的保險，避免無限等待
+      setTimeout(() => {
+        window.removeEventListener('online', handleOnline);
+        resolve(navigator.onLine);
+      }, 10000);
+    });
   };
 
-  // 檢查連線 (極致寬鬆版)
-  const checkConnection = async () => {
-    try {
-      // 修改：延長至 30 秒，給予極大的寬容度
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Wake-up timeout')), 30000)
-      );
-
-      await Promise.race([
-        supabase.auth.getSession(),
-        timeoutPromise
-      ]);
-
-      return true;
-    } catch (err) {
-      // 就算超時，我們也只紀錄 Warning，絕對不回傳 false 導致登出
-      console.warn('網路連線回應較慢 (超過30秒)，保持登入狀態等待恢復...', err);
-      return true; // 欺騙系統說連線還活著，避免觸發登出邏輯
-    }
-  };
+  // 輔助函式：延遲 (Sleep)
+  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
   // 初始化與監聽
   useEffect(() => {
     let mounted = true;
     const isPasswordResetPage = window.location.pathname.includes('update-password');
 
+    // 密碼重設頁面邏輯
     if (isPasswordResetPage) {
       setIsLoading(false);
       const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (!mounted) return;
-        if (session?.user) {
-          setUser(session.user);
-        }
+        if (session?.user) setUser(session.user);
       });
-
       return () => {
         mounted = false;
         authListener.subscription.unsubscribe();
       };
     }
 
+    // 核心：嘗試恢復 Session (含重試邏輯)
+    const recoverSession = async (retryCount = 0) => {
+      try {
+        // 1. 先確認網路是否通暢
+        await waitForNetwork();
+
+        // 2. 恢復自動刷新機制
+        supabase.auth.startAutoRefresh();
+
+        // 3. 取得 Session
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        if (error || !session) {
+          // 如果失敗，且重試次數少於 3 次，等待後重試
+          if (retryCount < 3) {
+            console.debug(`Session 恢復失敗，第 ${retryCount + 1} 次重試...`);
+            await delay(1000 * (retryCount + 1)); // 遞增等待 1s, 2s, 3s
+            return recoverSession(retryCount + 1);
+          }
+          
+          // 真的救不回來，嘗試強制刷新最後一次
+          const { data: refreshData } = await supabase.auth.refreshSession();
+          if (refreshData.session && mounted) {
+             setUser(refreshData.session.user);
+             const userProfile = await fetchProfile(refreshData.session.user.id);
+             if (mounted) setProfile(userProfile);
+          }
+        } else if (session?.user && mounted) {
+          // 成功
+          setUser(session.user);
+          // 只有當沒有 profile 時才抓取，避免浪費流量
+          if (!profile) {
+              const userProfile = await fetchProfile(session.user.id);
+              if (mounted) setProfile(userProfile);
+          }
+        }
+      } catch (err) {
+        console.debug('Recover session exception:', err);
+      }
+    };
+
     const initAuth = async () => {
       try {
-        // 修改：初始化等待時間也延長至 20 秒
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Auth timeout')), 20000)
-        );
-
-        const sessionPromise = supabase.auth.getSession();
-
-        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise])
-          .catch(async (err) => {
-            console.warn('初始化超時，但不強制清除 Session，嘗試保留狀態:', err);
-            // 只有在明確是登入頁面且沒有 Token 時才清除，其他頁面保留嘗試機會
-            return { data: { session: null } };
-          });
-
-        if (session?.user && mounted) {
-          setUser(session.user);
-          const userProfile = await fetchProfile(session.user.id).catch(() => null);
-          if (mounted) setProfile(userProfile);
-        }
-      } catch (error) {
-        console.error('Auth initialization failed:', error);
-        if (mounted) {
-          setUser(null);
-          setProfile(null);
-        }
+        await recoverSession();
       } finally {
         if (mounted) setIsLoading(false);
       }
@@ -125,55 +119,43 @@ export function AuthProvider({ children }) {
 
     initAuth();
 
-    // 處理喚醒邏輯
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible') {
-        const isLoginPage = window.location.pathname === '/login';
-        if (isLoginPage) return;
+    // 處理喚醒與網路恢復邏輯
+    const handleReconnection = async () => {
+       if (document.visibilityState === 'visible' && navigator.onLine) {
+          const isLoginPage = window.location.pathname === '/login';
+          if (isLoginPage) return;
 
-        console.log('應用程式喚醒，檢查狀態...');
-        
-        // 修改：移除所有 destructive 操作 (reload, clearSession)
-        // 僅嘗試更新 Session，如果失敗就失敗，等使用者下次操作再說
-        try {
-          const { data: { session }, error } = await supabase.auth.getSession();
-          
-          if (error) {
-            console.warn('喚醒時 Session 檢查有誤 (忽略):', error);
-          } else if (session) {
-             console.log('喚醒時 Session 有效');
-             // 這裡可以選擇性做一次 checkConnection，但不要根據結果做任何懲罰
-             checkConnection(); 
-          }
-        } catch (e) {
-          console.warn('喚醒檢查例外 (忽略):', e);
-        }
-      }
+          // console.log('網路/畫面恢復，檢查連線狀態...');
+          await recoverSession();
+       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('visibilitychange', handleReconnection);
+    window.addEventListener('online', handleReconnection);
 
+    // Supabase 狀態監聽
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        // 如果正在變更密碼，無視更新
         if (ignoreAuthChange.current) return;
-
-        if (event === 'TOKEN_REFRESHED') {
-          console.log('Token 已自動更新');
-        }
 
         if (session?.user && mounted) {
           setUser(session.user);
-          // 只有當 profile 為空時才重新抓取，節省流量與避免錯誤
           if (!profile) {
             const userProfile = await fetchProfile(session.user.id);
             if (mounted) setProfile(userProfile);
           }
         } else if (mounted) {
-          // 只有在明確收到 SIGNED_OUT 事件時才清空
           if (event === 'SIGNED_OUT') {
             setUser(null);
             setProfile(null);
+            // 清除 localStorage
+            try {
+                const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+                if (projectId) {
+                    const key = `sb-${projectId}-auth-token`;
+                    localStorage.removeItem(key);
+                }
+            } catch (e) {}
           }
         }
         if (mounted) setIsLoading(false);
@@ -183,9 +165,10 @@ export function AuthProvider({ children }) {
     return () => {
       mounted = false;
       subscription.unsubscribe();
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('visibilitychange', handleReconnection);
+      window.removeEventListener('online', handleReconnection);
     };
-  }, []); // 移除 profile 依賴
+  }, []);
 
   // 登入
   const login = async (credentials) => {
@@ -213,7 +196,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 登出 (這是唯一會主動清除 Session 的地方)
+  // 登出
   const logout = async () => {
     try {
       await supabase.auth.signOut();
@@ -222,7 +205,11 @@ export function AuthProvider({ children }) {
     } finally {
       setUser(null);
       setProfile(null);
-      clearStoredSession();
+      // 清除 Storage
+      try {
+          const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+          if (projectId) localStorage.removeItem(`sb-${projectId}-auth-token`);
+      } catch (e) {}
     }
   };
 
@@ -248,39 +235,29 @@ export function AuthProvider({ children }) {
 
   // 變更密碼
   const changePassword = async (currentPassword, newPassword) => {
-    if (!user || !user.email) {
-      return { success: false, error: '使用者未登入' };
-    }
+    if (!user || !user.email) return { success: false, error: '使用者未登入' };
 
     try {
       ignoreAuthChange.current = true;
-
       const { error: verifyError } = await supabase.auth.signInWithPassword({
         email: user.email,
         password: currentPassword,
       });
 
-      if (verifyError) {
-        return { success: false, error: '目前密碼輸入錯誤，請重新確認' };
-      }
+      if (verifyError) return { success: false, error: '目前密碼輸入錯誤' };
 
       const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword,
       });
 
-      if (updateError) {
-        return { success: false, error: updateError.message };
-      }
+      if (updateError) return { success: false, error: updateError.message };
 
       return { success: true, message: '密碼已更新成功' };
 
     } catch (error) {
-      console.error('Password change error:', error);
-      return { success: false, error: '系統發生錯誤，請稍後再試' };
+      return { success: false, error: '系統發生錯誤' };
     } finally {
-      setTimeout(() => {
-        ignoreAuthChange.current = false;
-      }, 1000);
+      setTimeout(() => { ignoreAuthChange.current = false; }, 1000);
     }
   };
 
@@ -317,8 +294,6 @@ export function AuthProvider({ children }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 }
