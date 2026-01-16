@@ -118,41 +118,41 @@ export default function Login() {
         </div>
       </div>
 
-      {/* 右側 - 登入表單 */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-stone-50 relative">
+      {/* 右側 - 登入表單 (手機版優化) */}
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8 bg-stone-50 relative">
         {/* 背景裝飾：非常淡的紋理，打破純白背景的單調 */}
         <div className="absolute inset-0 bg-stone-100/50 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:20px_20px]"></div>
 
         <div className="w-full max-w-md relative z-10">
-          {/* 手機版 Logo */}
-          <div className="lg:hidden flex flex-col items-center gap-3 mb-8">
-              <div className="w-20 h-20 flex items-center justify-center">
+          {/* 手機版 Logo - 優化 */}
+          <div className="lg:hidden flex flex-col items-center gap-2 sm:gap-3 mb-6 sm:mb-8">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center">
                <img src={logoSrc} alt="Logo" className="w-full h-full object-contain" />
              </div>
              <div className="text-center">
-               <span className="text-2xl font-bold text-stone-800">六扇門</span>
-               <p className="text-xs text-stone-500 tracking-widest mt-1">企業服務入口</p>
+               <span className="text-xl sm:text-2xl font-bold text-stone-800">六扇門</span>
+               <p className="text-[10px] sm:text-xs text-stone-500 tracking-widest mt-0.5 sm:mt-1">企業服務入口</p>
              </div>
           </div>
 
-          <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl shadow-stone-200/50 p-8 border border-white">
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-stone-800">歡迎回來</h2>
-              <p className="text-stone-500 mt-2">請輸入您的員工帳號以繼續</p>
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl sm:rounded-3xl shadow-2xl shadow-stone-200/50 p-6 sm:p-8 border border-white">
+            <div className="mb-6 sm:mb-8">
+              <h2 className="text-xl sm:text-2xl font-bold text-stone-800">歡迎回來</h2>
+              <p className="text-sm sm:text-base text-stone-500 mt-1.5 sm:mt-2">請輸入您的員工帳號以繼續</p>
             </div>
 
             {error && (
-              <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-r-lg flex items-start gap-3">
-                <svg className="w-5 h-5 text-red-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="mb-5 sm:mb-6 p-3 sm:p-4 bg-red-50 border-l-4 border-red-500 rounded-r-lg flex items-start gap-2.5 sm:gap-3">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5 text-red-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <p className="text-sm text-red-700 font-medium">{error}</p>
+                <p className="text-xs sm:text-sm text-red-700 font-medium leading-relaxed">{error}</p>
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="space-y-1">
-                <label className="text-sm font-semibold text-stone-700 ml-1">電子郵件</label>
+            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+              <div className="space-y-1 sm:space-y-1.5">
+                <label className="text-xs sm:text-sm font-semibold text-stone-700 ml-1">電子郵件</label>
                 <input
                   type="email"
                   name="email"
@@ -160,12 +160,12 @@ export default function Login() {
                   onChange={handleInputChange}
                   placeholder="user@6owldoor.com"
                   required
-                  className="w-full px-5 py-3.5 bg-stone-50 border border-stone-200 rounded-xl text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all hover:bg-white"
+                  className="w-full px-4 sm:px-5 py-3 sm:py-3.5 text-sm sm:text-base bg-stone-50 border border-stone-200 rounded-xl text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all hover:bg-white"
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-sm font-semibold text-stone-700 ml-1">密碼</label>
+              <div className="space-y-1 sm:space-y-1.5">
+                <label className="text-xs sm:text-sm font-semibold text-stone-700 ml-1">密碼</label>
                 <input
                   type="password"
                   name="password"
@@ -173,19 +173,19 @@ export default function Login() {
                   onChange={handleInputChange}
                   placeholder="••••••••"
                   required
-                  className="w-full px-5 py-3.5 bg-stone-50 border border-stone-200 rounded-xl text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all hover:bg-white"
+                  className="w-full px-4 sm:px-5 py-3 sm:py-3.5 text-sm sm:text-base bg-stone-50 border border-stone-200 rounded-xl text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all hover:bg-white"
                 />
               </div>
 
-              <div className="flex items-center justify-between pt-2">
-                <label className="flex items-center gap-2 cursor-pointer group">
+              <div className="flex items-center justify-between pt-1 sm:pt-2">
+                <label className="flex items-center gap-1.5 sm:gap-2 cursor-pointer group">
                   <input
                     type="checkbox"
-                    className="w-4 h-4 rounded border-stone-300 text-red-600 focus:ring-red-500 transition-colors"
+                    className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded border-stone-300 text-red-600 focus:ring-red-500 transition-colors"
                   />
-                  <span className="text-sm text-stone-600 group-hover:text-stone-800 transition-colors">記住我</span>
+                  <span className="text-xs sm:text-sm text-stone-600 group-hover:text-stone-800 transition-colors">記住我</span>
                 </label>
-                <button type="button" className="text-sm text-red-600 hover:text-red-700 font-medium hover:underline decoration-2 underline-offset-4">
+                <button type="button" className="text-xs sm:text-sm text-red-600 hover:text-red-700 active:text-red-800 font-medium hover:underline decoration-2 underline-offset-4">
                   忘記密碼？
                 </button>
               </div>
@@ -193,11 +193,11 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full py-3.5 px-4 bg-gradient-to-r from-red-700 to-red-800 hover:from-red-800 hover:to-red-900 text-white font-bold rounded-xl shadow-lg shadow-red-500/30 hover:shadow-red-500/40 transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
+                className="w-full py-3 sm:py-3.5 px-4 text-sm sm:text-base bg-gradient-to-r from-red-700 to-red-800 hover:from-red-800 hover:to-red-900 active:from-red-900 active:to-red-950 text-white font-bold rounded-xl shadow-lg shadow-red-500/30 hover:shadow-red-500/40 active:shadow-red-500/20 transform hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none touch-manipulation"
               >
                 {isSubmitting ? (
                   <span className="flex items-center justify-center gap-2">
-                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <svg className="animate-spin h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
@@ -207,8 +207,8 @@ export default function Login() {
               </button>
             </form>
           </div>
-          
-          <p className="text-center text-xs text-stone-400 mt-8">
+
+          <p className="text-center text-[10px] sm:text-xs text-stone-400 mt-6 sm:mt-8 px-4">
             此系統僅供六扇門內部員工使用，未經授權存取將被記錄
           </p>
         </div>
