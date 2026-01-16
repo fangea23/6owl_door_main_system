@@ -7,6 +7,7 @@ import Account from './pages/Account';
 import UserProfile from './pages/UserProfile';
 import ManagementCenter from './pages/management/ManagementCenter';
 import UpdatePassword from './pages/UpdatePassword';
+import PWAInstallPrompt from './components/PWAInstallPrompt';
 import './App.css';
 
 // 子系統 Layout
@@ -20,6 +21,9 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        {/* PWA 安裝提示 */}
+        <PWAInstallPrompt />
+
         <Routes>
           {/* ========================================
               1. 公開路由 (任何人都能看)
