@@ -253,39 +253,49 @@ export function AuthProvider({ children }) {
   };
 
   // 變更密碼 (修正版：加入 useRef 鎖定機制)
-  const changePassword = async (currentPassword, newPassword) => {
+const changePassword = async (currentPassword, newPassword) => {
     console.log("🔵 [AuthContext] 1. 收到變更密碼請求");
     
-    if (!user) {
-      console.error("🔴 [AuthContext] 錯誤: 使用者未登入");
+    if (!user || !user.email) {
       return { success: false, error: '使用者未登入' };
     }
 
     try {
-      console.log("🔵 [AuthContext] 2. 鎖定監聽器，呼叫 updateUser...");
+      console.log("🔵 [AuthContext] 2. 啟動鎖定，開始驗證流程...");
       
-      // 1. 上鎖：告訴 onAuthStateChange 不要觸發重繪，避免前端卡死
+      // 1. 上鎖：無視接下來所有的 Auth 狀態變化 (包含 signIn 造成的變化)
       ignoreAuthChange.current = true;
 
-      // 2. 執行更新 (Supabase 會在後端處理密碼加密)
-      const { data, error } = await supabase.auth.updateUser({
+      // 2. 驗證舊密碼 (這一步原本會觸發 SIGNED_IN 事件，但現在會被擋住)
+      const { error: verifyError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+
+      if (verifyError) {
+        console.warn("⚠️ 舊密碼驗證失敗");
+        return { success: false, error: '目前密碼輸入錯誤，請重新確認' };
+      }
+
+      console.log("🔵 [AuthContext] 3. 舊密碼正確，執行更新...");
+
+      // 3. 執行更新
+      const { data, error: updateError } = await supabase.auth.updateUser({
         password: newPassword,
       });
 
-      console.log("🟢 [AuthContext] 3. updateUser 完成，結果:", { data, error });
-
-      if (error) {
-        console.error("🔴 [AuthContext] Supabase 回傳錯誤:", error);
-        return { success: false, error: error.message };
+      if (updateError) {
+        return { success: false, error: updateError.message };
       }
 
+      console.log("🟢 [AuthContext] 4. 全部完成！");
       return { success: true, message: '密碼已更新成功' };
 
     } catch (error) {
-      console.error('🔴 [AuthContext] 系統發生例外錯誤 (Crash):', error);
+      console.error('🔴 [AuthContext] 系統錯誤:', error);
       return { success: false, error: '系統發生錯誤，請稍後再試' };
     } finally {
-       // 3. 解鎖：恢復正常監聽 (延遲 1 秒以確保 React 狀態穩定)
+       // 4. 解鎖：延遲一下再恢復監聽，確保 React 渲染完成
        setTimeout(() => {
         console.log("🔓 [AuthContext] 解除鎖定");
         ignoreAuthChange.current = false;

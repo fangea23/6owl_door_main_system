@@ -25,3 +25,7 @@ body {
     color-scheme: dark;
   }
 }
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
