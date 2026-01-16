@@ -195,7 +195,7 @@ export default function Account() {
 
   const tabs = [
     { id: 'profile', name: '個人資料', icon: <User size={20} /> },
-    { id: 'security', name: '安全設定', icon: <Shield size={20} /> },
+    { id: 'security', name: '密碼設定', icon: <Shield size={20} /> },
     { id: 'notifications', name: '通知設定', icon: <Bell size={20} /> },
   ];
 
