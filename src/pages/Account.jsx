@@ -152,47 +152,57 @@ export default function Account() {
   };
 
   // Submit: 變更密碼 (🔥 已修正卡住問題 + 新增檢查)
-  const handlePasswordSubmit = async (e) => {
+const handlePasswordSubmit = async (e) => {
     e.preventDefault();
+    console.log("🔶 [Account] 1. 使用者點擊送出按鈕");
     setMessage({ type: '', text: '' });
 
-    // 1. 檢查兩次新密碼是否相同
+    // 1. 驗證輸入
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      console.warn("🔶 [Account] 驗證失敗: 密碼不符");
       setMessage({ type: 'error', text: '新密碼與確認密碼不符' });
       return;
     }
-    // 2. 檢查長度
     if (passwordForm.newPassword.length < 6) {
+      console.warn("🔶 [Account] 驗證失敗: 長度不足");
       setMessage({ type: 'error', text: '密碼長度至少需要 6 個字元' });
       return;
     }
-    // 3. ✅ 新增：檢查新密碼是否與舊密碼相同
     if (passwordForm.newPassword === passwordForm.currentPassword) {
-      setMessage({ type: 'error', text: '新密碼不能與舊密碼相同' });
-      return;
+       console.warn("🔶 [Account] 驗證失敗: 與舊密碼相同");
+       setMessage({ type: 'error', text: '新密碼不能與舊密碼相同' });
+       return;
     }
 
-    setIsSaving(true); // 開啟 Loading
+    // 2. 開始更新
+    console.log("🔶 [Account] 2. 設定 Loading = true，準備呼叫 Context");
+    setIsSaving(true); 
 
     try {
-      // 呼叫 AuthContext 的變更密碼函式
+      // 呼叫 Context 的更新函式
       const result = await changePassword(passwordForm.currentPassword, passwordForm.newPassword);
       
-      console.log('Password change result:', result); // Debug log
+      console.log("🔶 [Account] 3. 收到 Context 回傳結果:", result);
 
-      if (result && result.success) {
-        setMessage({ type: 'success', text: '密碼已成功變更' });
-        // 清空表單
+      if (result.success) {
+        // ✅ 成功
+        console.log("🔶 [Account] 4. 判定為成功，顯示成功訊息");
+        setMessage({ type: 'success', text: '密碼已成功變更！' });
         setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        
+        // 🧪 測試用：跳出視窗確保程式有跑到這裡
+        alert("測試訊息：密碼修改成功！(看到這個代表流程沒卡住)"); 
       } else {
-        // 如果 result 為 undefined 或 success 為 false
-        setMessage({ type: 'error', text: result?.error || '變更失敗，請稍後再試' });
+        // ❌ 失敗
+        console.log("🔶 [Account] 4. 判定為失敗，顯示錯誤:", result.error);
+        setMessage({ type: 'error', text: result.error || '變更失敗' });
       }
     } catch (err) {
-      console.error('Unexpected error changing password:', err);
-      setMessage({ type: 'error', text: '系統發生錯誤，請聯絡管理員' });
+      console.error('🔴 [Account] 前端發生未預期錯誤:', err);
+      setMessage({ type: 'error', text: '發生未預期的錯誤: ' + err.message });
     } finally {
-      // 🔥 無論成功或失敗，這裡一定會執行，確保按鈕恢復
+      // 🔥 關鍵
+      console.log("🔶 [Account] 5. 進入 Finally，強制關閉 Loading");
       setIsSaving(false);
     }
   };

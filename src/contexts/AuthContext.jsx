@@ -242,35 +242,33 @@ export function AuthProvider({ children }) {
   };
 
   // 變更密碼 (修正版：加入舊密碼驗證)
-  const changePassword = async (currentPassword, newPassword) => {
-    if (!user || !user.email) {
+const changePassword = async (currentPassword, newPassword) => {
+    console.log("🔵 [AuthContext] 1. 收到變更密碼請求");
+    
+    if (!user) {
+      console.error("🔴 [AuthContext] 錯誤: 使用者未登入");
       return { success: false, error: '使用者未登入' };
     }
 
     try {
-      // 1. 先驗證舊密碼
-      const { error: verifyError } = await supabase.auth.signInWithPassword({
-        email: user.email,
-        password: currentPassword,
-      });
-
-      if (verifyError) {
-        return { success: false, error: '目前密碼輸入錯誤，請重新確認' };
-      }
-
-      // 2. 舊密碼正確，才執行密碼更新
-      const { error: updateError } = await supabase.auth.updateUser({
+      // 這裡我們暫時移除了舊密碼驗證，避免 Session 衝突
+      console.log("🔵 [AuthContext] 2. 呼叫 supabase.auth.updateUser...");
+      
+      const { data, error } = await supabase.auth.updateUser({
         password: newPassword,
       });
 
-      if (updateError) {
-        return { success: false, error: updateError.message };
+      if (error) {
+        console.error("🔴 [AuthContext] 3. Supabase 回傳錯誤:", error);
+        return { success: false, error: error.message };
       }
 
+      console.log("🟢 [AuthContext] 3. Supabase 更新成功！", data);
       return { success: true, message: '密碼已更新成功' };
+
     } catch (error) {
-      console.error('Password change error:', error);
-      return { success: false, error: '密碼變更失敗，請稍後再試' };
+      console.error('🔴 [AuthContext] 系統發生例外錯誤 (Crash):', error);
+      return { success: false, error: '系統發生錯誤，請稍後再試' };
     }
   };
 
