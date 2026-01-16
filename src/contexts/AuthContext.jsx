@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 
 const AuthContext = createContext(null);
@@ -7,6 +7,10 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // 🟢 新增：用來鎖定 Auth 監聽的 Ref
+  // 使用 useRef 是因為它的改變不會觸發重新渲染，適合用來解決 Race Condition
+  const ignoreAuthChange = useRef(false);
 
   // 取得用戶 profile（包含 role 等資訊）
   const fetchProfile = async (userId) => {
@@ -161,8 +165,15 @@ export function AuthProvider({ children }) {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
+    // 🔥 修改過的 Auth 狀態監聽器
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        // 🔒 如果正在執行變更密碼，直接無視這次更新，避免打斷執行緒 (解決卡死問題的關鍵)
+        if (ignoreAuthChange.current) {
+          console.log('🔒 [AuthContext] 檢測到密碼變更中，暫時忽略自動狀態更新');
+          return;
+        }
+
         if (session?.user && mounted) {
           setUser(session.user);
           const userProfile = await fetchProfile(session.user.id);
@@ -241,8 +252,8 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 變更密碼 (修正版：加入舊密碼驗證)
-const changePassword = async (currentPassword, newPassword) => {
+  // 變更密碼 (修正版：加入 useRef 鎖定機制)
+  const changePassword = async (currentPassword, newPassword) => {
     console.log("🔵 [AuthContext] 1. 收到變更密碼請求");
     
     if (!user) {
@@ -251,24 +262,34 @@ const changePassword = async (currentPassword, newPassword) => {
     }
 
     try {
-      // 這裡我們暫時移除了舊密碼驗證，避免 Session 衝突
-      console.log("🔵 [AuthContext] 2. 呼叫 supabase.auth.updateUser...");
+      console.log("🔵 [AuthContext] 2. 鎖定監聽器，呼叫 updateUser...");
       
+      // 1. 上鎖：告訴 onAuthStateChange 不要觸發重繪，避免前端卡死
+      ignoreAuthChange.current = true;
+
+      // 2. 執行更新 (Supabase 會在後端處理密碼加密)
       const { data, error } = await supabase.auth.updateUser({
         password: newPassword,
       });
 
+      console.log("🟢 [AuthContext] 3. updateUser 完成，結果:", { data, error });
+
       if (error) {
-        console.error("🔴 [AuthContext] 3. Supabase 回傳錯誤:", error);
+        console.error("🔴 [AuthContext] Supabase 回傳錯誤:", error);
         return { success: false, error: error.message };
       }
 
-      console.log("🟢 [AuthContext] 3. Supabase 更新成功！", data);
       return { success: true, message: '密碼已更新成功' };
 
     } catch (error) {
       console.error('🔴 [AuthContext] 系統發生例外錯誤 (Crash):', error);
       return { success: false, error: '系統發生錯誤，請稍後再試' };
+    } finally {
+       // 3. 解鎖：恢復正常監聽 (延遲 1 秒以確保 React 狀態穩定)
+       setTimeout(() => {
+        console.log("🔓 [AuthContext] 解除鎖定");
+        ignoreAuthChange.current = false;
+      }, 1000);
     }
   };
 
@@ -298,7 +319,6 @@ const changePassword = async (currentPassword, newPassword) => {
     changePassword,
   };
 
-  // 🔥 這是之前缺失的 Return 部分，沒有它就會白屏
   return (
     <AuthContext.Provider value={value}>
       {children}
