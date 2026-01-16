@@ -179,34 +179,54 @@ useEffect(() => {
     }
 
     setLoading(true);
+    console.log('🔄 開始更新密碼...');
 
     try {
-      // 1. 新增：先檢查是否擁有有效的 Session
+      // 1. 先檢查是否擁有有效的 Session
+      console.log('📋 步驟 1: 檢查 session...');
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
       if (sessionError || !session) {
-        // 如果沒有 Session，可能是 Token 過期或被清除了
+        console.error('❌ Session 檢查失敗:', sessionError);
         setIsSessionValid(false);
         throw new Error('驗證連結已過期。密碼重設連結通常在 1 小時內有效，請重新申請。');
       }
 
-      // 2. 執行更新
-      const { error } = await supabase.auth.updateUser({
+      console.log('✅ Session 有效，準備更新密碼...');
+
+      // 2. 執行更新（添加超時處理）
+      console.log('🔐 步驟 2: 調用 updateUser API...');
+
+      const updatePromise = supabase.auth.updateUser({
         password: password
       });
 
-      if (error) throw error;
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('更新密碼請求超時')), 15000) // 15 秒超時
+      );
 
+      const { error } = await Promise.race([updatePromise, timeoutPromise]);
+
+      if (error) {
+        console.error('❌ 更新密碼失敗:', error);
+        throw error;
+      }
+
+      console.log('✅ 密碼更新成功！');
       setSuccess(true);
+
       setTimeout(() => {
+        console.log('🔄 導向首頁...');
         navigate('/');
       }, 2000);
 
     } catch (err) {
-      console.error('Password update failed:', err);
+      console.error('❌ Password update failed:', err);
 
-      // 3. 優化錯誤訊息顯示
-      if (err.message?.includes('AbortError') || err.name === 'AbortError') {
+      // 優化錯誤訊息顯示
+      if (err.message?.includes('超時') || err.message?.includes('timeout')) {
+        setError('更新密碼請求超時，請檢查網路連線後重試');
+      } else if (err.message?.includes('AbortError') || err.name === 'AbortError') {
         setError('連線逾時，請檢查網路連線後重試');
       } else if (err.message?.includes('expired') || err.message?.includes('過期')) {
         setError('驗證連結已過期，請重新申請密碼重設');
@@ -215,6 +235,7 @@ useEffect(() => {
         setError(err.message || '密碼更新失敗，請稍後再試');
       }
     } finally {
+      console.log('🏁 更新流程結束，設置 loading = false');
       setLoading(false);
     }
   };
