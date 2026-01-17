@@ -39,11 +39,11 @@ export function AuthProvider({ children }) {
         resolve(true);
       };
       window.addEventListener('online', handleOnline);
-      // 設定一個 10 秒的保險，避免無限等待
+      // 🔥 優化：將保險時間從 10 秒縮短為 2 秒，避免使用者在無網路時空等太久
       setTimeout(() => {
         window.removeEventListener('online', handleOnline);
         resolve(navigator.onLine);
-      }, 10000);
+      }, 2000);
     });
   };
 
@@ -68,12 +68,11 @@ export function AuthProvider({ children }) {
       };
     }
 
-    // 核心：嘗試恢復 Session (含重試邏輯)
-// 核心：嘗試恢復 Session (含重試邏輯)
+    // 核心：嘗試恢復 Session (含重試與強制清理邏輯)
     const recoverSession = async (retryCount = 0) => {
       try {
-        // 優化 1: 縮短網路等待時間，避免使用者等太久 (原本 10000ms -> 改為 2000ms)
-        await waitForNetwork().catch(() => true); 
+        // 1. 先確認網路是否通暢
+        await waitForNetwork().catch(() => true);
 
         // 2. 恢復自動刷新機制
         supabase.auth.startAutoRefresh();
@@ -85,7 +84,7 @@ export function AuthProvider({ children }) {
           // 如果失敗，且重試次數少於 3 次，等待後重試
           if (retryCount < 3) {
             console.debug(`Session 恢復失敗，第 ${retryCount + 1} 次重試...`);
-            await delay(500 * (retryCount + 1)); // 優化: 稍微縮短重試間隔
+            await delay(500 * (retryCount + 1)); // 優化：縮短重試間隔
             return recoverSession(retryCount + 1);
           }
           
@@ -98,19 +97,21 @@ export function AuthProvider({ children }) {
              if (mounted) setProfile(userProfile);
           } else {
              // 🔥 關鍵修正：如果連 refresh 都失敗，必須「強制登出」並「清除殘留資料」
-             // 這樣下次重新整理時，就是乾淨的未登入狀態，不會卡住
              console.warn('Session 無法恢復且刷新失敗，執行強制清理。', refreshError);
+             
              await supabase.auth.signOut(); 
+             // 🔥 強制清除 LocalStorage，這是解決「殭屍 Session」最重要的一步
+             localStorage.clear(); 
+
              if (mounted) {
                setUser(null);
                setProfile(null);
              }
-             // 強制清除 LocalStorage (以防 signOut 沒清乾淨)
-             localStorage.clear(); // 或者只清除 supabase 相關的 key
           }
         } else if (session?.user && mounted) {
           // 成功
           setUser(session.user);
+          // 只有當沒有 profile 時才抓取，避免浪費流量
           if (!profile) {
               const userProfile = await fetchProfile(session.user.id);
               if (mounted) setProfile(userProfile);
@@ -118,8 +119,9 @@ export function AuthProvider({ children }) {
         }
       } catch (err) {
         console.error('Recover session exception:', err);
-        // 🔥 發生預期外錯誤時，也為了安全起見執行登出
+        // 發生預期外錯誤時，也強制清理以策安全
         await supabase.auth.signOut();
+        localStorage.clear();
         if (mounted) {
            setUser(null);
            setProfile(null);
@@ -166,14 +168,8 @@ export function AuthProvider({ children }) {
           if (event === 'SIGNED_OUT') {
             setUser(null);
             setProfile(null);
-            // 清除 localStorage
-            try {
-                const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-                if (projectId) {
-                    const key = `sb-${projectId}-auth-token`;
-                    localStorage.removeItem(key);
-                }
-            } catch (e) {}
+            // 登出時也確保清除乾淨
+            localStorage.clear();
           }
         }
         if (mounted) setIsLoading(false);
@@ -223,11 +219,8 @@ export function AuthProvider({ children }) {
     } finally {
       setUser(null);
       setProfile(null);
-      // 清除 Storage
-      try {
-          const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-          if (projectId) localStorage.removeItem(`sb-${projectId}-auth-token`);
-      } catch (e) {}
+      // 強制清除 Storage 確保乾淨
+      localStorage.clear();
     }
   };
 
