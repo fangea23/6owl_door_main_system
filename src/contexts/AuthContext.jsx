@@ -69,10 +69,11 @@ export function AuthProvider({ children }) {
     }
 
     // 核心：嘗試恢復 Session (含重試邏輯)
+// 核心：嘗試恢復 Session (含重試邏輯)
     const recoverSession = async (retryCount = 0) => {
       try {
-        // 1. 先確認網路是否通暢
-        await waitForNetwork();
+        // 優化 1: 縮短網路等待時間，避免使用者等太久 (原本 10000ms -> 改為 2000ms)
+        await waitForNetwork().catch(() => true); 
 
         // 2. 恢復自動刷新機制
         supabase.auth.startAutoRefresh();
@@ -84,28 +85,45 @@ export function AuthProvider({ children }) {
           // 如果失敗，且重試次數少於 3 次，等待後重試
           if (retryCount < 3) {
             console.debug(`Session 恢復失敗，第 ${retryCount + 1} 次重試...`);
-            await delay(1000 * (retryCount + 1)); // 遞增等待 1s, 2s, 3s
+            await delay(500 * (retryCount + 1)); // 優化: 稍微縮短重試間隔
             return recoverSession(retryCount + 1);
           }
           
           // 真的救不回來，嘗試強制刷新最後一次
-          const { data: refreshData } = await supabase.auth.refreshSession();
+          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+          
           if (refreshData.session && mounted) {
              setUser(refreshData.session.user);
              const userProfile = await fetchProfile(refreshData.session.user.id);
              if (mounted) setProfile(userProfile);
+          } else {
+             // 🔥 關鍵修正：如果連 refresh 都失敗，必須「強制登出」並「清除殘留資料」
+             // 這樣下次重新整理時，就是乾淨的未登入狀態，不會卡住
+             console.warn('Session 無法恢復且刷新失敗，執行強制清理。', refreshError);
+             await supabase.auth.signOut(); 
+             if (mounted) {
+               setUser(null);
+               setProfile(null);
+             }
+             // 強制清除 LocalStorage (以防 signOut 沒清乾淨)
+             localStorage.clear(); // 或者只清除 supabase 相關的 key
           }
         } else if (session?.user && mounted) {
           // 成功
           setUser(session.user);
-          // 只有當沒有 profile 時才抓取，避免浪費流量
           if (!profile) {
               const userProfile = await fetchProfile(session.user.id);
               if (mounted) setProfile(userProfile);
           }
         }
       } catch (err) {
-        console.debug('Recover session exception:', err);
+        console.error('Recover session exception:', err);
+        // 🔥 發生預期外錯誤時，也為了安全起見執行登出
+        await supabase.auth.signOut();
+        if (mounted) {
+           setUser(null);
+           setProfile(null);
+        }
       }
     };
 
