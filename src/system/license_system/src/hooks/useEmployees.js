@@ -10,7 +10,6 @@ export function useEmployees() {
     setLoading(true)
     setError(null)
     
-    // LOG: 開始查詢
     console.log('🚀 [useEmployees] 開始抓取員工資料...');
 
     try {
@@ -18,11 +17,10 @@ export function useEmployees() {
         .from('employees')
         .select(`
           *,
-          department:departments(id, name)
-        `)
+          department:departments!fk_employees_department(id, name)
+        `) // 👈 修改重點 1：加上 !fk_employees_department
         .order('created_at', { ascending: false })
 
-      // LOG: 查詢結果詳細資訊
       console.log('📡 [useEmployees] Supabase 回傳結果:', { 
         data, 
         error, 
@@ -34,7 +32,6 @@ export function useEmployees() {
         throw error
       }
 
-      // LOG: 成功設定狀態
       if (data && data.length > 0) {
         console.log('✅ [useEmployees] 成功讀取到資料:', data);
       } else {
@@ -61,8 +58,8 @@ export function useEmployees() {
       .insert([employee])
       .select(`
         *,
-        department:departments(id, name)
-      `)
+        department:departments!fk_employees_department(id, name)
+      `) // 👈 修改重點 2：這裡也要改
       .single()
 
     if (error) {
@@ -82,8 +79,8 @@ export function useEmployees() {
       .eq('id', id)
       .select(`
         *,
-        department:departments(id, name)
-      `)
+        department:departments!fk_employees_department(id, name)
+      `) // 👈 修改重點 3：這裡也要改
       .single()
 
     if (error) {
@@ -122,6 +119,7 @@ export function useEmployees() {
   }
 }
 
+// useDepartments 不需要改，因為它只是單純撈部門表，沒有關聯查詢
 export function useDepartments() {
   const [departments, setDepartments] = useState([])
   const [loading, setLoading] = useState(true)

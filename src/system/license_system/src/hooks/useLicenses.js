@@ -10,6 +10,7 @@ export function useLicenses() {
     setLoading(true)
     setError(null)
     try {
+      // 這裡 supabase wrapper 會自動切換到 software_maintenance schema
       const { data, error } = await supabase
         .from('licenses')
         .select(`
@@ -102,22 +103,29 @@ export function useLicenseAssignments(licenseId = null) {
 
   const fetchAssignments = useCallback(async () => {
     setLoading(true)
+    
+    // 定義正確的查詢字串，包含所有修正後的 Foreign Key Hint
+    const selectQuery = `
+      *,
+      license:licenses(
+        id, license_key, license_type,
+        software:software(id, name, category)
+      ),
+      employee:employees!fk_assignments_employees(
+        id, employee_id, name,
+        department:departments!fk_employees_department(id, name) 
+      ),
+      device:devices!fk_assignments_device(
+        id, name, serial_number, device_type
+      )
+    `;
+    // 👆 修改重點：
+    // 1. department 加上 !fk_employees_department
+    // 2. device 改用 !fk_assignments_device (原本錯用成 fk_devices_employees)
+
     let query = supabase
       .from('license_assignments')
-      .select(`
-        *,
-        license:licenses(
-          id, license_key, license_type,
-          software:software(id, name, category)
-        ),
-        employee:employees!fk_assignments_employees(
-          id, employee_id, name,
-          department:departments(id, name)
-        ),
-        device:devices!fk_devices_employees(
-          id, name, serial_number, device_type
-        )
-      `)
+      .select(selectQuery)
       .order('created_at', { ascending: false })
 
     if (licenseId) {
@@ -128,6 +136,8 @@ export function useLicenseAssignments(licenseId = null) {
 
     if (!error) {
       setAssignments(data || [])
+    } else {
+        console.error("Fetch Assignments Error:", error)
     }
     setLoading(false)
   }, [licenseId])
@@ -137,6 +147,7 @@ export function useLicenseAssignments(licenseId = null) {
   }, [fetchAssignments])
 
   const assignLicense = async (assignment) => {
+    // 這裡的 select 也要跟上面 fetch 一模一樣，確保 UI 更新時資料結構一致
     const { data, error } = await supabase
       .from('license_assignments')
       .insert([assignment])
@@ -148,16 +159,18 @@ export function useLicenseAssignments(licenseId = null) {
         ),
         employee:employees!fk_assignments_employees(
           id, employee_id, name,
-          department:departments(id, name)
+          department:departments!fk_employees_department(id, name)
         ),
-        device:devices!fk_devices_employees(
+        device:devices!fk_assignments_device(
           id, name, serial_number, device_type
         )
-      `)
+      `) // 👈 這裡也要改
       .single()
 
     if (!error) {
       setAssignments(prev => [data, ...prev])
+    } else {
+        console.error("Assign License Error:", error)
     }
     return { data, error }
   }
@@ -212,7 +225,8 @@ export function useEmployeeLicenses(employeeId) {
     if (!employeeId) return
 
     const fetchEmployeeLicenses = async () => {
-      const { data } = await supabase
+      // 這裡 wrapper 會自動切換 schema，我們只需要確保關聯正確
+      const { data, error } = await supabase
         .from('license_assignments')
         .select(`
           *,
@@ -223,6 +237,10 @@ export function useEmployeeLicenses(employeeId) {
         `)
         .eq('employee_id', employeeId)
         .eq('is_active', true)
+      
+      if(error) {
+          console.error("Fetch Employee Licenses Error:", error)
+      }
 
       setLicenses(data || [])
       setLoading(false)

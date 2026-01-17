@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
+// 引用你定義好 Wrapper 的那個檔案
+import { supabase } from '../lib/supabase' 
 
 export function useDashboard() {
   const [stats, setStats] = useState({
@@ -31,13 +32,36 @@ export function useDashboard() {
           recentAssignmentsResult,
           expiringLicensesResult
         ] = await Promise.all([
-          // 授權統計
-          supabase.from('licenses').select('status, quantity, assigned_count, expiry_date'),
-          // 員工數量
-          supabase.from('employees').select('id', { count: 'exact', head: true }).eq('status', 'active'),
-          // 軟體數量
-          supabase.from('software').select('id', { count: 'exact', head: true }).eq('is_active', true),
-          // 最近分配記錄
+          
+          // 1. 授權統計
+          // 你的 Wrapper 會自動把它導向 software_maintenance
+          supabase
+            .from('licenses') 
+            .select(`
+              status, 
+              quantity, 
+              assigned_count, 
+              expiry_date,
+              software_id,
+              software:software(category) 
+            `),
+
+          // 2. 員工數量
+          // 你的 Wrapper 會自動把它導向 public
+          supabase
+            .from('employees')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'active'),
+
+          // 3. 軟體數量
+          // 自動導向 software_maintenance
+          supabase
+            .from('software')
+            .select('id', { count: 'exact', head: true })
+            .eq('is_active', true),
+
+          // 4. 最近分配記錄
+          // 自動導向 software_maintenance
           supabase
             .from('license_assignments')
             .select(`
@@ -46,12 +70,17 @@ export function useDashboard() {
                 license_type,
                 software:software(name, category)
               ),
-              employee:employees(name, department:departments(name))
+              employee:employees!fk_assignments_employees(
+                name, 
+                department:departments!fk_employees_department(name)
+              )
             `)
             .eq('is_active', true)
             .order('created_at', { ascending: false })
             .limit(5),
-          // 即將到期的授權
+
+          // 5. 即將到期的授權
+          // 自動導向 software_maintenance
           supabase
             .from('licenses')
             .select(`
@@ -66,30 +95,26 @@ export function useDashboard() {
             .limit(5)
         ])
 
+        // --- 數據處理邏輯 (保持不變) ---
         const licenses = licensesResult.data || []
         const totalQuantity = licenses.reduce((sum, l) => sum + (l.quantity || 0), 0)
         const assignedCount = licenses.reduce((sum, l) => sum + (l.assigned_count || 0), 0)
+        
         const expiredLicenses = licenses.filter(l =>
           l.status === 'expired' || (l.expiry_date && l.expiry_date < today)
         ).length
 
-        // 按軟體類別統計
         const categoryStats = {}
-        for (const license of licenses) {
-          const sw = await supabase
-            .from('software')
-            .select('category')
-            .eq('id', license.software_id)
-            .single()
-
-          if (sw.data?.category) {
-            if (!categoryStats[sw.data.category]) {
-              categoryStats[sw.data.category] = { quantity: 0, assigned: 0 }
-            }
-            categoryStats[sw.data.category].quantity += license.quantity || 0
-            categoryStats[sw.data.category].assigned += license.assigned_count || 0
+        
+        licenses.forEach(license => {
+          const category = license.software?.category || 'Uncategorized'
+          
+          if (!categoryStats[category]) {
+            categoryStats[category] = { quantity: 0, assigned: 0 }
           }
-        }
+          categoryStats[category].quantity += license.quantity || 0
+          categoryStats[category].assigned += license.assigned_count || 0
+        })
 
         const licensesByCategory = Object.entries(categoryStats).map(([category, data]) => ({
           category,
@@ -110,8 +135,9 @@ export function useDashboard() {
           expiringLicenses: expiringLicensesResult.data || [],
           licensesByCategory
         })
+
       } catch (error) {
-        console.error('Error fetching dashboard data:', error)
+        console.error('🔥 [useDashboard] Error fetching data:', error)
       } finally {
         setLoading(false)
       }
