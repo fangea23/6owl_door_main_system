@@ -23,12 +23,14 @@ export const useEmployees = () => {
         .from('employees')
         .select(`
           *,
-          department:department_id (
+          // 指定使用 employees_department_id_fkey 這個關聯
+          department:departments!employees_department_id_fkey (
             id,
             name,
             code
           ),
-          supervisor:supervisor_id (
+          // 如果 supervisor 也有同樣問題，也要找對應的 fkey
+          supervisor:employees!supervisor_id (
             id,
             employee_id,
             name
