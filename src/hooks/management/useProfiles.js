@@ -1,53 +1,49 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@supabase/supabase-js';
-// 1. 直接引入設定好的 supabase client
 import { supabase } from '../../lib/supabase';
 
-// 取得環境變數 (確保 Vite/Next.js 環境變數名稱正確)
+// 取得環境變數
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+/**
+ * 用於 React Query 的資料抓取函式
+ */
+const fetchProfilesData = async () => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data;
+};
+
 export const useProfiles = () => {
-  const [profiles, setProfiles] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const queryClient = useQueryClient();
+  const QUERY_KEY = ['management_profiles']; // 定義唯一的 Query Key
 
-  // 2. 使用 useCallback 避免函式在重繪時變更
-  const fetchProfiles = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  // --- 1. 讀取資料 (Query) ---
+  const { 
+    data: profiles = [], 
+    isLoading: loading, 
+    error: queryError,
+    refetch 
+  } = useQuery({
+    queryKey: QUERY_KEY,
+    queryFn: fetchProfilesData,
+    staleTime: 1000 * 60, // 1 分鐘內視為新鮮資料
+    refetchOnWindowFocus: true, // 切換視窗回來時自動更新
+  });
 
-      // 這裡假設你的 profiles 表有 RLS 策略允許 admin 讀取所有資料
-      const { data, error: fetchError } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (fetchError) throw fetchError;
-      setProfiles(data || []);
-    } catch (err) {
-      console.error('Error fetching profiles:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // 初始載入
-  useEffect(() => {
-    fetchProfiles();
-  }, [fetchProfiles]);
-
-  // 3. 建立新用戶 (修正版)
-  const createProfile = async (userData) => {
-    try {
-      // ⚠️ 關鍵技巧：建立一個臨時的 Client 來執行註冊
-      // 這樣可以避免影響當前 Admin 的登入 Session
+  // --- 2. 建立新用戶 (Mutation) ---
+  const createMutation = useMutation({
+    mutationFn: async (userData) => {
+      // ⚠️ 關鍵技巧：建立臨時 Client 避免登出管理員
       const tempSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         auth: { 
           autoRefreshToken: false, 
-          persistSession: false, // 不要在 localStorage 存 Session
+          persistSession: false, 
           detectSessionInUrl: false
         }
       });
@@ -59,8 +55,6 @@ export const useProfiles = () => {
         options: {
           data: {
             full_name: userData.full_name,
-            // 注意：這裡傳入 role，需要依賴 Trigger 寫入 profiles
-            // 或是依賴後面的 update
             role: userData.role || 'user' 
           }
         }
@@ -69,12 +63,8 @@ export const useProfiles = () => {
       if (authError) throw authError;
       if (!authData.user) throw new Error('無法建立使用者，請檢查 Email 是否已存在');
 
-      // B. 處理 Profile 資料
-      // 通常建議：在 Database 設定 Trigger，當 Auth.users 新增時，自動新增 public.profiles
-      // 如果你的系統是手動寫入，則執行以下：
-      
-      // 等待一下以防 Trigger 衝突 (若你有寫 Trigger)
-      // 如果沒有 Trigger，這段可以直接執行 update 來確保 role 正確
+      // B. 確保 Profile 資料寫入
+      // 嘗試更新 Profile (假設 Trigger 已建立)
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ 
@@ -83,74 +73,102 @@ export const useProfiles = () => {
         })
         .eq('id', authData.user.id);
 
-      // 如果該 User ID 在 profiles 還不存在 (Trigger 延遲或沒寫)，則 Insert
+      // 如果更新失敗(可能 Trigger 還沒跑或沒建立)，則手動插入
       if (updateError) {
-         await supabase.from('profiles').insert({
+         // 稍微等待一下，避免 Race Condition
+         await new Promise(r => setTimeout(r, 500));
+         
+         const { error: insertError } = await supabase.from('profiles').insert({
             id: authData.user.id,
             email: userData.email,
             full_name: userData.full_name,
             role: userData.role || 'user'
          });
+         
+         // 如果 Insert 也失敗，通常是因為已經存在，忽略錯誤
+         if (insertError && insertError.code !== '23505') {
+             console.warn('Profile creation warning:', insertError);
+         }
       }
 
-      // 重新載入列表
-      await fetchProfiles();
-      return { success: true, user: authData.user };
-    } catch (err) {
-      console.error('Error creating profile:', err);
-      return { success: false, error: err.message };
-    }
-  };
+      return authData.user;
+    },
+    onSuccess: () => {
+      // 成功後，讓 React Query 標記資料過期，自動觸發重新抓取
+      queryClient.invalidateQueries(QUERY_KEY);
+    },
+  });
 
-  // 4. 更新角色
-  const updateProfileRole = async (userId, newRole) => {
-    try {
-      const { error: updateError } = await supabase
+  // --- 3. 更新角色 (Mutation) ---
+  const updateRoleMutation = useMutation({
+    mutationFn: async ({ userId, newRole }) => {
+      const { error } = await supabase
         .from('profiles')
         .update({ role: newRole })
         .eq('id', userId);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries(QUERY_KEY),
+  });
 
-      if (updateError) throw updateError;
-      await fetchProfiles();
-      return { success: true };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-  };
-
-  // 5. 更新資訊
-  const updateProfile = async (userId, updates) => {
-    try {
-      const { error: updateError } = await supabase
+  // --- 4. 更新資訊 (Mutation) ---
+  const updateInfoMutation = useMutation({
+    mutationFn: async ({ userId, updates }) => {
+      const { error } = await supabase
         .from('profiles')
         .update(updates)
         .eq('id', userId);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries(QUERY_KEY),
+  });
 
-      if (updateError) throw updateError;
-      await fetchProfiles();
+  // --- 5. 刪除用戶 (Mutation) ---
+  const deleteMutation = useMutation({
+    mutationFn: async (userId) => {
+      // 呼叫後端 RPC
+      const { error } = await supabase.rpc('delete_user_by_admin', {
+        target_user_id: userId
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries(QUERY_KEY),
+  });
+
+  // --- 6. 封裝回傳介面 (保持與原本 Hook 回傳格式一致) ---
+  
+  const createProfile = async (userData) => {
+    try {
+      const user = await createMutation.mutateAsync(userData);
+      return { success: true, user };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  const updateProfileRole = async (userId, newRole) => {
+    try {
+      await updateRoleMutation.mutateAsync({ userId, newRole });
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message };
     }
   };
 
-  // 6. 刪除用戶 (必須搭配 SQL RPC)
-  const deleteProfile = async (userId) => {
+  const updateProfile = async (userId, updates) => {
     try {
-      const { error: deleteError } = await supabase.rpc('delete_user_by_admin', {
-        target_user_id: userId
-      });
-
-      if (deleteError) throw deleteError;
-      
-      // 前端樂觀更新 (UI 比較快反應)
-      setProfiles(prev => prev.filter(p => p.id !== userId));
-      
-      // 確保同步
-      await fetchProfiles();
+      await updateInfoMutation.mutateAsync({ userId, updates });
       return { success: true };
     } catch (err) {
-      console.error('Error deleting profile:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  const deleteProfile = async (userId) => {
+    try {
+      await deleteMutation.mutateAsync(userId);
+      return { success: true };
+    } catch (err) {
       return { success: false, error: err.message };
     }
   };
@@ -158,11 +176,14 @@ export const useProfiles = () => {
   return {
     profiles,
     loading,
-    error,
-    refetch: fetchProfiles,
+    error: queryError?.message || null,
+    refetch,
     createProfile,
     updateProfileRole,
     updateProfile,
     deleteProfile,
+    // 進階：也可以直接回傳 mutation 狀態給 UI 做 loading 效果
+    isCreating: createMutation.isPending,
+    isDeleting: deleteMutation.isPending,
   };
 };
