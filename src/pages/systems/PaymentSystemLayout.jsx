@@ -11,7 +11,6 @@ import Header from '../../system/payment_system/src/components/Header.jsx';
 import Dashboard from '../../system/payment_system/src/pages/Dashboard.jsx';
 import ApplyForm from '../../system/payment_system/src/pages/ApplyForm.jsx';
 import RequestDetail from '../../system/payment_system/src/pages/RequestDetail.jsx';
-import AdminPanel from '../../system/payment_system/src/pages/AdminPanel.jsx';
 import UserProfile from '../../system/payment_system/src/pages/UserProfile.jsx';
 import UpdatePassword from '../../system/payment_system/src/pages/UpdatePassword.jsx';
 import ForgotPassword from '../../system/payment_system/src/pages/ForgotPassword.jsx';
@@ -67,7 +66,6 @@ export default function PaymentSystemLayout() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="apply" element={<ApplyForm />} />
           <Route path="request/:id" element={<RequestDetail />} />
-          <Route path="admin" element={<AdminPanel />} />
           <Route path="account" element={<UserProfile />} />
         </Route>
       </Route>
