@@ -73,14 +73,16 @@ export function useDevices() {
       .from('devices')
       .update(updates)
       .eq('id', id)
-      .select(`
-        *,
-        employee:employees!fk_devices_employees(
-          id, 
-          name, 
-          employee_id
-        )
-      `)
+// 未來如果需要顯示部門，可以改成這樣：
+.select(`
+  *,
+  employee:employees!fk_devices_employees(
+    id, 
+    name, 
+    employee_id,
+    department:departments!fk_employees_department(name) // 👈 加這行
+  )
+`)
       .single()
 
     if (error) {
