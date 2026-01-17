@@ -14,7 +14,7 @@ export function useDevices() {
         .from('devices')
         .select(`
           *,
-          employee:employees(id, name, employee_id)
+          employee:employees!fk_devices_employees(id, name, employee_id)
         `)
         .order('created_at', { ascending: false })
 
@@ -37,7 +37,7 @@ export function useDevices() {
       .insert([device])
       .select(`
         *,
-        employee:employees(id, name, employee_id)
+        employee:employees!fk_devices_employees(id, name, employee_id)
       `)
       .single()
 
@@ -54,7 +54,7 @@ export function useDevices() {
       .eq('id', id)
       .select(`
         *,
-        employee:employees(id, name, employee_id)
+        employee:employees!fk_devices_employees(id, name, employee_id)
       `)
       .single()
 
