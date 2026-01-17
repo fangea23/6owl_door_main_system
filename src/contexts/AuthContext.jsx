@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase'; // 請確保路徑正確
 
 const AuthContext = createContext(null);
 
@@ -9,7 +9,7 @@ export function AuthProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true);
   const ignoreAuthChange = useRef(false);
 
-  // 取得用戶 profile (獨立封裝，失敗不噴錯，避免卡死)
+  // 取得用戶 profile (獨立封裝)
   const fetchProfile = async (userId) => {
     try {
       const { data, error } = await supabase
@@ -29,14 +29,11 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 輔助：延遲
-  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
   useEffect(() => {
     let mounted = true;
     const isPasswordResetPage = window.location.pathname.includes('update-password');
 
-    // 1. 密碼重設頁面特例處理 (不跑複雜驗證)
+    // 1. 密碼重設頁面特例處理 (不跑複雜驗證，避免干擾重設流程)
     if (isPasswordResetPage) {
       setIsLoading(false);
       const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -45,36 +42,58 @@ export function AuthProvider({ children }) {
       return () => authListener.subscription.unsubscribe();
     }
 
-    // 2. 核心：初始化驗證流程 (移除 waitForNetwork，改為直接執行)
+    // 2. 核心：初始化驗證流程 (修正版：解決殭屍 Session 問題)
     const initAuth = async () => {
       try {
         // A. 啟動 Supabase 自動刷新
         supabase.auth.startAutoRefresh();
 
-        // B. 嘗試取得 Session (直接讀取 LocalStorage)
-        const { data: { session }, error } = await supabase.auth.getSession();
+        // B. 初步檢查：本地是否有 Session (快速檢查)
+        // 這裡只讀硬碟，不聯網，目的是如果完全沒登入過，就不用浪費時間去問伺服器
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-        if (error || !session) {
-          // 沒有 Session 或出錯 -> 嘗試 Refresh
-          const { data: refreshData } = await supabase.auth.refreshSession();
-          if (refreshData?.session?.user && mounted) {
-             setUser(refreshData.session.user);
-             const userProfile = await fetchProfile(refreshData.session.user.id);
-             if (mounted) setProfile(userProfile);
+        if (sessionError || !session) {
+          // 本地完全沒資料 -> 視為未登入
+          if (mounted) {
+            setUser(null);
+            setProfile(null);
           }
-        } else if (session?.user && mounted) {
-          // Session 有效 -> 設定使用者
-          setUser(session.user);
-          // 抓取 Profile
-          const userProfile = await fetchProfile(session.user.id);
-          if (mounted) setProfile(userProfile);
+          return;
         }
+
+        // C. 深度檢查：向伺服器確認 Token 有效性 (解決問題的關鍵)
+        // getUser() 會發送 Request 到 Supabase Auth Server
+        const { data: { user: serverUser }, error: userError } = await supabase.auth.getUser();
+
+        if (userError || !serverUser) {
+          // ★ 狀況發生：本地有 Session 但伺服器說無效 (殭屍 Session)
+          console.warn('偵測到無效的 Session，強制清理...', userError?.message);
+          
+          // 強制登出並清除髒資料
+          await supabase.auth.signOut();
+          localStorage.clear(); // 確保瀏覽器儲存空間乾淨
+          
+          if (mounted) {
+            setUser(null);
+            setProfile(null);
+          }
+          return;
+        }
+
+        // D. 驗證通過，這是個活生生的用戶
+        if (mounted) setUser(serverUser);
+
+        // E. 抓取 Profile (這時候 Token 已確認有效，失敗率極低)
+        const userProfile = await fetchProfile(serverUser.id);
+        if (mounted) setProfile(userProfile);
+
       } catch (err) {
         console.error('Auth initialization error:', err);
-        // 出錯時強制登出
+        // 發生未預期錯誤時，為了安全起見，重置狀態
         if (mounted) {
-           setUser(null);
-           setProfile(null);
+          setUser(null);
+          setProfile(null);
+          localStorage.clear(); // 避免錯誤資料殘留
         }
       } finally {
         // 🔥 關鍵：無論成功失敗，一定要關閉 Loading
@@ -82,44 +101,55 @@ export function AuthProvider({ children }) {
       }
     };
 
-    // 3. 執行初始化，但加上「超時保險」
-    // 🔥 這段是解決問題的核心：如果 initAuth 超過 3 秒沒跑完，強制關閉 loading
+    // 3. 執行初始化，加上「超時保險」
+    // 防止網路極差時畫面一直卡在 Loading
     const safeInit = async () => {
-        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve('timeout'), 3000));
-        const authPromise = initAuth();
+      // 設定 3 秒超時
+      const timeoutPromise = new Promise(resolve => setTimeout(() => resolve('timeout'), 3000));
+      const authPromise = initAuth();
 
-        const result = await Promise.race([authPromise, timeoutPromise]);
-        
-        if (result === 'timeout' && mounted) {
-            console.warn('Auth check timed out, forcing UI render.');
-            setIsLoading(false); // 🔥 強制解鎖畫面
-        }
+      const result = await Promise.race([authPromise, timeoutPromise]);
+      
+      if (result === 'timeout' && mounted) {
+        console.warn('Auth check timed out, forcing UI render.');
+        setIsLoading(false); // 🔥 強制解鎖畫面，避免白屏
+      }
     };
 
     safeInit();
 
-    // 4. 監聽狀態變化
+    // 4. 監聽狀態變化 (登入、登出、Token 刷新)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (ignoreAuthChange.current) return;
         if (!mounted) return;
 
+        // 除錯用：觀察狀態變化
+        // console.log('Auth State Change:', event);
+
         if (session?.user) {
+          // 如果 User ID 變了，或者是剛登入，才更新狀態
           setUser(prev => (prev?.id === session.user.id ? prev : session.user));
           
+          // 如果還沒有 Profile，去抓一下
           if (!profile) {
-             const userProfile = await fetchProfile(session.user.id);
-             if (mounted) setProfile(userProfile);
+            const userProfile = await fetchProfile(session.user.id);
+            if (mounted) setProfile(userProfile);
           }
         } else {
-          // 登出或無 Session
-          if (event === 'SIGNED_OUT') {
-             setUser(null);
-             setProfile(null);
-             localStorage.clear(); // 清除殘留
+          // 登出或 Session 過期
+          if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+            setUser(null);
+            setProfile(null);
+            localStorage.clear(); // 清除殘留
+            setIsLoading(false);
           }
         }
-        setIsLoading(false);
+        
+        // 確保某些特殊事件後 Loading 會關閉
+        if (event === 'INITIAL_SESSION') {
+             setIsLoading(false);
+        }
       }
     );
 
@@ -127,7 +157,9 @@ export function AuthProvider({ children }) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, []); // 依賴陣列為空，只執行一次
+
+  // --- 以下功能函式保持不變 ---
 
   // 登入
   const login = async (credentials) => {
@@ -165,6 +197,8 @@ export function AuthProvider({ children }) {
       setUser(null);
       setProfile(null);
       localStorage.clear();
+      // 建議：登出後可強制重整頁面或跳轉
+      // window.location.href = '/login'; 
     }
   };
 
