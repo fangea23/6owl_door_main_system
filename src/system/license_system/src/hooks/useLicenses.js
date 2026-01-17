@@ -104,18 +104,15 @@ export function useLicenseAssignments(licenseId = null) {
     setLoading(true)
     let query = supabase
       .from('license_assignments')
-.select(`
+      .select(`
         *,
         license:licenses(
           id, license_key, license_type,
           software:software(id, name, category)
         ),
-        // 第一層：透過指定外鍵抓員工 (跨 Schema)
         employee:employees!fk_assignments_employees(
           id, employee_id, name,
-          
-          // 第二層：抓該員工的部門 (同 Schema，通常會自動連到)
-          department:departments(id, name)  // <--- 這裡就是連線部門的地方
+          department:departments(id, name)
         ),
         device:devices!fk_devices_employees(
           id, name, serial_number, device_type
@@ -143,18 +140,15 @@ export function useLicenseAssignments(licenseId = null) {
     const { data, error } = await supabase
       .from('license_assignments')
       .insert([assignment])
-.select(`
+      .select(`
         *,
         license:licenses(
           id, license_key, license_type,
           software:software(id, name, category)
         ),
-        // 第一層：透過指定外鍵抓員工 (跨 Schema)
         employee:employees!fk_assignments_employees(
           id, employee_id, name,
-          
-          // 第二層：抓該員工的部門 (同 Schema，通常會自動連到)
-          department:departments(id, name)  // <--- 這裡就是連線部門的地方
+          department:departments(id, name)
         ),
         device:devices!fk_devices_employees(
           id, name, serial_number, device_type
