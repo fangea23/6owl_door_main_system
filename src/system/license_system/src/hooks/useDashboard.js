@@ -33,8 +33,7 @@ export function useDashboard() {
           expiringLicensesResult
         ] = await Promise.all([
           
-          // 1. 授權統計
-          // 你的 Wrapper 會自動把它導向 software_maintenance
+          // 1. 授權統計 (同 Schema 關聯，維持原樣)
           supabase
             .from('licenses') 
             .select(`
@@ -46,41 +45,28 @@ export function useDashboard() {
               software:software(category) 
             `),
 
-          // 2. 員工數量
-          // 你的 Wrapper 會自動把它導向 public
+          // 2. 員工數量 (Wrapper 會自動導向 public，維持原樣)
           supabase
             .from('employees')
             .select('id', { count: 'exact', head: true })
             .eq('status', 'active'),
 
-          // 3. 軟體數量
-          // 自動導向 software_maintenance
+          // 3. 軟體數量 (同 Schema，維持原樣)
           supabase
             .from('software')
             .select('id', { count: 'exact', head: true })
             .eq('is_active', true),
 
-          // 4. 最近分配記錄
-          // 自動導向 software_maintenance
+          // 4. [修改處] 最近分配記錄
+          // 🔴 原本跨 Schema Join 會失敗，現在改查 View
           supabase
-            .from('license_assignments')
-            .select(`
-              *,
-              license:licenses(
-                license_type,
-                software:software(name, category)
-              ),
-              employee:employees!fk_assignments_employees(
-                name, 
-                department:departments!fk_employees_department(name)
-              )
-            `)
+            .from('assignment_details') // 確保已在 DB 建立此 View
+            .select('*') // View 已經把 employee_name, software_name 都攤平了
             .eq('is_active', true)
             .order('created_at', { ascending: false })
             .limit(5),
 
-          // 5. 即將到期的授權
-          // 自動導向 software_maintenance
+          // 5. 即將到期的授權 (同 Schema 關聯，維持原樣)
           supabase
             .from('licenses')
             .select(`
@@ -95,7 +81,7 @@ export function useDashboard() {
             .limit(5)
         ])
 
-        // --- 數據處理邏輯 (保持不變) ---
+        // --- 數據處理邏輯 ---
         const licenses = licensesResult.data || []
         const totalQuantity = licenses.reduce((sum, l) => sum + (l.quantity || 0), 0)
         const assignedCount = licenses.reduce((sum, l) => sum + (l.assigned_count || 0), 0)
@@ -131,7 +117,7 @@ export function useDashboard() {
           expiredLicenses,
           totalEmployees: employeesResult.count || 0,
           totalSoftware: softwareResult.count || 0,
-          recentAssignments: recentAssignmentsResult.data || [],
+          recentAssignments: recentAssignmentsResult.data || [], // 這裡現在拿到的是 View 的資料
           expiringLicenses: expiringLicensesResult.data || [],
           licensesByCategory
         })

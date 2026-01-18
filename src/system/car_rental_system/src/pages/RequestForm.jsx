@@ -14,7 +14,7 @@ export const RequestForm = () => {
 
   const [formData, setFormData] = useState({
     vehicle_id: '',
-    preferred_vehicle_type: 'sedan',
+    vehicle_type_filter: '', // 用於前端篩選顯示的車型
     start_date: '',
     end_date: '',
     start_time: '',
@@ -25,7 +25,7 @@ export const RequestForm = () => {
   });
 
   const vehicleTypes = [
-    { value: '', label: '不指定' },
+    { value: '', label: '全部車型' },
     { value: 'sedan', label: '轎車' },
     { value: 'suv', label: 'SUV' },
     { value: 'van', label: '廂型車' },
@@ -36,19 +36,27 @@ export const RequestForm = () => {
   useEffect(() => {
     if (formData.start_date && formData.end_date) {
       fetchAvailableVehicles(formData.start_date, formData.end_date);
+      // 日期改變可能導致原本選的車不可用，因此清空已選車輛
+      setFormData(prev => ({ ...prev, vehicle_id: '' }));
     }
   }, [formData.start_date, formData.end_date]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // 驗證日期
+    // 1. 驗證日期順序
     if (new Date(formData.end_date) < new Date(formData.start_date)) {
       toast.error('結束日期不能早於開始日期');
       return;
     }
 
-    // 檢查員工資訊
+    // 2. 驗證是否已選車
+    if (!formData.vehicle_id) {
+      toast.error('請選擇一輛車');
+      return;
+    }
+
+    // 3. 驗證員工身分
     if (!employee) {
       toast.error('無法獲取員工資訊，請重新登入');
       return;
@@ -57,10 +65,13 @@ export const RequestForm = () => {
     // 準備提交數據
     const submitData = {
       ...formData,
-      requester_id: employee.id, // 使用員工 ID（從 public.employees 表）
-      vehicle_id: formData.vehicle_id || null,
+      requester_id: employee.id,
+      vehicle_id: formData.vehicle_id,
       estimated_mileage: formData.estimated_mileage ? parseInt(formData.estimated_mileage) : null,
     };
+    
+    // 移除前端篩選用的欄位，不傳給後端
+    delete submitData.vehicle_type_filter;
 
     const result = await createRequest(submitData);
 
@@ -72,170 +83,122 @@ export const RequestForm = () => {
     }
   };
 
-  // 載入中
+  // 載入狀態處理
   if (employeeLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">載入員工資訊...</p>
+          <p className="mt-4 text-stone-600">載入員工資訊...</p>
         </div>
       </div>
     );
   }
 
-  // 錯誤或沒有員工資料
+  // 錯誤處理
   if (employeeError || !employee) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          返回
-        </button>
-        <div className="bg-white rounded-lg border border-red-200 p-8">
-          <div className="flex items-center gap-3 text-red-600 mb-4">
-            <AlertCircle className="w-8 h-8" />
-            <h2 className="text-2xl font-bold">無法載入員工資訊</h2>
-          </div>
-          <p className="text-gray-700 mb-4">
-            {employeeError || '您的帳號尚未關聯員工資料，請聯繫 HR 部門設定。'}
-          </p>
-          <p className="text-sm text-gray-600 mb-4">
-            需要在 <code className="bg-gray-100 px-2 py-1 rounded">public.employees</code> 表中設定您的員工記錄，
-            並將 <code className="bg-gray-100 px-2 py-1 rounded">user_id</code> 欄位關聯到您的登入帳號。
-          </p>
-          <button
-            onClick={() => navigate('/systems/car-rental/dashboard')}
-            className="px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700"
-          >
-            返回儀表板
-          </button>
+      <div className="max-w-4xl mx-auto p-4">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+          <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-3" />
+          <h2 className="text-xl font-bold text-red-700 mb-2">無法載入員工資訊</h2>
+          <p className="text-stone-600 mb-4">請確認您的帳號已關聯員工資料，或聯繫系統管理員。</p>
+          <button onClick={() => navigate(-1)} className="text-stone-500 hover:text-stone-800 underline">返回上一頁</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto pb-10">
       <button
         onClick={() => navigate(-1)}
-        className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
+        className="flex items-center gap-2 text-stone-600 hover:text-stone-900 mb-6 transition-colors"
       >
         <ArrowLeft className="w-5 h-5" />
         返回
       </button>
 
-      <div className="bg-white rounded-lg border border-gray-200 p-8">
+      <div className="bg-white rounded-xl border border-stone-200 p-8 shadow-sm">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">租車申請</h1>
-          <p className="text-gray-600 mt-2">請填寫以下資訊以提交租車申請</p>
+          <h1 className="text-3xl font-bold text-stone-900">租車申請</h1>
+          <p className="text-stone-500 mt-2">請選擇車輛並填寫用途以提交申請</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* 申請人資訊顯示 */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="text-sm font-medium text-blue-900 mb-2">申請人資訊</p>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div>
-                <span className="text-blue-700">姓名：</span>
-                <span className="text-blue-900 font-medium">{employee.name}</span>
-              </div>
-              <div>
-                <span className="text-blue-700">員工編號：</span>
-                <span className="text-blue-900 font-medium">{employee.employee_id}</span>
-              </div>
-              <div>
-                <span className="text-blue-700">部門：</span>
-                <span className="text-blue-900 font-medium">
-                  {employee.department?.name || '未設定'}
-                </span>
-              </div>
-              <div>
-                <span className="text-blue-700">職位：</span>
-                <span className="text-blue-900 font-medium">{employee.position || '未設定'}</span>
-              </div>
+        <form onSubmit={handleSubmit} className="space-y-8">
+          
+          {/* 1. 申請人資訊 (唯讀區塊) */}
+          <div className="bg-stone-50 border border-stone-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                <p className="text-sm font-bold text-stone-700">申請人</p>
+            </div>
+            <div className="text-sm text-stone-600 flex flex-wrap gap-x-4 gap-y-1">
+                <span className="font-medium text-stone-900">{employee.name}</span>
+                <span className="text-stone-300">|</span>
+                <span>{employee.department?.name || '未設定部門'}</span>
+                <span className="text-stone-300">|</span>
+                <span>{employee.position || '未設定職位'}</span>
             </div>
           </div>
 
-          {/* 用車時間 */}
+          {/* 2. 用車時間 */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Calendar className="w-5 h-5" />
+            <h2 className="text-lg font-bold text-stone-900 mb-4 flex items-center gap-2 border-b border-stone-100 pb-2">
+              <Calendar className="w-5 h-5 text-rose-600" />
               用車時間
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  開始日期 *
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={formData.start_date}
-                  onChange={(e) => setFormData({...formData, start_date: e.target.value})}
+                <label className="block text-sm font-medium text-stone-700 mb-1">開始日期 <span className="text-rose-500">*</span></label>
+                <input 
+                  type="date" 
+                  required 
+                  value={formData.start_date} 
+                  onChange={(e) => setFormData({...formData, start_date: e.target.value})} 
                   min={new Date().toISOString().split('T')[0]}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent transition-all" 
                 />
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  結束日期 *
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={formData.end_date}
-                  onChange={(e) => setFormData({...formData, end_date: e.target.value})}
+                <label className="block text-sm font-medium text-stone-700 mb-1">結束日期 <span className="text-rose-500">*</span></label>
+                <input 
+                  type="date" 
+                  required 
+                  value={formData.end_date} 
+                  onChange={(e) => setFormData({...formData, end_date: e.target.value})} 
                   min={formData.start_date || new Date().toISOString().split('T')[0]}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent transition-all" 
                 />
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  開始時間
-                </label>
-                <input
-                  type="time"
-                  value={formData.start_time}
-                  onChange={(e) => setFormData({...formData, start_time: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
-                />
+                <label className="block text-sm font-medium text-stone-700 mb-1">開始時間</label>
+                <input type="time" value={formData.start_time} onChange={(e) => setFormData({...formData, start_time: e.target.value})} className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent transition-all" />
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  結束時間
-                </label>
-                <input
-                  type="time"
-                  value={formData.end_time}
-                  onChange={(e) => setFormData({...formData, end_time: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
-                />
+                <label className="block text-sm font-medium text-stone-700 mb-1">結束時間</label>
+                <input type="time" value={formData.end_time} onChange={(e) => setFormData({...formData, end_time: e.target.value})} className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent transition-all" />
               </div>
             </div>
           </div>
 
-          {/* 車輛選擇 */}
+          {/* 3. 車輛選擇 */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Car className="w-5 h-5" />
-              車輛需求
+            <h2 className="text-lg font-bold text-stone-900 mb-4 flex items-center gap-2 border-b border-stone-100 pb-2">
+              <Car className="w-5 h-5 text-rose-600" />
+              車輛選擇
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              {/* 選擇車型 (Filter) */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  偏好車型
+                <label className="block text-sm font-medium text-stone-700 mb-1">
+                  選擇車型 (篩選)
                 </label>
                 <select
-                  value={formData.preferred_vehicle_type}
-                  onChange={(e) => setFormData({...formData, preferred_vehicle_type: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+                  value={formData.vehicle_type_filter}
+                  onChange={(e) => setFormData({...formData, vehicle_type_filter: e.target.value, vehicle_id: ''})} // 切換篩選時清空已選車輛
+                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent transition-all"
                 >
                   {vehicleTypes.map(type => (
                     <option key={type.value} value={type.value}>{type.label}</option>
@@ -243,88 +206,106 @@ export const RequestForm = () => {
                 </select>
               </div>
 
+              {/* 指定車輛 (必填) */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  指定車輛（選填）
+                <label className="block text-sm font-medium text-stone-700 mb-1">
+                  指定車輛 <span className="text-rose-500">*</span>
                 </label>
                 <select
+                  required
                   value={formData.vehicle_id}
                   onChange={(e) => setFormData({...formData, vehicle_id: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent disabled:bg-stone-100 disabled:text-stone-400 transition-all"
                   disabled={!formData.start_date || !formData.end_date}
                 >
-                  <option value="">不指定</option>
-                  {vehicles.map(vehicle => (
+                  <option value="" disabled>
+                    {(!formData.start_date || !formData.end_date) 
+                      ? '請先選擇用車日期' 
+                      : '請選擇一輛車'}
+                  </option>
+                  
+                  {/* 根據車型篩選顯示 */}
+                  {(formData.vehicle_type_filter 
+                      ? vehicles.filter(v => v.type === formData.vehicle_type_filter) 
+                      : vehicles
+                  ).map(vehicle => (
                     <option key={vehicle.id} value={vehicle.id}>
-                      {vehicle.plate_number} - {vehicle.brand} {vehicle.model}
+                      {vehicle.plate_number} - {vehicle.brand} {vehicle.model} ({vehicle.seats}人座)
                     </option>
                   ))}
+
+                  {/* 若該車型無車 */}
+                  {vehicles.length > 0 && formData.vehicle_type_filter && vehicles.filter(v => v.type === formData.vehicle_type_filter).length === 0 && (
+                     <option value="" disabled>此車型目前無可用車輛</option>
+                  )}
                 </select>
-                {(!formData.start_date || !formData.end_date) && (
-                  <p className="text-xs text-gray-500 mt-1">請先選擇用車日期</p>
+                
+                {(!formData.start_date || !formData.end_date) ? (
+                  <p className="text-xs text-stone-500 mt-1">請先設定日期以查看可用車輛</p>
+                ) : (
+                  <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    查詢到 {vehicles.length} 輛可用車
+                  </p>
                 )}
               </div>
             </div>
           </div>
 
-          {/* 用車資訊 */}
+          {/* 4. 行程資訊 */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">用車資訊</h2>
+            <h2 className="text-lg font-bold text-stone-900 mb-4 flex items-center gap-2 border-b border-stone-100 pb-2">
+              <AlertCircle className="w-5 h-5 text-rose-600" />
+              行程資訊
+            </h2>
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  用車目的 *
-                </label>
-                <textarea
-                  required
-                  rows={3}
-                  value={formData.purpose}
-                  onChange={(e) => setFormData({...formData, purpose: e.target.value})}
-                  placeholder="例如：客戶拜訪、公務出差、貨物運送等"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  目的地
-                </label>
-                <input
-                  type="text"
-                  value={formData.destination}
-                  onChange={(e) => setFormData({...formData, destination: e.target.value})}
-                  placeholder="例如：台北市信義區..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  預估里程 (km)
-                </label>
-                <input
-                  type="number"
-                  value={formData.estimated_mileage}
-                  onChange={(e) => setFormData({...formData, estimated_mileage: e.target.value})}
-                  placeholder="預估行駛公里數"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
-                />
-              </div>
+                <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">用車目的 <span className="text-rose-500">*</span></label>
+                    <textarea 
+                        required 
+                        rows={3} 
+                        value={formData.purpose} 
+                        onChange={(e) => setFormData({...formData, purpose: e.target.value})} 
+                        placeholder="請簡述用車事由，例如：前往新竹廠區進行設備維護..."
+                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent transition-all" 
+                    />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label className="block text-sm font-medium text-stone-700 mb-1">目的地</label>
+                        <input 
+                            type="text" 
+                            value={formData.destination} 
+                            onChange={(e) => setFormData({...formData, destination: e.target.value})} 
+                            placeholder="例如：台北市信義區"
+                            className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent transition-all" 
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-stone-700 mb-1">預估里程 (km)</label>
+                        <input 
+                            type="number" 
+                            value={formData.estimated_mileage} 
+                            onChange={(e) => setFormData({...formData, estimated_mileage: e.target.value})} 
+                            placeholder="0"
+                            className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent transition-all" 
+                        />
+                    </div>
+                </div>
             </div>
           </div>
 
-          {/* 提交按鈕 */}
-          <div className="flex gap-3 pt-6 border-t border-gray-200">
+          <div className="flex gap-4 pt-8 border-t border-stone-100">
             <button
               type="button"
               onClick={() => navigate(-1)}
-              className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+              className="w-1/3 px-6 py-3 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors font-medium"
             >
               取消
             </button>
             <button
               type="submit"
-              className="flex-1 px-6 py-3 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors font-medium"
+              className="w-2/3 px-6 py-3 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors font-medium shadow-lg shadow-rose-200"
             >
               提交申請
             </button>

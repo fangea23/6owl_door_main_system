@@ -1,6 +1,14 @@
 import React, { useState } from 'react';
-import { Link, Outlet, useNavigate, useLocation, NavLink } from 'react-router-dom';
-import { Car, LayoutDashboard, FileText, History, Menu, X } from 'lucide-react';
+import { Link, Outlet, useNavigate, NavLink } from 'react-router-dom';
+import { 
+  Car, 
+  LayoutDashboard, 
+  FileText, 
+  History, 
+  Menu, 
+  X, 
+  Key // 👈 新增 Key icon
+} from 'lucide-react';
 import { useAuth } from '../../../../contexts/AuthContext';
 import logoSrc from '../../../../assets/logo.png';
 
@@ -23,10 +31,12 @@ export const Layout = () => {
   const { user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // ✅ 修改：加入「租借管理」並調整順序
   const navItems = [
     { path: '/systems/car-rental/dashboard', icon: LayoutDashboard, label: '儀表板' },
-    { path: '/systems/car-rental/vehicles', icon: Car, label: '車輛管理' },
     { path: '/systems/car-rental/requests', icon: FileText, label: '租借申請' },
+    { path: '/systems/car-rental/rentals', icon: Key, label: '租借管理' }, // 👈 新增這項
+    { path: '/systems/car-rental/vehicles', icon: Car, label: '車輛管理' },
     { path: '/systems/car-rental/my-rentals', icon: History, label: '我的租借' },
   ];
 
@@ -81,9 +91,9 @@ export const Layout = () => {
                   key={item.path}
                   to={item.path}
                   className={({ isActive }) =>
-                    `flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    `flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       isActive
-                        ? 'bg-red-50 text-red-700 border border-red-200'
+                        ? 'bg-red-50 text-red-700 border border-red-200 shadow-sm'
                         : 'text-stone-600 hover:bg-stone-100 hover:text-stone-800'
                     }`
                   }

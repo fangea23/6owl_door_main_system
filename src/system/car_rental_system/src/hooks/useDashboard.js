@@ -101,21 +101,13 @@ export const useDashboard = () => {
   };
 
   // 獲取近期活動
+// 獲取近期活動
   const fetchRecentActivities = async (limit = 10) => {
     try {
+      // ✅ 修正：改查 rentals_view
       const { data, error: fetchError } = await supabase
-        .from('rentals')
-        .select(`
-          id,
-          created_at,
-          status,
-          renter_name,
-          vehicle:vehicles!vehicle_id (
-            plate_number,
-            brand,
-            model
-          )
-        `)
+        .from('rentals_view') 
+        .select('*') // 因為 View 已經包含 vehicle 物件了，直接選 * 即可
         .order('created_at', { ascending: false })
         .limit(limit);
 

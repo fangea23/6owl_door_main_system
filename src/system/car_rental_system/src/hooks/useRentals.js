@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 
 export const useRentals = (userId = null) => {
@@ -6,44 +6,19 @@ export const useRentals = (userId = null) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // 獲取租借記錄
-  const fetchRentals = async () => {
+  // 1. 獲取租借記錄 (查詢 View)
+  const fetchRentals = useCallback(async () => {
     try {
-      setLoading(true);
+      // 只有在第一次載入時設定 loading，避免 Realtime 更新時畫面閃爍
+      // setLoading(true); 
       setError(null);
 
+      // ✅ 修改: 改查 View，直接 select *
       let query = supabase
-        .from('rentals')
-        .select(`
-          *,
-          vehicle:vehicles!vehicle_id (
-            id,
-            plate_number,
-            brand,
-            model,
-            vehicle_type,
-            color
-          ),
-          request:rental_requests!request_id (
-            id,
-            purpose,
-            destination
-          ),
-          renter:employees!renter_id (
-            id,
-            employee_id,
-            name,
-            email,
-            department:departments!department_id (
-              id,
-              name
-            ),
-            position
-          )
-        `)
+        .from('rentals_view')
+        .select('*')
         .order('created_at', { ascending: false });
 
-      // 如果指定 userId，只獲取該用戶的租借記錄
       if (userId) {
         query = query.eq('renter_id', userId);
       }
@@ -59,41 +34,50 @@ export const useRentals = (userId = null) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
 
-  // 創建租借記錄
+  // 2. 初始化與 Realtime 訂閱
+  useEffect(() => {
+    setLoading(true);
+    fetchRentals().finally(() => setLoading(false));
+
+    // 訂閱資料庫變更 (即時更新)
+    const channel = supabase
+      .channel('rentals_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // 監聽所有事件
+          schema: 'car_rental',
+          table: 'rentals',
+          // 如果有 userId，過濾只監聽相關的 (選擇性)
+          filter: userId ? `renter_id=eq.${userId}` : undefined
+        },
+        (payload) => {
+          console.log('📡 租借紀錄更新:', payload);
+          fetchRentals(); // 資料變動時重新撈取 View
+        }
+      )
+      .subscribe();
+
+    return () => {
+      if (channel) channel.unsubscribe();
+    };
+  }, [userId, fetchRentals]);
+
+  // 3. 創建租借記錄
   const createRental = async (rentalData) => {
     try {
-      const { data, error: createError } = await supabase
+      // ✅ 步驟 A: 寫入原始 Table
+      const { data: insertedData, error: createError } = await supabase
         .from('rentals')
         .insert([rentalData])
-        .select(`
-          *,
-          vehicle:vehicles!vehicle_id (
-            id,
-            plate_number,
-            brand,
-            model,
-            vehicle_type,
-            color
-          ),
-          renter:employees!renter_id (
-            id,
-            employee_id,
-            name,
-            email,
-            department:departments!department_id (
-              id,
-              name
-            ),
-            position
-          )
-        `)
+        .select('id')
         .single();
 
       if (createError) throw createError;
 
-      // 更新車輛狀態為 rented
+      // 步驟 B: 更新車輛狀態為 'rented' (如果是直接建立租借單)
       if (rentalData.vehicle_id) {
         await supabase
           .from('vehicles')
@@ -101,65 +85,77 @@ export const useRentals = (userId = null) => {
           .eq('id', rentalData.vehicle_id);
       }
 
-      setRentals(prev => [data, ...prev]);
-      return { success: true, data };
+      // ✅ 步驟 C: 從 View 讀取完整資料回傳以更新 UI
+      const { data: viewData, error: viewError } = await supabase
+        .from('rentals_view')
+        .select('*')
+        .eq('id', insertedData.id)
+        .single();
+
+      if (viewError) throw viewError;
+
+      setRentals(prev => [viewData, ...prev]);
+      return { success: true, data: viewData };
     } catch (err) {
       console.error('Error creating rental:', err);
       return { success: false, error: err.message };
     }
   };
 
-  // 更新租借記錄
+  // 4. 更新租借記錄 (通用函式)
   const updateRental = async (id, updates) => {
     try {
-      const { data, error: updateError } = await supabase
+      // ✅ 步驟 A: 更新原始 Table
+      const { error: updateError } = await supabase
         .from('rentals')
         .update(updates)
-        .eq('id', id)
-        .select(`
-          *,
-          vehicle:vehicles!vehicle_id (
-            id,
-            plate_number,
-            brand,
-            model,
-            vehicle_type,
-            color
-          )
-        `)
-        .single();
+        .eq('id', id);
 
       if (updateError) throw updateError;
 
+      // ✅ 步驟 B: 從 View 讀取完整資料
+      const { data: viewData, error: viewError } = await supabase
+        .from('rentals_view')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (viewError) throw viewError;
+
       setRentals(prev =>
-        prev.map(r => r.id === id ? data : r)
+        prev.map(r => r.id === id ? viewData : r)
       );
-      return { success: true, data };
+      return { success: true, data: viewData };
     } catch (err) {
       console.error('Error updating rental:', err);
       return { success: false, error: err.message };
     }
   };
 
-  // 取車（開始租借）
-  const pickupVehicle = async (id, startMileage) => {
+  // 5. 確認取車 (Pickup)
+  const pickupVehicle = async (id, startMileage = null) => {
     try {
+      // 準備更新資料
       const updates = {
-        actual_start_time: new Date().toISOString(),
-        start_mileage: startMileage,
-        status: 'in_progress',
+        status: 'in_progress', // 狀態變更為進行中
+        // 如果資料庫有 actual_start_time 欄位，建議加上這行：
+        // actual_start_time: new Date().toISOString(), 
       };
 
+      if (startMileage) {
+        updates.start_mileage = startMileage;
+      }
+
+      // 更新租借單
       const result = await updateRental(id, updates);
 
+      // 連動更新車輛狀態 -> rented
       if (result.success && result.data.vehicle_id) {
-        // 更新車輛狀態
         await supabase
           .from('vehicles')
           .update({ status: 'rented' })
           .eq('id', result.data.vehicle_id);
       }
-
       return result;
     } catch (err) {
       console.error('Error picking up vehicle:', err);
@@ -167,32 +163,39 @@ export const useRentals = (userId = null) => {
     }
   };
 
-  // 還車（完成租借）
-  const returnVehicle = async (id, endMileage, returnChecklist = null) => {
+  // 6. 確認還車 (Return)
+  const returnVehicle = async (id, endMileage = null, returnChecklist = null) => {
     try {
+      // 準備更新資料
       const updates = {
-        actual_end_time: new Date().toISOString(),
-        end_mileage: endMileage,
-        status: 'completed',
+        status: 'completed', // 狀態變更為已完成
+        // 如果資料庫有 actual_end_time 欄位：
+        // actual_end_time: new Date().toISOString(),
       };
+      
+      if (endMileage) {
+        updates.end_mileage = endMileage;
+      }
 
       if (returnChecklist) {
         updates.return_checklist = returnChecklist;
       }
 
+      // 更新租借單
       const result = await updateRental(id, updates);
 
+      // 連動更新車輛狀態 -> available (釋放車輛)
       if (result.success && result.data.vehicle_id) {
-        // 更新車輛狀態為可用
+        const vehicleUpdates = { status: 'available' };
+        if (endMileage) {
+            vehicleUpdates.current_mileage = endMileage; // 更新車輛當前里程
+        }
+
         await supabase
           .from('vehicles')
-          .update({
-            status: 'available',
-            current_mileage: endMileage,
-          })
+          .update(vehicleUpdates)
           .eq('id', result.data.vehicle_id);
       }
-
       return result;
     } catch (err) {
       console.error('Error returning vehicle:', err);
@@ -200,19 +203,18 @@ export const useRentals = (userId = null) => {
     }
   };
 
-  // 取消租借
+  // 7. 取消租借
   const cancelRental = async (id) => {
     try {
       const result = await updateRental(id, { status: 'cancelled' });
-
+      
+      // 連動更新車輛狀態 -> available (釋放車輛)
       if (result.success && result.data.vehicle_id) {
-        // 將車輛狀態改回可用
         await supabase
           .from('vehicles')
           .update({ status: 'available' })
           .eq('id', result.data.vehicle_id);
       }
-
       return result;
     } catch (err) {
       console.error('Error cancelling rental:', err);
@@ -220,28 +222,12 @@ export const useRentals = (userId = null) => {
     }
   };
 
-  // 獲取單一租借記錄
+  // 8. 獲取單一租借記錄
   const getRentalById = async (id) => {
     try {
       const { data, error: fetchError } = await supabase
-        .from('rentals')
-        .select(`
-          *,
-          vehicle:vehicles!vehicle_id (
-            id,
-            plate_number,
-            brand,
-            model,
-            vehicle_type,
-            color
-          ),
-          request:rental_requests!request_id (
-            id,
-            purpose,
-            destination,
-            estimated_mileage
-          )
-        `)
+        .from('rentals_view')
+        .select('*')
         .eq('id', id)
         .single();
 
@@ -253,43 +239,23 @@ export const useRentals = (userId = null) => {
     }
   };
 
-  // 獲取進行中的租借
+  // 9. 獲取進行中的租借 (用於檢查衝突或列表顯示)
   const fetchActiveRentals = async () => {
     try {
-      setLoading(true);
-      setError(null);
-
+      // 這裡不設定 global loading，避免影響主列表
       const { data, error: fetchError } = await supabase
-        .from('rentals')
-        .select(`
-          *,
-          vehicle:vehicles!vehicle_id (
-            id,
-            plate_number,
-            brand,
-            model,
-            vehicle_type
-          )
-        `)
+        .from('rentals_view')
+        .select('*')
         .in('status', ['confirmed', 'in_progress'])
         .order('start_date');
 
       if (fetchError) throw fetchError;
-
-      setRentals(data || []);
       return { success: true, data };
     } catch (err) {
       console.error('Error fetching active rentals:', err);
-      setError(err.message);
       return { success: false, error: err.message };
-    } finally {
-      setLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchRentals();
-  }, [userId]);
 
   return {
     rentals,

@@ -1,31 +1,30 @@
-// 修改：不再建立新的 client，而是引入主系統的實例
 import { supabase as mainClient } from '../../../../lib/supabase';
 
-// 建立一個包裝物件，讓授權系統能共用主系統的登入 (SSO)，但查詢特定的 Schema
+// 定義 public schema 的表格白名單
+const PUBLIC_TABLES = ['employees', 'departments', 'profiles'];
+
 export const supabase = {
-  // 1. 共用主系統的 Auth (解決多重實例打架的問題)
+  // 1. Auth & Storage & Realtime 照舊
   auth: mainClient.auth,
   storage: mainClient.storage,
   channel: (name, config) => mainClient.channel(name, config),
 
-  // 2. 針對資料庫查詢，根據表格自動選擇 schema
+  // 2. 表格查詢 (自動判斷 Schema)
   from: (table) => {
-    // 修改這裡：將 'profiles' 加入白名單
-    // employees, departments, profiles 使用統一的 public schema
-    if (table === 'employees' || table === 'departments' || table === 'profiles') {
+    if (PUBLIC_TABLES.includes(table)) {
       return mainClient.schema('public').from(table);
     }
-    // 其他表格使用 software_maintenance schema
     return mainClient.schema('software_maintenance').from(table);
   },
 
-  // 3. RPC 呼叫 (通常不需要 schema，若有需要可在此調整)
-  rpc: (fn, args) => mainClient.rpc(fn, args),
+  // 3. ★★★ 修正重點：RPC 強制指定 Schema ★★★
+  rpc: (fn, args) => {
+    return mainClient.schema('software_maintenance').rpc(fn, args);
+  },
 };
 
-// 授權驗證 API (保持原有邏輯，但使用上面的 supabase 代理)
+// licenseApi 不需要動，因為它呼叫的是上面的 supabase.rpc
 export const licenseApi = {
-  // 驗證授權碼
   async verify(licenseKey, machineId, machineName = null) {
     const { data, error } = await supabase.rpc('verify_license', {
       p_license_key: licenseKey,
@@ -37,8 +36,7 @@ export const licenseApi = {
     if (error) throw error
     return data
   },
-
-  // 停用授權
+  
   async deactivate(licenseKey, machineId) {
     const { data, error } = await supabase.rpc('deactivate_license', {
       p_license_key: licenseKey,

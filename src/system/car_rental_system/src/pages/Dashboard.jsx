@@ -1,10 +1,46 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Car, CheckCircle, Clock, AlertCircle, Plus, TrendingUp } from 'lucide-react';
+import { 
+  Car, 
+  CheckCircle, 
+  Clock, 
+  AlertCircle, 
+  Plus, 
+  TrendingUp, 
+  Calendar as CalendarIcon,
+  ChevronRight,
+  Activity,
+  ArrowRightCircle,
+  ArrowLeftCircle,
+  Key // 👈 新增鑰匙圖示
+} from 'lucide-react';
 import { useDashboard } from '../hooks/useDashboard';
+import { useRentals } from '../hooks/useRentals';
+import { RentalsCalendar } from '../components/RentalsCalendar';
+import { isSameDay, parseISO } from 'date-fns';
+import toast from 'react-hot-toast'; // 👈 引入 toast 提示
 
 export const Dashboard = () => {
-  const { stats, loading } = useDashboard();
+  const { stats, loading: dashboardLoading } = useDashboard();
+  // ✅ 修改：解構出操作函式
+  const { rentals, loading: rentalsLoading, pickupVehicle, returnVehicle } = useRentals(null);
+
+  const loading = dashboardLoading || rentalsLoading;
+
+  // 計算今日動態數據
+  const today = new Date();
+  
+  // ✅ 篩選：今日待取車清單 (狀態必須是 confirmed 且開始日期是今天)
+  const departingTodayList = rentals.filter(r => {
+    if (!r.start_date) return false;
+    return isSameDay(parseISO(r.start_date), today) && r.status === 'confirmed';
+  });
+
+  // ✅ 篩選：今日待還車清單 (狀態必須是 in_progress 且結束日期是今天)
+  const returningTodayList = rentals.filter(r => {
+    if (!r.end_date) return false;
+    return isSameDay(parseISO(r.end_date), today) && r.status === 'in_progress';
+  });
 
   const statCards = [
     {
@@ -13,174 +49,308 @@ export const Dashboard = () => {
       icon: Car,
       color: 'blue',
       link: '/systems/car-rental/vehicles',
+      desc: '公司資產總覽'
     },
     {
-      title: '可用車輛',
+      title: '目前可用',
       value: stats.availableVehicles,
       icon: CheckCircle,
       color: 'green',
+      desc: '在庫可調度車輛'
     },
     {
-      title: '租借中',
+      title: '借出中',
       value: stats.rentedVehicles,
       icon: Clock,
       color: 'orange',
+      desc: '員工使用中'
     },
     {
-      title: '維護中',
+      title: '維修保養',
       value: stats.maintenanceVehicles,
       icon: AlertCircle,
       color: 'red',
+      desc: '暫停服務'
     },
     {
       title: '待審核申請',
       value: stats.pendingRequests,
-      icon: Clock,
+      icon: CalendarIcon,
       color: 'purple',
       link: '/systems/car-rental/requests',
+      desc: '需主管簽核'
     },
     {
-      title: '進行中租借',
-      value: stats.activeRentals,
+      title: '本月累計使用',
+      value: stats.completedRentalsThisMonth,
       icon: TrendingUp,
       color: 'indigo',
+      desc: '車輛使用頻率'
     },
   ];
 
   const getColorClasses = (color) => {
     const colors = {
-      blue: 'bg-red-50 text-red-700 border-red-200',
-      green: 'bg-green-50 text-green-700 border-green-200',
-      orange: 'bg-amber-50 text-amber-700 border-amber-200',
-      red: 'bg-red-50 text-red-700 border-red-200',
-      purple: 'bg-red-50 text-red-700 border-red-200',
-      indigo: 'bg-amber-50 text-amber-700 border-amber-200',
+      blue: 'bg-blue-50 text-blue-600 border-blue-200 group-hover:bg-blue-600 group-hover:text-white',
+      green: 'bg-emerald-50 text-emerald-600 border-emerald-200 group-hover:bg-emerald-600 group-hover:text-white',
+      orange: 'bg-orange-50 text-orange-600 border-orange-200 group-hover:bg-orange-600 group-hover:text-white',
+      red: 'bg-rose-50 text-rose-600 border-rose-200 group-hover:bg-rose-600 group-hover:text-white',
+      purple: 'bg-purple-50 text-purple-600 border-purple-200 group-hover:bg-purple-600 group-hover:text-white',
+      indigo: 'bg-indigo-50 text-indigo-600 border-indigo-200 group-hover:bg-indigo-600 group-hover:text-white',
     };
     return colors[color] || colors.blue;
   };
 
+  // 操作處理函式
+  const handlePickup = async (rental) => {
+    if (window.confirm(`確認將鑰匙交給 ${rental.renter?.name} 嗎？\n車號：${rental.vehicle?.plate_number}`)) {
+      const result = await pickupVehicle(rental.id);
+      if (result.success) {
+        toast.success('取車成功！狀態已更新為使用中');
+      } else {
+        toast.error('操作失敗：' + result.error);
+      }
+    }
+  };
+
+  const handleReturn = async (rental) => {
+    // 這裡可以擴展成彈出視窗輸入里程，目前先做簡單確認
+    if (window.confirm(`確認 ${rental.renter?.name} 已歸還車輛與鑰匙？\n車號：${rental.vehicle?.plate_number}`)) {
+      const result = await returnVehicle(rental.id); // 若需輸入里程可在此傳入
+      if (result.success) {
+        toast.success('還車成功！車輛已釋放');
+      } else {
+        toast.error('操作失敗：' + result.error);
+      }
+    }
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-red-600 mx-auto"></div>
-          <p className="mt-3 sm:mt-4 text-stone-600 text-sm sm:text-base">載入中...</p>
+      <div className="flex flex-col items-center justify-center h-[60vh]">
+        <div className="relative">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-stone-200"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-t-red-600 absolute top-0 left-0"></div>
         </div>
+        <p className="mt-4 text-stone-500 font-medium">載入系統資料中...</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6 lg:space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-stone-900 truncate">儀表板</h1>
-          <p className="text-stone-600 mt-0.5 sm:mt-1 text-xs sm:text-sm lg:text-base hidden sm:block">公司車租借系統總覽</p>
+    <div className="max-w-7xl mx-auto space-y-6 pb-10">
+      {/* Header Section */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-xl border border-stone-200 shadow-sm">
+        <div>
+          <h1 className="text-2xl font-bold text-stone-900">公務車管理系統</h1>
+          <p className="text-stone-500 mt-1">即時掌握車輛動態與排程狀況</p>
         </div>
         <Link
           to="/systems/car-rental/requests/new"
-          className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-red-600 to-amber-500 text-white rounded-lg hover:from-red-700 hover:to-amber-600 transition-all shadow-lg shadow-red-500/20 text-sm sm:text-base touch-manipulation active:scale-95 flex-shrink-0"
+          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-stone-800 text-white rounded-lg hover:bg-stone-900 transition-colors shadow-md font-medium"
         >
-          <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-          <span className="hidden sm:inline">申請租車</span>
-          <span className="sm:hidden">申請</span>
+          <Plus className="w-5 h-5" />
+          新增用車申請
         </Link>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
+      {/* 1. Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {statCards.map((stat, index) => {
           const Icon = stat.icon;
-          const colorClasses = getColorClasses(stat.color);
-          const CardWrapper = stat.link ? Link : 'div';
-          const cardProps = stat.link ? { to: stat.link } : {};
+          const colorClass = getColorClasses(stat.color);
+          const Wrapper = stat.link ? Link : 'div';
+          const wrapperProps = stat.link ? { to: stat.link } : {};
 
           return (
-            <CardWrapper
+            <Wrapper
               key={index}
-              {...cardProps}
-              className={`bg-white rounded-lg border border-stone-200 p-4 sm:p-5 lg:p-6 shadow-sm shadow-red-500/5 ${
-                stat.link ? 'hover:shadow-lg hover:shadow-red-500/10 transition-all cursor-pointer touch-manipulation active:scale-98' : ''
-              }`}
+              {...wrapperProps}
+              className={`group relative bg-white p-4 rounded-xl border border-stone-200 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 ${stat.link ? 'cursor-pointer' : ''}`}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs sm:text-sm text-stone-600 mb-1 sm:mb-2 truncate">{stat.title}</p>
-                  <p className="text-2xl sm:text-3xl font-bold text-stone-900">{stat.value}</p>
+              <div className="flex flex-col justify-between h-full gap-3">
+                <div className="flex justify-between items-start">
+                  <div className={`p-2.5 rounded-lg border transition-colors duration-300 ${colorClass}`}>
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  {stat.link && <ChevronRight className="w-4 h-4 text-stone-300 group-hover:text-stone-500" />}
                 </div>
-                <div className={`p-2 sm:p-3 rounded-lg border ${colorClasses} flex-shrink-0`}>
-                  <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
+                <div>
+                  <div className="text-2xl font-bold text-stone-900">{stat.value}</div>
+                  <div className="text-sm font-medium text-stone-600">{stat.title}</div>
+                  <div className="text-xs text-stone-400 mt-0.5">{stat.desc}</div>
                 </div>
               </div>
-            </CardWrapper>
+            </Wrapper>
           );
         })}
       </div>
 
-      {/* Quick Actions */}
-      <div className="bg-white rounded-lg border border-stone-200 p-4 sm:p-5 lg:p-6 shadow-sm shadow-red-500/5">
-        <h2 className="text-lg sm:text-xl font-semibold text-stone-900 mb-3 sm:mb-4">快速操作</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 lg:gap-4">
-          <Link
-            to="/systems/car-rental/requests/new"
-            className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-gradient-to-br from-red-50 to-amber-50 hover:from-red-100 hover:to-amber-100 rounded-lg transition-all shadow-sm shadow-red-500/10 touch-manipulation active:scale-98"
-          >
-            <Plus className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 flex-shrink-0" />
-            <span className="font-medium text-stone-900 text-sm sm:text-base">申請租車</span>
-          </Link>
-          <Link
-            to="/systems/car-rental/vehicles"
-            className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-gradient-to-br from-amber-50 to-red-50 hover:from-amber-100 hover:to-red-100 rounded-lg transition-all shadow-sm shadow-amber-500/10 touch-manipulation active:scale-98"
-          >
-            <Car className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 flex-shrink-0" />
-            <span className="font-medium text-stone-900 text-sm sm:text-base">查看車輛</span>
-          </Link>
-          <Link
-            to="/systems/car-rental/requests"
-            className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-gradient-to-br from-red-50 to-amber-50 hover:from-red-100 hover:to-amber-100 rounded-lg transition-all shadow-sm shadow-red-500/10 touch-manipulation active:scale-98"
-          >
-            <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 flex-shrink-0" />
-            <span className="font-medium text-stone-900 text-sm sm:text-base">待審核申請</span>
-          </Link>
-          <Link
-            to="/systems/car-rental/my-rentals"
-            className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-all shadow-sm shadow-green-500/10 touch-manipulation active:scale-98"
-          >
-            <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0" />
-            <span className="font-medium text-stone-900 text-sm sm:text-base">我的租借</span>
-          </Link>
-        </div>
-      </div>
-
-      {/* Info Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-        <div className="bg-white rounded-lg border border-stone-200 p-4 sm:p-5 lg:p-6 shadow-sm shadow-red-500/5">
-          <h3 className="text-base sm:text-lg font-semibold text-stone-900 mb-2 sm:mb-3">本月統計</h3>
-          <div className="space-y-2.5 sm:space-y-3">
-            <div className="flex justify-between items-center gap-3">
-              <span className="text-stone-600 text-sm sm:text-base">完成租借次數</span>
-              <span className="text-lg sm:text-xl font-bold text-stone-900">
-                {stats.completedRentalsThisMonth}
+      {/* 2. Main Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Left Column: Calendar (佔 2/3 寬度) */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden h-full flex flex-col">
+            <div className="p-5 border-b border-stone-100 flex justify-between items-center bg-stone-50/50">
+              <h2 className="text-lg font-bold text-stone-900 flex items-center gap-2">
+                <CalendarIcon className="w-5 h-5 text-stone-700" />
+                車輛排程表
+              </h2>
+              <span className="text-xs font-medium px-2.5 py-1 bg-white border border-stone-200 text-stone-600 rounded-full shadow-sm">
+                即時同步
               </span>
             </div>
-            <div className="flex justify-between items-center gap-3">
-              <span className="text-stone-600 text-sm sm:text-base">即將到來（7天內）</span>
-              <span className="text-lg sm:text-xl font-bold text-stone-900">{stats.upcomingRentals}</span>
+            <div className="p-4 flex-1 min-h-[500px]">
+               <RentalsCalendar rentals={rentals} />
             </div>
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-red-600 to-amber-500 rounded-lg p-4 sm:p-5 lg:p-6 text-white shadow-lg shadow-red-500/20">
-          <h3 className="text-base sm:text-lg font-semibold mb-1.5 sm:mb-2">需要租車嗎？</h3>
-          <p className="text-red-50 mb-3 sm:mb-4 text-sm sm:text-base">提交租車申請，讓我們為您安排最合適的車輛。</p>
-          <Link
-            to="/systems/car-rental/requests/new"
-            className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-white text-red-600 rounded-lg hover:bg-red-50 transition-all font-medium text-sm sm:text-base shadow-md touch-manipulation active:scale-95"
-          >
-            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            立即申請
-          </Link>
+        {/* Right Column: Actions & Operations (佔 1/3 寬度) */}
+        <div className="space-y-6">
+          
+          {/* A. 今日動態 (互動版) */}
+          <div className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-stone-100 bg-stone-50/30">
+              <h3 className="text-base font-bold text-stone-900 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-blue-600" />
+                今日任務 ({new Date().toLocaleDateString('zh-TW', {month: 'numeric', day: 'numeric'})})
+              </h3>
+            </div>
+            
+            <div className="p-4 space-y-5">
+                {/* 1. 出車任務區塊 */}
+                <div>
+                    <h4 className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-2 flex items-center gap-1">
+                        <ArrowRightCircle className="w-3.5 h-3.5" /> 待取車 (交接鑰匙)
+                    </h4>
+                    
+                    {departingTodayList.length > 0 ? (
+                        <div className="space-y-2">
+                            {departingTodayList.map(rental => (
+                                <div key={rental.id} className="flex items-center justify-between p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-bold text-stone-900 truncate">
+                                            {rental.renter?.name || '未知'}
+                                        </p>
+                                        <p className="text-xs text-stone-500 truncate">
+                                            {rental.vehicle?.plate_number}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => handlePickup(rental)}
+                                        className="ml-2 flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors shadow-sm whitespace-nowrap"
+                                    >
+                                        <Key className="w-3 h-3" />
+                                        確認取車
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-sm text-stone-400 italic pl-1 py-2 bg-stone-50 rounded border border-dashed border-stone-200 text-center">
+                            目前無待取車輛
+                        </div>
+                    )}
+                </div>
+
+                {/* 分隔線 */}
+                <div className="border-t border-stone-100"></div>
+
+                {/* 2. 還車任務區塊 */}
+                <div>
+                    <h4 className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-2 flex items-center gap-1">
+                        <ArrowLeftCircle className="w-3.5 h-3.5" /> 待還車 (檢查車況)
+                    </h4>
+                    
+                    {returningTodayList.length > 0 ? (
+                        <div className="space-y-2">
+                             {returningTodayList.map(rental => (
+                                <div key={rental.id} className="flex items-center justify-between p-3 bg-amber-50 border border-amber-100 rounded-lg">
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-bold text-stone-900 truncate">
+                                            {rental.renter?.name || '未知'}
+                                        </p>
+                                        <p className="text-xs text-stone-500 truncate">
+                                            {rental.vehicle?.plate_number}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => handleReturn(rental)}
+                                        className="ml-2 flex items-center gap-1 px-3 py-1.5 bg-amber-600 text-white text-xs font-medium rounded hover:bg-amber-700 transition-colors shadow-sm whitespace-nowrap"
+                                    >
+                                        <CheckCircle className="w-3 h-3" />
+                                        確認歸還
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-sm text-stone-400 italic pl-1 py-2 bg-stone-50 rounded border border-dashed border-stone-200 text-center">
+                            目前無待還車輛
+                        </div>
+                    )}
+                </div>
+            </div>
+          </div>
+
+          {/* B. 快速操作選單 */}
+          <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-5">
+            <h3 className="text-base font-bold text-stone-900 mb-4 flex items-center gap-2">
+              <Activity className="w-4 h-4 text-stone-500" />
+              管理功能
+            </h3>
+            <div className="space-y-2">
+              <Link
+                to="/systems/car-rental/vehicles"
+                className="flex items-center p-3 rounded-lg hover:bg-stone-50 border border-stone-100 hover:border-stone-200 transition-all group"
+              >
+                <div className="p-2 bg-stone-100 text-stone-600 rounded-lg mr-3 group-hover:bg-stone-600 group-hover:text-white transition-colors">
+                  <Car className="w-5 h-5" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-medium text-stone-900">車輛清單管理</div>
+                  <div className="text-xs text-stone-500">新增或維護車輛資料</div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-stone-300 ml-auto group-hover:translate-x-1 transition-transform" />
+              </Link>
+
+              <Link
+                to="/systems/car-rental/requests"
+                className="flex items-center p-3 rounded-lg hover:bg-stone-50 border border-stone-100 hover:border-stone-200 transition-all group"
+              >
+                <div className="p-2 bg-stone-100 text-stone-600 rounded-lg mr-3 group-hover:bg-stone-600 group-hover:text-white transition-colors">
+                  <CheckCircle className="w-5 h-5" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-medium text-stone-900">申請單審核</div>
+                  <div className="text-xs text-stone-500">處理員工用車申請</div>
+                </div>
+                {stats.pendingRequests > 0 && (
+                  <span className="ml-auto bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full shadow-sm">
+                    {stats.pendingRequests}
+                  </span>
+                )}
+              </Link>
+
+              <Link
+                to="/systems/car-rental/rentals" // 👈 連到新頁面
+                className="flex items-center p-3 rounded-lg hover:bg-stone-50 border border-stone-100 hover:border-stone-200 transition-all group"
+              >
+                <div className="p-2 bg-stone-100 text-stone-600 rounded-lg mr-3 group-hover:bg-stone-600 group-hover:text-white transition-colors">
+                  {/* 使用 Key 圖示代表租借管理 */}
+                  <Key className="w-5 h-5" /> 
+                </div>
+                <div className="flex-1">
+                  <div className="font-medium text-stone-900">租借記錄管理</div>
+                  <div className="text-xs text-stone-500">執行取車、還車與記錄查詢</div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-stone-300 ml-auto group-hover:translate-x-1 transition-transform" />
+              </Link>
+            </div>
+          </div>
+          
         </div>
       </div>
     </div>

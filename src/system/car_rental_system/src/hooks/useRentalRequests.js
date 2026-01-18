@@ -1,49 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import toast from 'react-hot-toast';
 
 export const useRentalRequests = (userId = null) => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // 獲取租借申請（可選擇只獲取特定用戶的申請）
-  const fetchRequests = async () => {
+  // 1. 獲取租借申請 (使用 useCallback 以便在 useEffect 中依賴)
+  const fetchRequests = useCallback(async () => {
     try {
-      setLoading(true);
+      // 不設定 setLoading(true) 以免 Realtime 更新時畫面閃爍
+      // 僅在第一次載入時由 useEffect 控制 loading
       setError(null);
 
       let query = supabase
-        .from('rental_requests')
-        .select(`
-          *,
-          vehicle:vehicles!vehicle_id (
-            id,
-            plate_number,
-            brand,
-            model,
-            vehicle_type
-          ),
-          requester:employees!requester_id (
-            id,
-            employee_id,
-            name,
-            email,
-            phone,
-            department:departments!department_id (
-              id,
-              name
-            ),
-            position
-          ),
-          reviewer:employees!reviewer_id (
-            id,
-            employee_id,
-            name
-          )
-        `)
+        .from('rental_requests_view')
+        .select('*')
         .order('created_at', { ascending: false });
 
-      // 如果指定 userId，只獲取該用戶的申請
       if (userId) {
         query = query.eq('requester_id', userId);
       }
@@ -56,202 +31,221 @@ export const useRentalRequests = (userId = null) => {
     } catch (err) {
       console.error('Error fetching rental requests:', err);
       setError(err.message);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [userId]);
 
-  // 創建租借申請
+  // 2. 初始化與 Realtime 訂閱
+useEffect(() => {
+    // 初始載入
+    setLoading(true);
+    fetchRequests().finally(() => setLoading(false));
+
+    // ✅ 修正點：定義 channel 變數以便後續操作
+    const channel = supabase
+      .channel('rental_requests_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'car_rental',
+          table: 'rental_requests',
+          filter: userId ? `requester_id=eq.${userId}` : undefined
+        },
+        (payload) => {
+          console.log('📡 收到更新:', payload);
+          fetchRequests();
+        }
+      )
+      .subscribe();
+
+    // ✅ 修正點：正確的取消訂閱方式
+    // 不使用 supabase.removeChannel(subscription)，而是直接用 channel.unsubscribe()
+    return () => {
+      if (channel) {
+        channel.unsubscribe();
+      }
+    };
+  }, [userId, fetchRequests]);
+
+  // 3. 創建租借申請
   const createRequest = async (requestData) => {
     try {
-      const { data, error: createError } = await supabase
+      // A. 寫入原始 Table
+      const { data: insertedData, error: createError } = await supabase
         .from('rental_requests')
         .insert([requestData])
-        .select(`
-          *,
-          vehicle:vehicles!vehicle_id (
-            id,
-            plate_number,
-            brand,
-            model,
-            vehicle_type
-          ),
-          requester:employees!requester_id (
-            id,
-            employee_id,
-            name,
-            email,
-            phone,
-            department:departments!department_id (
-              id,
-              name
-            ),
-            position
-          )
-        `)
+        .select('id')
         .single();
 
       if (createError) throw createError;
 
-      setRequests(prev => [data, ...prev]);
-      return { success: true, data };
+      // B. 寫入後，從 View 撈取完整資料更新 UI (雖然 Realtime 會跑，但手動更新反應較快)
+      const { data: viewData, error: viewError } = await supabase
+        .from('rental_requests_view')
+        .select('*')
+        .eq('id', insertedData.id)
+        .single();
+
+      if (viewError) throw viewError;
+
+      setRequests(prev => [viewData, ...prev]);
+      return { success: true, data: viewData };
     } catch (err) {
       console.error('Error creating rental request:', err);
       return { success: false, error: err.message };
     }
   };
 
-  // 更新申請
+  // 4. 更新申請 (通用)
   const updateRequest = async (id, updates) => {
     try {
-      const { data, error: updateError } = await supabase
+      const { error: updateError } = await supabase
         .from('rental_requests')
         .update(updates)
-        .eq('id', id)
-        .select(`
-          *,
-          vehicle:vehicles!vehicle_id (
-            id,
-            plate_number,
-            brand,
-            model,
-            vehicle_type
-          )
-        `)
-        .single();
+        .eq('id', id);
 
       if (updateError) throw updateError;
 
-      setRequests(prev =>
-        prev.map(r => r.id === id ? data : r)
-      );
-      return { success: true, data };
+      // 更新 UI (Realtime 會處理，但為了即時回饋先做一次)
+      const { data: viewData } = await supabase
+        .from('rental_requests_view')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (viewData) {
+        setRequests(prev => prev.map(r => r.id === id ? viewData : r));
+      }
+      return { success: true, data: viewData };
     } catch (err) {
-      console.error('Error updating rental request:', err);
+      console.error('Error updating request:', err);
       return { success: false, error: err.message };
     }
   };
 
-  // 審核申請
+  // 5. 審核申請 (整合 RPC)
   const reviewRequest = async (id, status, reviewerId, comment = '') => {
     try {
-      const updates = {
-        status,
-        reviewer_id: reviewerId,
-        reviewed_at: new Date().toISOString(),
-        review_comment: comment,
-      };
+      let resultData = null;
 
-      const { data, error: updateError } = await supabase
-        .from('rental_requests')
-        .update(updates)
-        .eq('id', id)
-        .select(`
-          *,
-          vehicle:vehicles!vehicle_id (
-            id,
-            plate_number,
-            brand,
-            model,
-            vehicle_type
-          )
-        `)
-        .single();
+      if (status === 'approved') {
+        // 核准：走 RPC 交易 (檢查車輛 + 建立租借單)
+        const { error } = await supabase.rpc('approve_rental_request', {
+          p_request_id: id,
+          p_reviewer_id: reviewerId,
+          p_review_comment: comment
+        });
 
-      if (updateError) throw updateError;
+        if (error) throw new Error(error.message || '核准失敗');
 
-      // 如果審核通過，自動創建租借記錄
-      if (status === 'approved' && data.vehicle_id) {
-        await createRentalFromRequest(data);
+      } else {
+        // 拒絕：走一般更新 (加上樂觀鎖)
+        const updates = {
+          status,
+          reviewer_id: reviewerId,
+          reviewed_at: new Date().toISOString(),
+          review_comment: comment,
+        };
+
+        const { error } = await supabase
+          .from('rental_requests')
+          .update(updates)
+          .eq('id', id)
+          .eq('status', 'pending'); // 確保狀態沒被改過
+
+        if (error) {
+           if (error.code === 'PGRST116') throw new Error('操作失敗：申請單狀態已變更。');
+           throw error;
+        }
       }
 
-      setRequests(prev =>
-        prev.map(r => r.id === id ? data : r)
-      );
-      return { success: true, data };
+      // 重新讀取最新狀態
+      const { data: viewData } = await supabase
+        .from('rental_requests_view')
+        .select('*')
+        .eq('id', id)
+        .single();
+        
+      if (viewData) {
+        setRequests(prev => prev.map(r => r.id === id ? viewData : r));
+        resultData = viewData;
+      }
+
+      return { success: true, data: resultData };
+
     } catch (err) {
-      console.error('Error reviewing rental request:', err);
+      console.error('Error reviewing request:', err);
       return { success: false, error: err.message };
     }
   };
 
-  // 從申請創建租借記錄
-  const createRentalFromRequest = async (request) => {
+  // 6. 取消申請 (智慧判斷：待審核 vs 已核准)
+  const cancelRequest = async (id) => {
     try {
-      const rentalData = {
-        request_id: request.id,
-        vehicle_id: request.vehicle_id,
-        renter_id: request.requester_id,
-        start_date: request.start_date,
-        end_date: request.end_date,
-        status: 'confirmed',
-      };
+      // 先查詢目前這筆申請的狀態
+      const { data: currentRequest, error: fetchError } = await supabase
+        .from('rental_requests')
+        .select('status')
+        .eq('id', id)
+        .single();
 
-      const { error: createError } = await supabase
-        .from('rentals')
-        .insert([rentalData]);
+      if (fetchError || !currentRequest) throw new Error('找不到該申請單');
 
-      if (createError) throw createError;
+      // 情境 A: 狀態是 approved (已核准) -> 走複雜取消流程 (釋放車輛)
+      if (currentRequest.status === 'approved') {
+        const { error } = await supabase.rpc('cancel_approved_request', {
+          p_request_id: id
+        });
+        if (error) throw error;
+      }
+      // 情境 B: 狀態是 pending (待審核) -> 直接改狀態
+      else if (currentRequest.status === 'pending') {
+        const { error } = await supabase
+          .from('rental_requests')
+          .update({ status: 'cancelled' })
+          .eq('id', id);
+        if (error) throw error;
+      } 
+      // 情境 C: 其他狀態 (已完成/已取消) -> 不可取消
+      else {
+        throw new Error('無法取消：該申請已完成或已取消');
+      }
+
+      // 成功後更新 UI
+      const { data: viewData } = await supabase
+        .from('rental_requests_view')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (viewData) {
+        setRequests(prev => prev.map(r => r.id === id ? viewData : r));
+      }
 
       return { success: true };
+
     } catch (err) {
-      console.error('Error creating rental from request:', err);
+      console.error('Error cancelling request:', err);
       return { success: false, error: err.message };
     }
   };
 
-  // 取消申請
-  const cancelRequest = async (id) => {
-    return await updateRequest(id, { status: 'cancelled' });
-  };
-
-  // 獲取單一申請
+  // 7. 獲取單一申請
   const getRequestById = async (id) => {
     try {
       const { data, error: fetchError } = await supabase
-        .from('rental_requests')
-        .select(`
-          *,
-          vehicle:vehicles!vehicle_id (
-            id,
-            plate_number,
-            brand,
-            model,
-            vehicle_type,
-            color
-          ),
-          requester:employees!requester_id (
-            id,
-            employee_id,
-            name,
-            email,
-            phone,
-            department:departments!department_id (
-              id,
-              name
-            ),
-            position
-          ),
-          reviewer:employees!reviewer_id (
-            id,
-            employee_id,
-            name
-          )
-        `)
+        .from('rental_requests_view')
+        .select('*')
         .eq('id', id)
         .single();
 
       if (fetchError) throw fetchError;
       return { success: true, data };
     } catch (err) {
-      console.error('Error fetching rental request:', err);
+      console.error('Error fetching request:', err);
       return { success: false, error: err.message };
     }
   };
-
-  useEffect(() => {
-    fetchRequests();
-  }, [userId]);
 
   return {
     requests,

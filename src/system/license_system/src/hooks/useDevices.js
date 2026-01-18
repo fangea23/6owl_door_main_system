@@ -12,17 +12,11 @@ export function useDevices() {
     console.log('🚀 [useDevices] 開始抓取設備資料...');
 
     try {
-      // Wrapper 會自動切換到 software_maintenance schema
+      // 🟢 修改：改查 View (device_details)
+      // View 已經處理好跨 Schema 的員工與部門資料
       const { data, error } = await supabase
-        .from('devices')
-        .select(`
-          *,
-          employee:employees!fk_devices_employees(
-            id, 
-            name, 
-            employee_id
-          )
-        `)
+        .from('device_details') // <--- 改成 View
+        .select('*')
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -44,59 +38,66 @@ export function useDevices() {
   const createDevice = async (device) => {
     console.log('➕ [createDevice] 新增設備:', device);
     
-    const { data, error } = await supabase
+    // Step 1: 寫入原始表格 (devices)
+    const { data: insertData, error: insertError } = await supabase
       .from('devices')
       .insert([device])
-      .select(`
-        *,
-        employee:employees!fk_devices_employees(
-          id, 
-          name, 
-          employee_id
-        )
-      `)
+      .select('id')
       .single()
 
-    if (error) {
-      console.error('❌ [createDevice] 新增失敗:', error);
-    } else {
-      console.log('✅ [createDevice] 新增成功:', data);
-      setDevices(prev => [data, ...prev])
+    if (insertError) {
+      console.error('❌ [createDevice] 新增失敗:', insertError);
+      return { data: null, error: insertError }
     }
-    return { data, error }
+
+    // Step 2: 從 View 撈取完整資料 (包含員工姓名等)
+    const { data: viewData, error: viewError } = await supabase
+      .from('device_details')
+      .select('*')
+      .eq('id', insertData.id)
+      .single()
+
+    if (!viewError) {
+      console.log('✅ [createDevice] 新增成功 (View):', viewData);
+      setDevices(prev => [viewData, ...prev])
+    }
+    
+    return { data: viewData, error: viewError }
   }
 
   const updateDevice = async (id, updates) => {
     console.log('📝 [updateDevice] 更新設備 ID:', id);
 
-    const { data, error } = await supabase
+    // Step 1: 更新原始表格 (devices)
+    const { error: updateError } = await supabase
       .from('devices')
       .update(updates)
       .eq('id', id)
-// 未來如果需要顯示部門，可以改成這樣：
-.select(`
-  *,
-  employee:employees!fk_devices_employees(
-    id, 
-    name, 
-    employee_id,
-    department:departments!fk_employees_department(name) // 👈 加這行
-  )
-`)
+
+    if (updateError) {
+      console.error('❌ [updateDevice] 更新失敗:', updateError);
+      return { data: null, error: updateError }
+    }
+
+    // Step 2: 從 View 撈取最新資料
+    const { data: viewData, error: viewError } = await supabase
+      .from('device_details')
+      .select('*')
+      .eq('id', id)
       .single()
 
-    if (error) {
-      console.error('❌ [updateDevice] 更新失敗:', error);
-    } else {
-      console.log('✅ [updateDevice] 更新成功:', data);
-      setDevices(prev => prev.map(d => d.id === id ? data : d))
+    if (!viewError) {
+      console.log('✅ [updateDevice] 更新成功 (View):', viewData);
+      setDevices(prev => prev.map(d => d.id === id ? viewData : d))
     }
-    return { data, error }
+    
+    return { data: viewData, error: viewError }
   }
 
   const deleteDevice = async (id) => {
     console.log('🗑️ [deleteDevice] 刪除設備 ID:', id);
     
+    // 刪除直接操作原始表格即可
     const { error } = await supabase
       .from('devices')
       .delete()

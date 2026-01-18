@@ -6,7 +6,7 @@ import { Vehicles } from './pages/Vehicles';
 import { RentalRequests } from './pages/RentalRequests';
 import { MyRentals } from './pages/MyRentals';
 import { RequestForm } from './pages/RequestForm';
-
+import { RentalsList } from './pages/RentalsList'; // 👈 引入新頁面
 function App() {
   return (
     <Routes>
@@ -17,6 +17,7 @@ function App() {
         <Route path="requests" element={<RentalRequests />} />
         <Route path="requests/new" element={<RequestForm />} />
         <Route path="my-rentals" element={<MyRentals />} />
+        <Route path="rentals" element={<RentalsList />} />
       </Route>
     </Routes>
   );

@@ -1,18 +1,20 @@
 import React from 'react';
 import { Car, Calendar, MapPin, CheckCircle, Clock } from 'lucide-react';
 import { useRentals } from '../hooks/useRentals';
+import { useCurrentEmployee } from '../hooks/useCurrentEmployee'; // 👈 引入這個
 
 export const MyRentals = () => {
-  const { rentals, loading } = useRentals('current-user-id'); // 實際使用時需要從認證系統獲取用戶 ID
+  // 1. 取得當前員工資料
+  const { employee, loading: employeeLoading } = useCurrentEmployee();
+  
+  // 2. 將員工 ID 傳給 useRentals (如果還沒載入完成，傳 null)
+  const { rentals, loading: rentalsLoading } = useRentals(employee?.id); 
+
+  const loading = employeeLoading || rentalsLoading;
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('zh-TW');
   };
-
-  const formatDateTime = (dateString) => {
-    return new Date(dateString).toLocaleString('zh-TW');
-  };
-
   const getStatusInfo = (status) => {
     const statusMap = {
       confirmed: { label: '已確認', color: 'blue', icon: CheckCircle },

@@ -30,7 +30,6 @@ export const useCurrentEmployee = () => {
       }
 
       // 從 public.employees 查詢員工資訊
-      // 注意：這裡需要直接使用 mainClient，因為 employees 在 public schema
       const { data, error: fetchError } = await supabase
         .from('employees')
         .select(`
@@ -39,7 +38,7 @@ export const useCurrentEmployee = () => {
           name,
           email,
           phone,
-          department:department_id (
+          department:departments!employees_department_id_fkey (
             id,
             name,
             code
@@ -47,7 +46,9 @@ export const useCurrentEmployee = () => {
           position,
           role,
           status
-        `)
+        `) 
+        // 👆 修改重點：加上 !employees_department_id_fkey
+        // 這是 Postgres 預設的標準命名，也是我們資料庫整理後保留的名稱
         .eq('user_id', user.id)
         .eq('status', 'active')
         .is('deleted_at', null)

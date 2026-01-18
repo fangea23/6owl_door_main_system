@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 
+// 1. 授權管理 Hook (維持原樣，因為不涉及跨 Schema 查詢)
 export function useLicenses() {
   const [licenses, setLicenses] = useState([])
   const [loading, setLoading] = useState(true)
@@ -10,7 +11,6 @@ export function useLicenses() {
     setLoading(true)
     setError(null)
     try {
-      // 這裡 supabase wrapper 會自動切換到 software_maintenance schema
       const { data, error } = await supabase
         .from('licenses')
         .select(`
@@ -97,6 +97,7 @@ export function useLicenses() {
   }
 }
 
+// 2. 授權分配 Hook (大幅修改：改用 View)
 export function useLicenseAssignments(licenseId = null) {
   const [assignments, setAssignments] = useState([])
   const [loading, setLoading] = useState(true)
@@ -104,28 +105,10 @@ export function useLicenseAssignments(licenseId = null) {
   const fetchAssignments = useCallback(async () => {
     setLoading(true)
     
-    // 定義正確的查詢字串，包含所有修正後的 Foreign Key Hint
-    const selectQuery = `
-      *,
-      license:licenses(
-        id, license_key, license_type,
-        software:software(id, name, category)
-      ),
-      employee:employees!fk_assignments_employees(
-        id, employee_id, name,
-        department:departments!fk_employees_department(id, name) 
-      ),
-      device:devices!fk_assignments_device(
-        id, name, serial_number, device_type
-      )
-    `;
-    // 👆 修改重點：
-    // 1. department 加上 !fk_employees_department
-    // 2. device 改用 !fk_assignments_device (原本錯用成 fk_devices_employees)
-
+    // 🟢 修改：直接查詢 View (assignment_details)，資料已經在 SQL 裡 Join 好了
     let query = supabase
-      .from('license_assignments')
-      .select(selectQuery)
+      .from('assignment_details') 
+      .select('*')
       .order('created_at', { ascending: false })
 
     if (licenseId) {
@@ -147,51 +130,61 @@ export function useLicenseAssignments(licenseId = null) {
   }, [fetchAssignments])
 
   const assignLicense = async (assignment) => {
-    // 這裡的 select 也要跟上面 fetch 一模一樣，確保 UI 更新時資料結構一致
-    const { data, error } = await supabase
+    // 🟢 修改邏輯：兩步式寫入
+    // Step 1: 寫入原始表格 license_assignments
+    const { data: insertData, error: insertError } = await supabase
       .from('license_assignments')
       .insert([assignment])
-      .select(`
-        *,
-        license:licenses(
-          id, license_key, license_type,
-          software:software(id, name, category)
-        ),
-        employee:employees!fk_assignments_employees(
-          id, employee_id, name,
-          department:departments!fk_employees_department(id, name)
-        ),
-        device:devices!fk_assignments_device(
-          id, name, serial_number, device_type
-        )
-      `) // 👈 這裡也要改
+      .select('id') // 只拿 ID 就好
       .single()
 
-    if (!error) {
-      setAssignments(prev => [data, ...prev])
-    } else {
-        console.error("Assign License Error:", error)
+    if (insertError) {
+      console.error("Assign License Error (Insert):", insertError)
+      return { data: null, error: insertError }
     }
-    return { data, error }
+
+    // Step 2: 從 View 查出完整資料 (包含員工姓名、部門、軟體名稱)
+    const { data: viewData, error: viewError } = await supabase
+      .from('assignment_details')
+      .select('*')
+      .eq('id', insertData.id)
+      .single()
+
+    if (!viewError) {
+      setAssignments(prev => [viewData, ...prev])
+    } else {
+      console.error("Assign License Error (Fetch View):", viewError)
+    }
+    
+    return { data: viewData, error: viewError }
   }
 
   const unassignLicense = async (assignmentId) => {
-    const { data, error } = await supabase
+    // 🟢 修改邏輯：兩步式更新
+    // Step 1: 更新原始表格
+    const { error: updateError } = await supabase
       .from('license_assignments')
       .update({
         is_active: false,
         unassigned_date: new Date().toISOString().split('T')[0]
       })
       .eq('id', assignmentId)
-      .select()
+
+    if (updateError) return { error: updateError }
+
+    // Step 2: 從 View 重新抓取該筆資料 (確保狀態同步)
+    const { data: viewData, error: viewError } = await supabase
+      .from('assignment_details')
+      .select('*')
+      .eq('id', assignmentId)
       .single()
 
-    if (!error) {
+    if (!viewError) {
       setAssignments(prev => prev.map(a =>
-        a.id === assignmentId ? { ...a, is_active: false } : a
+        a.id === assignmentId ? viewData : a
       ))
     }
-    return { data, error }
+    return { data: viewData, error: viewError }
   }
 
   const deleteAssignment = async (assignmentId) => {
@@ -216,7 +209,7 @@ export function useLicenseAssignments(licenseId = null) {
   }
 }
 
-// 取得員工的所有授權
+// 3. 員工授權查詢 (也改用 View 以保持一致性)
 export function useEmployeeLicenses(employeeId) {
   const [licenses, setLicenses] = useState([])
   const [loading, setLoading] = useState(true)
@@ -225,16 +218,10 @@ export function useEmployeeLicenses(employeeId) {
     if (!employeeId) return
 
     const fetchEmployeeLicenses = async () => {
-      // 這裡 wrapper 會自動切換 schema，我們只需要確保關聯正確
+      // 🟢 修改：改查 View，這樣如果要顯示軟體名稱或詳細資訊會更方便
       const { data, error } = await supabase
-        .from('license_assignments')
-        .select(`
-          *,
-          license:licenses(
-            id, license_key, license_type, expiry_date,
-            software:software(id, name, category, vendor:vendors(name))
-          )
-        `)
+        .from('assignment_details')
+        .select('*')
         .eq('employee_id', employeeId)
         .eq('is_active', true)
       
