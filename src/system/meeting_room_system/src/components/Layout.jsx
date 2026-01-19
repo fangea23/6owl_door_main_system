@@ -1,27 +1,25 @@
-import React from 'react';
-import { Outlet, NavLink, useNavigate ,Link} from 'react-router-dom';
+import React, { useState, useEffect } from 'react'; // 1. 引入 useState, useEffect
+import { Outlet, NavLink, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
+import { supabase } from '../supabaseClient'; // 2. 引入 supabase (請確認路徑是否正確)
 import {
   Calendar,
   Plus,
   Building2,
-  Home,
-  User,
   Menu,
   X
 } from 'lucide-react';
-// 在其他 import 下方加入
-import logoSrc from '../../../../assets/logo.png'; // 確保路徑層級正確指向 src/assets/logo.png
+import logoSrc from '../../../../assets/logo.png'; 
+
 const BASE_PATH = '/systems/meeting-room';
 
-// 六扇門 Logo 組件 - 與主系統統一風格
-// 修改 Logo 組件
+// 六扇門 Logo 組件
 const Logo = ({ size = 'default' }) => {
   const sizeClasses = size === 'small' ? 'w-8 h-8' : 'w-10 h-10';
   return (
     <div className={`${sizeClasses} relative flex items-center justify-center`}>
       <img
-        src={logoSrc}  // 改用變數
+        src={logoSrc}
         alt="六扇門 Logo"
         className="w-full h-full object-contain filter drop-shadow-md"
       />
@@ -32,7 +30,36 @@ const Logo = ({ size = 'default' }) => {
 export default function Layout() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // --- 3. 新增：員工姓名狀態與抓取邏輯 ---
+  const [employeeName, setEmployeeName] = useState(null);
+
+  useEffect(() => {
+    const fetchEmployeeName = async () => {
+      if (!user?.id) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('employees')
+          .select('name')
+          .eq('user_id', user.id)
+          .single();
+
+        if (data?.name) {
+          setEmployeeName(data.name);
+        }
+      } catch (err) {
+        console.error('Error fetching employee name:', err);
+      }
+    };
+
+    fetchEmployeeName();
+  }, [user]);
+
+  // 4. 定義顯示名稱變數 (優先使用員工表姓名)
+  const displayName = employeeName || user?.user_metadata?.full_name || user?.email?.split('@')[0] || '使用者';
+  // -------------------------------------
 
   const navItems = [
     { path: `${BASE_PATH}/dashboard`, icon: Calendar, label: '預約總覽' },
@@ -42,9 +69,8 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-stone-50 bg-pattern-diagonal">
-      {/* Header - 與主系統統一風格 */}
+      {/* Header */}
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-stone-200 shadow-sm">
-        {/* 背景紋理 */}
         <div className="absolute inset-0 bg-pattern-diagonal opacity-50 pointer-events-none" />
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -112,11 +138,13 @@ export default function Layout() {
                 title="個人資料設定"
               >
                 <div className="w-8 h-8 bg-gradient-to-br from-red-700 to-red-900 rounded-lg flex items-center justify-center text-white font-medium text-sm shadow-md shadow-red-500/20">
-                  {user?.user_metadata?.full_name?.charAt(0) || user?.email?.charAt(0)?.toUpperCase() || 'U'}
+                  {/* 5. 修改：使用 displayName 的第一個字 */}
+                  {displayName.charAt(0)}
                 </div>
                 <div className="text-sm">
                   <p className="font-medium text-stone-700">
-                    {user?.user_metadata?.full_name || user?.email?.split('@')[0] || '使用者'}
+                    {/* 6. 修改：顯示 displayName */}
+                    {displayName}
                   </p>
                 </div>
               </Link>
@@ -161,14 +189,14 @@ export default function Layout() {
         <Outlet />
       </main>
 
-      {/* Footer - 與主系統統一風格 */}
+      {/* Footer */}
       <footer className="border-t border-stone-200/60 mt-auto bg-white/50 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-3 text-stone-600">
               <div className="w-8 h-8 flex items-center justify-center">
                 <img 
-                  src={logoSrc} // 改用變數
+                  src={logoSrc}
                   alt="Logo" 
                   className="w-full h-full object-contain opacity-80" 
                 />

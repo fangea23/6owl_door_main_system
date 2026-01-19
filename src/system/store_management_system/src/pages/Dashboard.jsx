@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // 1. 引入 useEffect
 import { Link, useNavigate } from 'react-router-dom';
 import { Store, Plus, Edit2, Trash2, Search, Building2, ToggleLeft, ToggleRight, AlertCircle, User, LogOut } from 'lucide-react';
 import { useBrands } from '../hooks/useBrands';
 import { useStores } from '../hooks/useStores';
 import { useAuth } from '../AuthContext';
+import { supabase } from '../supabaseClient'; // 2. 引入 supabase
 import logoSrc from '../../../../assets/logo.png';
 
 // 六扇門 Logo 組件
@@ -33,8 +34,34 @@ export default function Dashboard() {
   const { stores, loading: storesLoading, addStore, updateStore, deleteStore, toggleStoreStatus } = useStores(selectedBrand?.id);
   const { user, profile } = useAuth();
 
-  // 獲取顯示名稱（優先順序：profile.name > user_metadata.name > email）
-  const displayName = profile?.name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email;
+  // --- 3. 新增：員工姓名狀態與抓取邏輯 ---
+  const [employeeName, setEmployeeName] = useState(null);
+
+  useEffect(() => {
+    const fetchEmployeeName = async () => {
+      if (!user?.id) return;
+
+      try {
+        const { data } = await supabase
+          .from('employees')
+          .select('name')
+          .eq('user_id', user.id)
+          .single();
+
+        if (data?.name) {
+          setEmployeeName(data.name);
+        }
+      } catch (err) {
+        console.error('Error fetching employee name:', err);
+      }
+    };
+
+    fetchEmployeeName();
+  }, [user]);
+
+  // 4. 修改：獲取顯示名稱（優先順序：employeeName > profile.name > user_metadata...）
+  const displayName = employeeName || profile?.name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email;
+  // -------------------------------------
 
   // 過濾店舖
   const filteredStores = stores.filter(store =>

@@ -51,6 +51,33 @@ export default function Dashboard() {
   const { user, role } = useAuth();
   const currentRole = role || 'staff'; 
 
+  // --- 1. 新增：員工姓名狀態與抓取邏輯 ---
+  const [employeeName, setEmployeeName] = useState('');
+
+  useEffect(() => {
+    const fetchEmployeeName = async () => {
+      if (!user?.id) return;
+      try {
+        const { data } = await supabase
+          .from('employees')
+          .select('name')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (data?.name) {
+          setEmployeeName(data.name);
+        }
+      } catch (err) {
+        console.error('Error fetching name:', err);
+      }
+    };
+    fetchEmployeeName();
+  }, [user]);
+
+  // 定義顯示名稱變數
+  const displayName = employeeName || user?.user_metadata?.full_name || user?.email;
+  // -------------------------------------
+
   // --- 模擬角色與視圖狀態 ---
   const [viewMode, setViewMode] = useState('all');
   useEffect(() => {
@@ -250,7 +277,7 @@ export default function Dashboard() {
             付款單總覽
           </h1>
           <p className="text-stone-500 mt-2 ml-1 text-sm md:text-base flex items-center gap-2">
-             <span className="font-bold text-stone-700">{user?.user_metadata?.full_name || user?.email}</span>
+            <span className="font-bold text-stone-700">{displayName}</span>
              <span className="text-stone-300">|</span>
              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-stone-100 text-stone-600 border border-stone-200">
                {currentRole}

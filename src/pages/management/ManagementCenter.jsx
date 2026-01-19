@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // 1. 引入 useEffect
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Shield, Users, Building2, Briefcase } from 'lucide-react';
 import ProfilesManagement from './components/ProfilesManagement';
 import EmployeesManagement from './components/EmployeesManagement';
 import DepartmentsManagement from './components/DepartmentsManagement';
+import { supabase } from '../../lib/supabase.js'; // 2. 引入 supabase (請確認路徑是否正確，通常與 contexts 同層級或在 src 根目錄)
 import logoSrc from '../../assets/logo.png';
 
 // 六扇門 Logo 組件
@@ -29,6 +30,35 @@ export default function ManagementCenter() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('profiles');
+
+  // --- 3. 新增：員工姓名狀態與抓取邏輯 ---
+  const [employeeName, setEmployeeName] = useState(null);
+
+  useEffect(() => {
+    const fetchEmployeeName = async () => {
+      if (!user?.id) return;
+
+      try {
+        const { data } = await supabase
+          .from('employees')
+          .select('name')
+          .eq('user_id', user.id)
+          .single();
+
+        if (data?.name) {
+          setEmployeeName(data.name);
+        }
+      } catch (err) {
+        console.error('Error fetching employee name:', err);
+      }
+    };
+
+    fetchEmployeeName();
+  }, [user]);
+
+  // 4. 定義顯示名稱變數 (優先使用員工表姓名)
+  const displayName = employeeName || user?.user_metadata?.full_name || user?.email?.split('@')[0] || '使用者';
+  // -------------------------------------
 
   // 權限檢查：只有 admin 和 hr 可以訪問
   if (role !== 'admin' && role !== 'hr') {
@@ -122,11 +152,13 @@ export default function ManagementCenter() {
             <div className="flex items-center gap-3">
               <div className="hidden sm:flex items-center gap-2">
                 <div className="w-8 h-8 bg-gradient-to-br from-red-700 to-red-900 rounded-lg flex items-center justify-center text-white font-medium text-sm shadow-md shadow-red-500/20">
-                  {user?.user_metadata?.full_name?.charAt(0) || user?.email?.charAt(0)?.toUpperCase() || 'U'}
+                  {/* 5. 修改：使用 displayName 的第一個字 */}
+                  {displayName.charAt(0)}
                 </div>
                 <div className="text-sm">
                   <p className="font-medium text-stone-700">
-                    {user?.user_metadata?.full_name || user?.email?.split('@')[0] || '使用者'}
+                    {/* 6. 修改：顯示 displayName */}
+                    {displayName}
                   </p>
                 </div>
               </div>

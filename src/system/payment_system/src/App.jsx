@@ -1,11 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
-import ForgotPassword from './pages/ForgotPassword';
-import UpdatePassword from './pages/UpdatePassword';
 import Header from './components/Header';
 import ProtectedRoute from './components/ProtectedRoute';
-import UserProfile from './pages/UserProfile';
-import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import ApplyForm from './pages/ApplyForm';
 import RequestDetail from './pages/RequestDetail';
@@ -27,22 +23,18 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/update-password" element={<UpdatePassword />} />
         
         <Route element={<ProtectedRoute />}>
           <Route element={<MainLayout />}>
              <Route path="/dashboard" element={<Dashboard />} />
              <Route path="/apply" element={<ApplyForm />} />
              <Route path="/request/:id" element={<RequestDetail />} />
-             <Route path="/account" element={<UserProfile />} />
              {/* AdminPanel 已移至統一管理中心 /management */}
              <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Route>
         </Route>
 
-        <Route path="*" element={<Navigate to="/login" replace />} />
+
       </Routes>
     </BrowserRouter>
   );

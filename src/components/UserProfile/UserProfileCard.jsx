@@ -1,12 +1,43 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react'; // 1. 引入 useState, useEffect
 import { Mail, Phone, Briefcase, Building2, User as UserIcon, Shield, Calendar } from 'lucide-react';
 import UserAvatar from './UserAvatar';
+import { supabase } from '../../lib/supabase.js'; // 2. 引入 supabase (請確認路徑是否正確，通常與 contexts 同層級或在 src 根目錄)
 
 /**
  * 統一的用戶資料卡片組件
  * 顯示用戶的完整資訊
  */
 export default function UserProfileCard({ user, onEdit }) {
+  // --- 3. 新增：員工姓名狀態與抓取邏輯 (必須放在最上方) ---
+  const [employeeName, setEmployeeName] = useState(null);
+
+  useEffect(() => {
+    const fetchEmployeeName = async () => {
+      // 確保有 user 且有 id 才查詢
+      if (!user?.id) return;
+
+      try {
+        const { data } = await supabase
+          .from('employees')
+          .select('name')
+          .eq('user_id', user.id)
+          .single();
+
+        if (data?.name) {
+          setEmployeeName(data.name);
+        }
+      } catch (err) {
+        console.error('Error fetching employee name:', err);
+      }
+    };
+
+    fetchEmployeeName();
+  }, [user]); // 當 user 物件改變時重新執行
+
+  // 4. 定義最終顯示名稱 (優先使用員工表姓名，否則使用傳入的 user.displayName)
+  const finalDisplayName = employeeName || user?.displayName || '使用者';
+  // -------------------------------------------------------
+
   if (!user) {
     return (
       <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8 text-center">
@@ -43,7 +74,7 @@ export default function UserProfileCard({ user, onEdit }) {
         <div className="relative -mt-12 sm:-mt-16 mb-3 sm:mb-4">
           <UserAvatar
             avatarUrl={user.avatarUrl}
-            displayName={user.displayName}
+            displayName={finalDisplayName} // 5. 修改：使用 finalDisplayName
             size="xlarge"
             className="border-4 border-white shadow-lg"
           />
@@ -52,7 +83,7 @@ export default function UserProfileCard({ user, onEdit }) {
         {/* 姓名和角色 - 手機版優化 */}
         <div className="mb-4 sm:mb-6">
           <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">
-            {user.displayName}
+            {finalDisplayName} {/* 6. 修改：使用 finalDisplayName */}
           </h2>
           <div className="flex items-center gap-2 flex-wrap">
             <span className={`inline-flex items-center gap-1 px-2.5 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold ${roleColors[user.role] || roleColors.user}`}>

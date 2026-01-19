@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 
 // 取得環境變數
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 
 /**
  * 用於 React Query 的資料抓取函式
@@ -40,7 +40,7 @@ export const useProfiles = () => {
   const createMutation = useMutation({
     mutationFn: async (userData) => {
       // ⚠️ 關鍵技巧：建立臨時 Client 避免登出管理員
-      const tempSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      const tempSupabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
         auth: { 
           autoRefreshToken: false, 
           persistSession: false, 

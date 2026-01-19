@@ -1,18 +1,18 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react'; // 1. 確保引入 useEffect
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase.js'; // 2. 引入 supabase (請確認路徑是否正確，通常與 contexts 同層級或在 src 根目錄)
 import logoSrc from '../assets/logo.png';
-// 六扇門 Logo 組件 - 加入金色點綴
-// 2. 修改 Logo 組件
+
+// 六扇門 Logo 組件
 const Logo = ({ size = 'default' }) => {
   const sizeClasses = size === 'small' ? 'w-8 h-8' : 'w-10 h-10 sm:w-12 sm:h-12';
   return (
     <div className={`${sizeClasses} relative flex items-center justify-center`}>
-      {/* 3. 使用 img 標籤顯示 Logo */}
       <img 
         src={logoSrc} 
         alt="六扇門 Logo" 
-        className="w-full h-full object-contain filter drop-shadow-md" // object-contain 確保圖片不變形
+        className="w-full h-full object-contain filter drop-shadow-md"
       />
     </div>
   );
@@ -24,6 +24,35 @@ export default function Header({ onSearch }) {
   const menuRef = useRef(null);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  // --- 3. 新增：員工姓名狀態與抓取邏輯 ---
+  const [employeeName, setEmployeeName] = useState(null);
+
+  useEffect(() => {
+    const fetchEmployeeName = async () => {
+      if (!user?.id) return;
+
+      try {
+        const { data } = await supabase
+          .from('employees')
+          .select('name')
+          .eq('user_id', user.id)
+          .single();
+
+        if (data?.name) {
+          setEmployeeName(data.name);
+        }
+      } catch (err) {
+        console.error('Error fetching employee name:', err);
+      }
+    };
+
+    fetchEmployeeName();
+  }, [user]);
+
+  // 4. 定義顯示名稱變數 (優先使用員工表姓名)
+  const displayName = employeeName || user?.user_metadata?.full_name || user?.name || user?.email;
+  // -------------------------------------
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -53,12 +82,11 @@ export default function Header({ onSearch }) {
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-stone-200 shadow-sm">
-      {/* 背景紋理：極淡的斜紋，增加紙張質感 */}
       <div className="absolute inset-0 bg-pattern-diagonal opacity-50 pointer-events-none" />
 
       <div className="relative max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
         <div className="flex items-center justify-between h-14 sm:h-16 lg:h-20">
-          {/* Logo 區域 - 手機版優化 */}
+          {/* Logo 區域 */}
           <Link to="/" className="group flex items-center gap-2 sm:gap-3 hover:opacity-100 transition-opacity">
             <Logo />
             <div className="hidden sm:block">
@@ -74,7 +102,7 @@ export default function Header({ onSearch }) {
             </div>
           </Link>
 
-          {/* 搜尋框 - 手機版優化 */}
+          {/* 搜尋框 */}
           <div className="flex-1 max-w-md mx-2 sm:mx-4 lg:mx-8">
             <div className="relative group">
               <div className="absolute inset-y-0 left-0 pl-2.5 sm:pl-3 flex items-center pointer-events-none">
@@ -109,18 +137,17 @@ export default function Header({ onSearch }) {
             </div>
           </div>
 
-          {/* 使用者資訊 - 手機版優化 */}
+          {/* 使用者資訊 */}
           <div className="flex items-center gap-1 sm:gap-2">
-            {/* 通知按鈕 - 手機版優化 */}
+            {/* 通知按鈕 */}
             <button className="p-1.5 sm:p-2 text-stone-500 hover:text-red-600 active:text-red-700 hover:bg-red-50 rounded-lg sm:rounded-xl transition-all relative group touch-manipulation">
               <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
-              {/* 通知紅點 - 手機版優化 */}
               <span className="absolute top-1 right-1 sm:top-2 sm:right-2 w-1.5 h-1.5 sm:w-2 sm:h-2 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.6)] animate-pulse" />
             </button>
 
-            {/* 使用者選單 - 手機版優化 */}
+            {/* 使用者選單 */}
             <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
@@ -129,11 +156,13 @@ export default function Header({ onSearch }) {
                 }`}
               >
                 <div className="w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-br from-red-700 to-red-900 rounded-lg flex items-center justify-center text-white font-medium text-xs sm:text-sm shadow-md shadow-red-500/20">
-                  {user?.name?.charAt(0) || 'U'}
+                  {/* 5. 修改：顯示名稱首字 */}
+                  {displayName?.charAt(0) || 'U'}
                 </div>
                 <div className="hidden md:block text-left">
                   <p className="text-sm font-bold text-stone-700">
-                    {user?.name || '使用者'}
+                    {/* 6. 修改：顯示名稱 */}
+                    {displayName}
                   </p>
                   <p className="text-[10px] text-stone-400 font-medium tracking-wide">
                     {user?.department || '六扇門'}
@@ -149,15 +178,14 @@ export default function Header({ onSearch }) {
                 </svg>
               </button>
 
-              {/* 下拉選單 - 手機版優化 */}
+              {/* 下拉選單 */}
               {showUserMenu && (
                 <div className="absolute right-0 mt-2 w-56 sm:w-64 bg-white rounded-xl sm:rounded-2xl shadow-xl shadow-stone-200/50 border border-stone-100 py-2 z-50 overflow-hidden ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-200">
-                  {/* 頂部裝飾條 */}
                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 to-amber-500" />
 
-                  {/* 用戶資訊 - 手機版優化 */}
                   <div className="px-4 sm:px-5 py-3 sm:py-4 border-b border-stone-100 bg-stone-50/50">
-                    <p className="text-sm sm:text-base font-bold text-stone-800 truncate">{user?.name}</p>
+                    {/* 7. 修改：顯示名稱 */}
+                    <p className="text-sm sm:text-base font-bold text-stone-800 truncate">{displayName}</p>
                     <p className="text-xs text-stone-500 mb-2 truncate">{user?.email}</p>
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-medium bg-red-100 text-red-700 rounded-full border border-red-200/50">
                       <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
@@ -165,7 +193,6 @@ export default function Header({ onSearch }) {
                     </span>
                   </div>
 
-                  {/* 選單項目 - 手機版優化 */}
                   <div className="p-2 space-y-1">
                     <Link
                       to="/account"
@@ -194,7 +221,6 @@ export default function Header({ onSearch }) {
                     </Link>
                   </div>
 
-                  {/* 登出 - 手機版優化 */}
                   <div className="p-2 border-t border-stone-100">
                     <button
                       onClick={handleLogout}

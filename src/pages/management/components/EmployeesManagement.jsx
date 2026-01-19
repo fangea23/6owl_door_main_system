@@ -67,12 +67,23 @@ export default function EmployeesManagement() {
   });
 
   // 處理創建
+// 處理創建
   const handleCreate = async (e) => {
     e.preventDefault();
     setProcessing(true);
 
     try {
-      const result = await createEmployee(formData);
+      // 同樣進行資料清理
+      const cleanData = {
+        ...formData,
+        department_id: formData.department_id || null,
+        email: formData.email || null,
+        phone: formData.phone || null,
+        mobile: formData.mobile || null,
+        position: formData.position || null,
+      };
+
+      const result = await createEmployee(cleanData); // 使用 cleanData
 
       if (result.success) {
         alert('✅ 員工資料建立成功！');
@@ -88,15 +99,35 @@ export default function EmployeesManagement() {
   };
 
   // 處理更新
-  const handleUpdate = async (e) => {
+  // 處理更新
+const handleUpdate = async (e) => {
     e.preventDefault();
     setProcessing(true);
 
     try {
-      const result = await updateEmployee(editingId, formData);
+      // --- 新增：資料清理邏輯 ---
+      // 將空字串轉換為 null，確保後端能正確接收（特別是 UUID 類型的 department_id）
+      const cleanData = {
+        ...formData,
+        department_id: formData.department_id || null,
+        email: formData.email || null,
+        phone: formData.phone || null,
+        mobile: formData.mobile || null,
+        position: formData.position || null,
+        // employee_id 通常作為主鍵或識別碼，若後端不允許修改此欄位，建議在此移除
+        // employee_id: undefined 
+      };
+      // ------------------------
+
+      // 使用 cleanData 而非 formData
+      const result = await updateEmployee(editingId, cleanData);
 
       if (result.success) {
         alert('✅ 員工資料更新成功！');
+        
+        // 建議：如果是自行維護的 hook，這裡可能需要手動觸發列表重新整理
+        // fetchEmployees(); 
+        
         resetForm();
       } else {
         alert('❌ 更新失敗: ' + result.error);

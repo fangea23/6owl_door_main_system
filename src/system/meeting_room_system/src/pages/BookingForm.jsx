@@ -79,10 +79,11 @@ export default function BookingForm() {
     fetchRooms();
   }, []);
 
-  // 載入編輯資料
+// 載入編輯資料或預設使用者資料
   useEffect(() => {
-    if (isEditMode) {
-      const fetchBooking = async () => {
+    const loadData = async () => {
+      // 1. 如果是編輯模式 (isEditMode)
+      if (isEditMode) {
         setLoading(true);
         const { data, error } = await supabase
           .from('bookings')
@@ -105,16 +106,37 @@ export default function BookingForm() {
           });
         }
         setLoading(false);
-      };
-      fetchBooking();
-    } else if (user) {
-      setFormData(prev => ({
-        ...prev,
-        booker_name: user.user_metadata?.full_name || user.email?.split('@')[0] || '',
-        booker_email: user.email || '',
-      }));
-    }
-  }, [id, user]);
+      } 
+      // 2. 如果是新增模式且已登入 (user exists)
+      else if (user) {
+        let defaultName = user.user_metadata?.full_name || user.email?.split('@')[0] || '';
+        
+        // --- 新增：嘗試從 employees 表格抓取中文姓名 ---
+        try {
+          const { data } = await supabase
+            .from('employees')
+            .select('name')
+            .eq('user_id', user.id)
+            .single();
+          
+          if (data?.name) {
+            defaultName = data.name;
+          }
+        } catch (err) {
+          console.error('Error fetching employee name:', err);
+        }
+        // ---------------------------------------------
+
+        setFormData(prev => ({
+          ...prev,
+          booker_name: defaultName, // 使用抓到的名字
+          booker_email: user.email || '',
+        }));
+      }
+    };
+
+    loadData();
+  }, [id, user, isEditMode]); // 加入 isEditMode 依賴
 
   // 檢查時間衝突
   useEffect(() => {

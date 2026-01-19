@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { supabase } from '../supabaseClient'; // 注意路徑，如果是 pages 裡的檔案可能要 ../supabaseClient
-import { useNavigate, useLocation } from 'react-router-dom'; // ✅ Added useLocation here
+import { supabase } from '../supabaseClient'; 
+import { useNavigate, useLocation } from 'react-router-dom';
 
 // 付款系統的基礎路徑
 const BASE_PATH = '/systems/payment-approval';
 import SignatureCanvas from 'react-signature-canvas';
-import { useAuth } from '../AuthContext'; // ✅ 1. 引入 AuthContext
-import SearchableSelect from '../components/SearchableSelect'; // ✅ 引入可搜尋下拉選單
+import { useAuth } from '../AuthContext'; 
+import SearchableSelect from '../components/SearchableSelect'; 
 import {
     Save,
     CheckCircle,
@@ -20,12 +20,12 @@ import {
     AlertCircle,
     UploadCloud,
     Loader2,
-    Camera,          // 新增
-    X,               // 新增
+    Camera,
+    X,
     Image as ImageIcon,
-    ChevronLeft, // ✅ 新增這個
+    ChevronLeft,
     RotateCcw,
-    Wallet // ✅ 新增這個
+    Wallet
 } from 'lucide-react';
 
 const SectionTitle = ({ icon: Icon, title }) => (
@@ -38,12 +38,11 @@ const SectionTitle = ({ icon: Icon, title }) => (
 );
 
 export default function ApplyForm() {
-    const navigate = useNavigate(); // ✅ 3. 在元件一開始加入這行
-    // 簽名板的 Ref，用來取得圖片資料
+    const navigate = useNavigate(); 
     const location = useLocation();
     const sigCanvas = useRef({});
-    // ✅ 3. 取得登入者資訊
     const { user } = useAuth();
+    
     // 用來重置簽名的函式
     const clearSignature = () => {
         sigCanvas.current.clear();
@@ -102,14 +101,40 @@ export default function ApplyForm() {
     // ==========================================
     // 1. 資料載入區 (Banks & Brands)
     // ==========================================
+    
+    // --- 修改：初始載入填單人名稱 (優先抓取 employees 資料表) ---
     useEffect(() => {
-        if (user && !editId) { // 只有在「新增模式」時自動帶入，編輯模式保留原記錄
-            setFormData(prev => ({
-                ...prev,
-                creatorName: user.user_metadata?.full_name || user.email?.split('@')[0] || '',
-            }));
-        }
+        const fetchCreatorName = async () => {
+            if (user && !editId) { // 只有在「新增模式」時自動帶入，編輯模式保留原記錄
+                // 預設先拿 Auth 的資料
+                let finalName = user.user_metadata?.full_name || user.email?.split('@')[0] || '';
+
+                try {
+                    // 嘗試去 employees 表格撈取對應的姓名
+                    const { data, error } = await supabase
+                        .from('employees')
+                        .select('name')
+                        .eq('user_id', user.id)
+                        .single();
+                    
+                    if (data?.name) {
+                        finalName = data.name;
+                    }
+                } catch (err) {
+                    console.error('Error fetching employee name:', err);
+                }
+
+                setFormData(prev => ({
+                    ...prev,
+                    creatorName: finalName,
+                }));
+            }
+        };
+
+        fetchCreatorName();
     }, [user, editId]);
+    // -----------------------------------------------------------
+
     // --- 1-1. 初始載入：抓取銀行清單 ---
     useEffect(() => {
         const fetchBanks = async () => {
@@ -197,7 +222,6 @@ export default function ApplyForm() {
             setFetchingStores(true);
             try {
                 // 根據 brand_id 篩選 stores
-                // 假設資料表欄位為: id, name, brand_id, is_active
                 const { data, error } = await supabase
                     .from('stores')
                     .select('id, name')

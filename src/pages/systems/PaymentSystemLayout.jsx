@@ -11,9 +11,6 @@ import Header from '../../system/payment_system/src/components/Header.jsx';
 import Dashboard from '../../system/payment_system/src/pages/Dashboard.jsx';
 import ApplyForm from '../../system/payment_system/src/pages/ApplyForm.jsx';
 import RequestDetail from '../../system/payment_system/src/pages/RequestDetail.jsx';
-import UserProfile from '../../system/payment_system/src/pages/UserProfile.jsx';
-import UpdatePassword from '../../system/payment_system/src/pages/UpdatePassword.jsx';
-import ForgotPassword from '../../system/payment_system/src/pages/ForgotPassword.jsx';
 
 // 受保護路由組件 - 使用主系統認證
 const PaymentProtectedRoute = () => {
@@ -54,8 +51,6 @@ export default function PaymentSystemLayout() {
   return (
     <Routes>
       {/* 公開路由 - 密碼相關 */}
-      <Route path="forgot-password" element={<ForgotPassword />} />
-      <Route path="update-password" element={<UpdatePassword />} />
 
       {/* 受保護路由 (需要主系統登入) */}
       <Route element={<PaymentProtectedRoute />}>
@@ -66,7 +61,6 @@ export default function PaymentSystemLayout() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="apply" element={<ApplyForm />} />
           <Route path="request/:id" element={<RequestDetail />} />
-          <Route path="account" element={<UserProfile />} />
         </Route>
       </Route>
 

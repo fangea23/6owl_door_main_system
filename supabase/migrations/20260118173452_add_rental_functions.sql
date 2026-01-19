@@ -1,5 +1,3 @@
-alter table "public"."employees" drop constraint "fk_employees_department";
-
 alter table "public"."employees" drop constraint "fk_employees_departments";
 
 alter table "software_maintenance"."license_assignments" drop constraint "license_assignments_device_id_fkey";

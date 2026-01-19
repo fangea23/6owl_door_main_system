@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // 1. 引入 useEffect
 import { Link, Outlet, useNavigate, NavLink } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 import { 
   Car, 
   LayoutDashboard, 
@@ -7,7 +8,7 @@ import {
   History, 
   Menu, 
   X, 
-  Key // 👈 新增 Key icon
+  Key 
 } from 'lucide-react';
 import { useAuth } from '../../../../contexts/AuthContext';
 import logoSrc from '../../../../assets/logo.png';
@@ -31,20 +32,48 @@ export const Layout = () => {
   const { user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // --- 3. 新增：員工姓名狀態與抓取邏輯 ---
+  const [employeeName, setEmployeeName] = useState(null);
+
+  useEffect(() => {
+    const fetchEmployeeName = async () => {
+      if (!user?.id) return;
+
+      try {
+        const { data } = await supabase
+          .from('employees')
+          .select('name')
+          .eq('user_id', user.id)
+          .single();
+
+        if (data?.name) {
+          setEmployeeName(data.name);
+        }
+      } catch (err) {
+        console.error('Error fetching employee name:', err);
+      }
+    };
+
+    fetchEmployeeName();
+  }, [user]);
+
+  // 4. 定義顯示名稱變數 (優先使用員工表姓名)
+  const displayName = employeeName || user?.user_metadata?.full_name || user?.email?.split('@')[0] || '使用者';
+  // -------------------------------------
+
   // ✅ 修改：加入「租借管理」並調整順序
   const navItems = [
     { path: '/systems/car-rental/dashboard', icon: LayoutDashboard, label: '儀表板' },
     { path: '/systems/car-rental/requests', icon: FileText, label: '租借申請' },
-    { path: '/systems/car-rental/rentals', icon: Key, label: '租借管理' }, // 👈 新增這項
+    { path: '/systems/car-rental/rentals', icon: Key, label: '租借管理' },
     { path: '/systems/car-rental/vehicles', icon: Car, label: '車輛管理' },
     { path: '/systems/car-rental/my-rentals', icon: History, label: '我的租借' },
   ];
 
   return (
     <div className="min-h-screen bg-stone-50 bg-pattern-diagonal">
-      {/* Header - 與主系統統一風格 */}
+      {/* Header */}
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-stone-200 shadow-sm">
-        {/* 背景紋理 */}
         <div className="absolute inset-0 bg-pattern-diagonal opacity-50 pointer-events-none" />
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -112,11 +141,13 @@ export const Layout = () => {
                 title="個人資料設定"
               >
                 <div className="w-8 h-8 bg-gradient-to-br from-red-700 to-red-900 rounded-lg flex items-center justify-center text-white font-medium text-sm shadow-md shadow-red-500/20">
-                  {user?.user_metadata?.full_name?.charAt(0) || user?.email?.charAt(0)?.toUpperCase() || 'U'}
+                  {/* 5. 修改：使用 displayName 的第一個字 */}
+                  {displayName.charAt(0)}
                 </div>
                 <div className="text-sm">
                   <p className="font-medium text-stone-700">
-                    {user?.user_metadata?.full_name || user?.email?.split('@')[0] || '使用者'}
+                    {/* 6. 修改：顯示 displayName */}
+                    {displayName}
                   </p>
                 </div>
               </Link>
@@ -161,7 +192,7 @@ export const Layout = () => {
         <Outlet />
       </main>
 
-      {/* Footer - 與主系統統一風格 */}
+      {/* Footer */}
       <footer className="border-t border-stone-200/60 mt-auto bg-white/50 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
