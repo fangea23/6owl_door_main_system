@@ -13,7 +13,7 @@ export function useBrands() {
       const { data, error } = await supabase
         .from('brands')
         .select('*')
-        .order('name', { ascending: true });
+        .order('id', { ascending: true });
 
       if (error) throw error;
       setBrands(data || []);

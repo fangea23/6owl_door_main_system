@@ -16,7 +16,7 @@ export function useStores(brandId = null) {
           *,
           brand:brands(id, name)
         `)
-        .order('name', { ascending: true });
+        .order('code', { ascending: true });
 
       if (brandId) {
         query = query.eq('brand_id', brandId);
