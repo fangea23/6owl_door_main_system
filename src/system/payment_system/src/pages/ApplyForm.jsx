@@ -130,14 +130,13 @@ export default function ApplyForm() {
                     // ✅ 修改：多抓取 'role' 欄位
                     const { data } = await supabase
                         .from('employees_with_details') 
-                        .select('name, department_code, job_title, role') // <--- 這裡加上 role
+                        .select('name, department_code, role') // <--- 這裡加上 role
                         .eq('user_id', user.id)
                         .single();
                     
                     if (data) {
                         finalName = data.name || finalName;
                         dept = data.department_code || ''; 
-                        title = data.job_title || '';
                         role = data.role || ''; // [新增] 存取 role
                     }
                 } catch (err) {
