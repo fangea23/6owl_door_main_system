@@ -145,7 +145,7 @@ export default function ApplyForm() {
                 }
 
                 // ✅ 修改：存入 state (請記得去 useState 補上 role 初始值，或者直接在這裡存)
-                setUserInfo({ name: finalName, department: dept, jobTitle: title, role: role });
+                setUserInfo({ name: finalName, department: dept, role: role });
             }
         };
 
@@ -572,16 +572,21 @@ invoice_number: formData.invoiceNumber,
                 current_step: 1
             };
             const needsUnitManager = userInfo.department === DEPT_NEEDS_UNIT_MANAGER;
+            
+            // 設定初始狀態
             let initialStatus = needsUnitManager ? 'pending_unit_manager' : 'pending_accountant';
             let currentStep = needsUnitManager ? 1 : 2;
 
-            // B. 判斷是否為會計 (改為檢查 role)
-            // ✅ 修改：這裡改成 userInfo.role
-            const isAccountant = ACCOUNTANT_KEYWORDS.some(k => userInfo.role?.includes(k));
-    
+            // ✅ 修正：轉小寫比對，避免大小寫問題
+            const isAccountant = ACCOUNTANT_KEYWORDS.some(k => 
+                userInfo.role?.toLowerCase().includes(k.toLowerCase())
+            );
+
+            // ✅ 邏輯：只有在「下一關是會計」且「我是會計」時才跳過
+            // 如果下一關是單位主管(initialStatus === 'pending_unit_manager')，則不跳過，必須先給主管簽
             if (initialStatus === 'pending_accountant' && isAccountant) {
-                dbPayload.sign_accountant_at = new Date().toISOString(); // 自動簽核
-                initialStatus = 'pending_audit_manager'; // 跳下一關
+                dbPayload.sign_accountant_at = new Date().toISOString(); 
+                initialStatus = 'pending_audit_manager'; 
                 currentStep = 3;
             }
 
