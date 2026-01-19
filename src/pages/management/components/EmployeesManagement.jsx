@@ -6,6 +6,20 @@ import {
   UserPlus, Search, Loader2, Mail, Phone, Briefcase, Building2, User, Save, X, Edit2, Trash2, Link as LinkIcon
 } from 'lucide-react';
 
+// 1. 統一：將 ProfilesManagement 的完整角色列表複製過來，確保兩邊一致
+const ROLES = [
+  { value: 'user', label: '一般使用者', color: 'bg-gray-100 text-gray-600' },
+  { value: 'staff', label: '一般員工', color: 'bg-gray-100 text-gray-600' },
+  { value: 'manager', label: '主管', color: 'bg-blue-100 text-blue-700' },
+  { value: 'unit_manager', label: '單位主管', color: 'bg-blue-100 text-blue-700' },
+  { value: 'accountant', label: '會計', color: 'bg-indigo-100 text-indigo-700' },
+  { value: 'audit_manager', label: '審核主管', color: 'bg-purple-100 text-purple-700' },
+  { value: 'cashier', label: '出納', color: 'bg-orange-100 text-orange-700' },
+  { value: 'boss', label: '放行主管', color: 'bg-pink-100 text-pink-700' },
+  { value: 'hr', label: '人資', color: 'bg-green-100 text-green-700' },
+  { value: 'admin', label: '系統管理員', color: 'bg-red-100 text-red-700' },
+];
+
 export default function EmployeesManagement() {
   const {
     employees,
@@ -67,13 +81,11 @@ export default function EmployeesManagement() {
   });
 
   // 處理創建
-// 處理創建
   const handleCreate = async (e) => {
     e.preventDefault();
     setProcessing(true);
 
     try {
-      // 同樣進行資料清理
       const cleanData = {
         ...formData,
         department_id: formData.department_id || null,
@@ -83,7 +95,7 @@ export default function EmployeesManagement() {
         position: formData.position || null,
       };
 
-      const result = await createEmployee(cleanData); // 使用 cleanData
+      const result = await createEmployee(cleanData);
 
       if (result.success) {
         alert('✅ 員工資料建立成功！');
@@ -99,14 +111,11 @@ export default function EmployeesManagement() {
   };
 
   // 處理更新
-  // 處理更新
-const handleUpdate = async (e) => {
+  const handleUpdate = async (e) => {
     e.preventDefault();
     setProcessing(true);
 
     try {
-      // --- 新增：資料清理邏輯 ---
-      // 將空字串轉換為 null，確保後端能正確接收（特別是 UUID 類型的 department_id）
       const cleanData = {
         ...formData,
         department_id: formData.department_id || null,
@@ -114,20 +123,12 @@ const handleUpdate = async (e) => {
         phone: formData.phone || null,
         mobile: formData.mobile || null,
         position: formData.position || null,
-        // employee_id 通常作為主鍵或識別碼，若後端不允許修改此欄位，建議在此移除
-        // employee_id: undefined 
       };
-      // ------------------------
 
-      // 使用 cleanData 而非 formData
       const result = await updateEmployee(editingId, cleanData);
 
       if (result.success) {
         alert('✅ 員工資料更新成功！');
-        
-        // 建議：如果是自行維護的 hook，這裡可能需要手動觸發列表重新整理
-        // fetchEmployees(); 
-        
         resetForm();
       } else {
         alert('❌ 更新失敗: ' + result.error);
@@ -149,7 +150,7 @@ const handleUpdate = async (e) => {
       mobile: employee.mobile || '',
       department_id: employee.department_id || '',
       position: employee.position || '',
-      role: employee.role,
+      role: employee.role || 'user', // 確保有預設值
       status: employee.status,
     });
     setEditingId(employee.id);
@@ -328,9 +329,10 @@ const handleUpdate = async (e) => {
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                 >
                   <option value="">未指定</option>
+                  {/* 2. 統一：部門顯示格式與 DeptManagement 保持一致 (Name + Code) */}
                   {departments.map(dept => (
                     <option key={dept.id} value={dept.id}>
-                      {dept.name} ({dept.code})
+                      {dept.name} {dept.code ? `(${dept.code})` : ''}
                     </option>
                   ))}
                 </select>
@@ -356,10 +358,10 @@ const handleUpdate = async (e) => {
                   onChange={e => setFormData({ ...formData, role: e.target.value })}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                 >
-                  <option value="user">一般使用者</option>
-                  <option value="manager">主管</option>
-                  <option value="hr">人資</option>
-                  <option value="admin">管理員</option>
+                  {/* 3. 統一：使用動態生成的完整 ROLES 選單 */}
+                  {ROLES.map(r => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
                 </select>
               </div>
 
@@ -409,7 +411,7 @@ const handleUpdate = async (e) => {
                 <th className="p-4 font-semibold">員工資訊</th>
                 <th className="p-4 font-semibold">部門/職位</th>
                 <th className="p-4 font-semibold">聯絡方式</th>
-                <th className="p-4 font-semibold">狀態</th>
+                <th className="p-4 font-semibold">狀態與權限</th> {/* 4. 統一：修改標題 */}
                 <th className="p-4 font-semibold text-center">操作</th>
               </tr>
             </thead>
@@ -429,6 +431,9 @@ const handleUpdate = async (e) => {
                   terminated: '已終止',
                 };
 
+                // 取得角色資訊以便顯示
+                const roleInfo = ROLES.find(r => r.value === employee.role) || { label: employee.role, color: 'bg-gray-100 text-gray-600' };
+
                 return (
                   <tr key={employee.id} className="hover:bg-blue-50/30 transition-colors">
                     <td className="p-4">
@@ -443,7 +448,11 @@ const handleUpdate = async (e) => {
                       </div>
                     </td>
                     <td className="p-4">
-                      <div className="text-gray-800">{employee.department?.name || '未指定'}</div>
+                      <div className="text-gray-800 font-medium">
+                        {/* 5. 統一：若有部門代碼，一併顯示 */}
+                        {employee.department?.name || '未指定'}
+                        {employee.department?.code && <span className="text-gray-400 text-xs ml-1">({employee.department.code})</span>}
+                      </div>
                       <div className="text-xs text-gray-500">{employee.position || '未設定'}</div>
                     </td>
                     <td className="p-4">
@@ -459,14 +468,20 @@ const handleUpdate = async (e) => {
                       )}
                     </td>
                     <td className="p-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${statusColors[employee.status]}`}>
-                        {statusLabels[employee.status]}
-                      </span>
-                      {employee.user_id && (
-                        <div className="text-xs text-green-600 mt-1 flex items-center gap-1">
-                          <LinkIcon size={10} /> 已關聯帳號
-                        </div>
-                      )}
+                      <div className="flex flex-col gap-1 items-start">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${statusColors[employee.status]}`}>
+                          {statusLabels[employee.status]}
+                        </span>
+                        {/* 6. 統一：增加 Role 顯示，與 Profile 頁面風格一致 */}
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${roleInfo.color}`}>
+                           {roleInfo.label}
+                        </span>
+                        {employee.user_id && (
+                          <div className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                            <LinkIcon size={10} /> 已關聯帳號
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="p-4">
                       <div className="flex items-center justify-center gap-2">

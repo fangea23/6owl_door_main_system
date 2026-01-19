@@ -155,16 +155,17 @@ export default function ApplyForm() {
         fetchBanks();
     }, []);
 
-    // --- 1-2. [新增] 初始載入：從 Supabase 抓取品牌清單 (Brands) ---
+// --- 1-2. 初始載入：抓取品牌清單 (Brands) ---
     useEffect(() => {
         const fetchBrands = async () => {
             setFetchingBrands(true);
             try {
-                // 從 brands 資料表抓取 id 與 name
+                // ✅ 修改：多抓取 brand_id (如果沒有專屬代碼欄位，通常就是 id)
+                // 這裡假設你的 brands table 有 id 欄位
                 const { data, error } = await supabase
                     .from('brands')
-                    .select('id, name')
-                    .order('id', { ascending: true }); // 或依 name 排序
+                    .select('id, name') // 如果你有專門的 'code' 欄位，請改成 'id, name, code'
+                    .order('id', { ascending: true });
 
                 if (error) throw error;
                 if (data) setBrandList(data);
@@ -177,7 +178,6 @@ export default function ApplyForm() {
         };
         fetchBrands();
     }, []);
-
     // ==========================================
     // 2. 連動查詢區 (Branches & Stores)
     // ==========================================
@@ -211,9 +211,9 @@ export default function ApplyForm() {
     }, [formData.bankCode]);
 
     // --- 2-2. [新增] 當品牌改變 (brandId) 時：從 Supabase 抓取門店 (Stores) ---
+// --- 2-2. 當品牌改變時：抓取門店 (Stores) ---
     useEffect(() => {
         const fetchStores = async () => {
-            // 如果沒有選品牌 ID，清空門店列表
             if (!formData.brandId) {
                 setStoreList([]);
                 return;
@@ -221,22 +221,16 @@ export default function ApplyForm() {
 
             setFetchingStores(true);
             try {
-                // 根據 brand_id 篩選 stores
+                // ✅ 修改：多抓取 code 欄位
                 const { data, error } = await supabase
                     .from('stores')
-                    .select('id, name')
+                    .select('id, name, code') // 這裡加上 code
                     .eq('brand_id', formData.brandId)
-                    .eq('is_active', true) // 只撈取啟用中的店點 (可選)
-                    .order('name', { ascending: true });
+                    .eq('is_active', true)
+                    .order('code', { ascending: true }); // 建議改用 code 排序比較直覺
 
                 if (error) throw error;
-
-                if (data && data.length > 0) {
-                    setStoreList(data);
-                } else {
-                    setStoreList([]);
-                    console.log(`品牌 ID ${formData.brandId} 查無門店資料`);
-                }
+                if (data) setStoreList(data || []);
             } catch (err) {
                 console.error('查詢門店失敗:', err);
                 setStoreList([]);
@@ -600,7 +594,11 @@ export default function ApplyForm() {
                                 >
                                     <option value="">請選擇品牌</option>
                                     {brandList.map(brand => (
-                                        <option key={brand.id} value={brand.id}>{brand.name}</option>
+                                        // ✅ 修改：顯示 "ID (補0) - 名稱" 
+                                        // 如果你的 brands table 有專門的 code 欄位，請把 String(brand.id) 換成 brand.code
+                                        <option key={brand.id} value={brand.id}>
+                                            {String(brand.id).padStart(2, '0')} - {brand.name}
+                                        </option>
                                     ))}
                                 </select>
                             </div>
@@ -612,9 +610,11 @@ export default function ApplyForm() {
                                     {fetchingStores && <span className="text-red-500 flex items-center text-xs"><Loader2 className="animate-spin h-3 w-3 mr-1" />查詢中...</span>}
                                 </label>
                                 <SearchableSelect
+                                    // ✅ 修改：在 options mapping 中加入 subLabel
                                     options={storeList.map(store => ({
                                         value: store.name,
-                                        label: store.name
+                                        label: store.name,
+                                        subLabel: store.code // 這裡把 code 帶入
                                     }))}
                                     value={formData.store}
                                     onChange={(value) => {
