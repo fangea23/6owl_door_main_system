@@ -35,7 +35,7 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        {/* 🔥 加入這行！這樣左上角的黑色除錯框才會跑出來 */}123
+        {/* 🔥 加入這行！這樣左上角的黑色除錯框才會跑出來 */}
 
         {/* PWA 安裝提示 */}
         <PWAInstallPrompt />
