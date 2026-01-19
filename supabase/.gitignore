@@ -1,8 +1,13 @@
-# Supabase
-.branches
-.temp
+# .gitignore
 
-# dotenvx
-.env.keys
+# Supabase - 防止上傳本地設定與金鑰
+supabase/.branches
+supabase/.temp
+supabase/config.toml
+.env
 .env.local
-.env.*.local
+.env.*
+
+# OS generated files
+.DS_Store
+Thumbs.db
