@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-// 引用你定義好 Wrapper 的那個檔案
-import { supabase } from '../lib/supabase' 
+import { supabase } from '../lib/supabase'
 
 export function useDashboard() {
   const [stats, setStats] = useState({
@@ -9,8 +8,9 @@ export function useDashboard() {
     assignedCount: 0,
     availableCount: 0,
     expiredLicenses: 0,
-    totalEmployees: 0,
     totalSoftware: 0,
+    totalDevices: 0,        // 🆕 新增
+    maintenanceCount: 0,    // 🆕 新增：維修中數量
     recentAssignments: [],
     expiringLicenses: [],
     licensesByCategory: []
@@ -24,18 +24,16 @@ export function useDashboard() {
         const today = new Date().toISOString().split('T')[0]
         const thirtyDaysLater = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
-        // 獲取統計數據 - 並行請求
         const [
           licensesResult,
-          employeesResult,
           softwareResult,
+          devicesResult,        // 🆕 改查設備
           recentAssignmentsResult,
           expiringLicensesResult
         ] = await Promise.all([
-          
-          // 1. 授權統計 (同 Schema 關聯，維持原樣)
+          // 1. 授權統計
           supabase
-            .from('licenses') 
+            .from('licenses')
             .select(`
               status, 
               quantity, 
@@ -45,28 +43,27 @@ export function useDashboard() {
               software:software(category) 
             `),
 
-          // 2. 員工數量 (Wrapper 會自動導向 public，維持原樣)
-          supabase
-            .from('employees')
-            .select('id', { count: 'exact', head: true })
-            .eq('status', 'active'),
-
-          // 3. 軟體數量 (同 Schema，維持原樣)
+          // 2. 軟體數量
           supabase
             .from('software')
             .select('id', { count: 'exact', head: true })
             .eq('is_active', true),
 
-          // 4. [修改處] 最近分配記錄
-          // 🔴 原本跨 Schema Join 會失敗，現在改查 View
+          // 3. 🆕 設備統計 (取代原本的員工查詢)
+          // 假設設備表名稱為 'devices'，且有 status 欄位
           supabase
-            .from('assignment_details') // 確保已在 DB 建立此 View
-            .select('*') // View 已經把 employee_name, software_name 都攤平了
+            .from('devices')
+            .select('id, status'),
+
+          // 4. 最近分配記錄
+          supabase
+            .from('assignment_details')
+            .select('*')
             .eq('is_active', true)
             .order('created_at', { ascending: false })
             .limit(5),
 
-          // 5. 即將到期的授權 (同 Schema 關聯，維持原樣)
+          // 5. 即將到期的授權
           supabase
             .from('licenses')
             .select(`
@@ -81,7 +78,7 @@ export function useDashboard() {
             .limit(5)
         ])
 
-        // --- 數據處理邏輯 ---
+        // 數據計算
         const licenses = licensesResult.data || []
         const totalQuantity = licenses.reduce((sum, l) => sum + (l.quantity || 0), 0)
         const assignedCount = licenses.reduce((sum, l) => sum + (l.assigned_count || 0), 0)
@@ -90,11 +87,15 @@ export function useDashboard() {
           l.status === 'expired' || (l.expiry_date && l.expiry_date < today)
         ).length
 
+        // 🆕 計算設備數據
+        const devices = devicesResult.data || []
+        const totalDevices = devices.length
+        const maintenanceCount = devices.filter(d => d.status === 'maintenance').length
+
+        // 分類統計
         const categoryStats = {}
-        
         licenses.forEach(license => {
           const category = license.software?.category || 'Uncategorized'
-          
           if (!categoryStats[category]) {
             categoryStats[category] = { quantity: 0, assigned: 0 }
           }
@@ -115,9 +116,10 @@ export function useDashboard() {
           assignedCount,
           availableCount: totalQuantity - assignedCount,
           expiredLicenses,
-          totalEmployees: employeesResult.count || 0,
           totalSoftware: softwareResult.count || 0,
-          recentAssignments: recentAssignmentsResult.data || [], // 這裡現在拿到的是 View 的資料
+          totalDevices,           // 🆕
+          maintenanceCount,       // 🆕
+          recentAssignments: recentAssignmentsResult.data || [],
           expiringLicenses: expiringLicensesResult.data || [],
           licensesByCategory
         })
