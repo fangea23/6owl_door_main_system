@@ -62,7 +62,7 @@ export default function ApplyForm() {
     // --- 資料列表狀態 ---
     const [bankList, setBankList] = useState([]);
     const [branchList, setBranchList] = useState([]);
-    const [userInfo, setUserInfo] = useState({ name: '', department: '', jobTitle: '' });
+    const [userInfo, setUserInfo] = useState({ name: '', department: '', role: '' });
     // [新增] 品牌與門店列表狀態
     const [brandList, setBrandList] = useState([]);
     const [storeList, setStoreList] = useState([]);
