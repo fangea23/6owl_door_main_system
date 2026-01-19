@@ -460,6 +460,13 @@ export default function ApplyForm() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        // 🔍【除錯專用】請加上這三行，看看 Console 顯示什麼
+    console.log("--------------------------------");
+    console.log("1. 系統讀到的 Role:", userInfo.role);
+    console.log("2. 轉換後的 Role:", (userInfo.role || '').toLowerCase());
+    console.log("3. 比對結果 (isAccountant):", ACCOUNTANT_KEYWORDS.some(k => (userInfo.role || '').toLowerCase().includes(k)));
+    console.log("--------------------------------");
         // ✅ 5. 安全檢查：如果沒有 user (可能登出或過期)，阻止送出
         if (!user) {
             alert('您的登入時效已過，請重新登入後再試。');
