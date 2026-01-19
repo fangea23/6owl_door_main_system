@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'; // 建議補上 useCallback
 import { supabase } from '../../lib/supabase';
-
+import { useQueryClient } from '@tanstack/react-query';
 /**
  * 統一的員工管理 Hook
  * 管理 public.employees 表（員工組織資訊）
  */
 export const useEmployees = () => {
+  const queryClient = useQueryClient();
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -90,7 +91,7 @@ export const useEmployees = () => {
   };
 
   // 更新員工資訊
-  const updateEmployee = async (employeeId, updates) => {
+const updateEmployee = async (employeeId, updates) => {
     try {
       const { error: updateError } = await supabase
         .from('employees')
@@ -98,7 +99,12 @@ export const useEmployees = () => {
         .eq('id', employeeId);
 
       if (updateError) throw updateError;
+      
+      // 1. 原本的：重新載入員工列表 (本地 useState)
       await fetchEmployees();
+
+      // 2. 【新增這行】：通知 React Query 'management_profiles' 這把鑰匙對應的資料髒了，下次要重抓
+      queryClient.invalidateQueries({ queryKey: ['management_profiles'] });
       return { success: true };
     } catch (err) {
       console.error('Error updating employee:', err);

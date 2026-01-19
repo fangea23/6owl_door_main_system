@@ -158,7 +158,13 @@ export default function EmployeesManagement() {
   };
 
   // 處理刪除
-  const handleDelete = async (employeeId, employeeName) => {
+const handleDelete = async (employeeId, employeeName, employeeRole) => { // 1. 接收 role 參數
+    // 2. 新增 Admin 保護邏輯 (與 ProfilesManagement 一致)
+    if (employeeRole === 'admin') {
+      alert('❌ 操作禁止！\n\n擁有「系統管理員 (Admin)」權限的員工無法被直接刪除。\n請先修改其職位角色。');
+      return;
+    }
+
     if (!window.confirm(`確定要刪除員工「${employeeName}」嗎？`)) return;
 
     setProcessing(true);
@@ -494,7 +500,7 @@ export default function EmployeesManagement() {
                           <Edit2 size={16} />
                         </button>
                         <button
-                          onClick={() => handleDelete(employee.id, employee.name)}
+                          onClick={() => handleDelete(employee.id, employee.name, employee.role)} // 傳入 role
                           disabled={processing}
                           className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
                           title="刪除"

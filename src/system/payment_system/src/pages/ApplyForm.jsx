@@ -30,10 +30,10 @@ import {
 } from 'lucide-react';
 
 // ★ 設定：需要經過「單位主管」簽核的部門 (請依照你 DB 實際部門名稱修改)
-const DEPT_NEEDS_UNIT_MANAGER = '營運部'; 
+const DEPT_NEEDS_UNIT_MANAGER = 'SALES'; 
 
 // ★ 設定：視為「會計」角色的職稱關鍵字 (若申請人有這些字，會計關自動通過)
-const ACCOUNTANT_KEYWORDS = ['會計'];
+const ACCOUNTANT_KEYWORDS = ['accountant'];
 
 const SectionTitle = ({ icon: Icon, title }) => (
     <div className="flex items-center gap-2 mb-4 pb-2 border-b border-stone-200 text-stone-700 font-bold text-lg">
