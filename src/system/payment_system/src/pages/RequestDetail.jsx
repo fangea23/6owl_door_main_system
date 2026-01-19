@@ -6,7 +6,8 @@ import {
     ArrowLeft, CheckCircle, XCircle, Clock, Shield, Loader2, 
     Building, FileText, CreditCard, Paperclip, MessageSquare, 
     ThumbsUp, Printer, Edit2, ExternalLink, Download, 
-    Image as ImageIcon, Ticket, SkipForward 
+    Image as ImageIcon, Ticket, SkipForward,
+    Save, X // ✅ [新增] 引入這兩個圖示
 } from 'lucide-react';
 
 const BASE_PATH = '/systems/payment-approval';
@@ -74,12 +75,55 @@ export default function RequestDetail() {
     const [cashierFee, setCashierFee] = useState(0);
     const [previewFile, setPreviewFile] = useState(null);
 
-    // ✅ [新增] 會計補登發票用的 State
-    const [accountantInvoice, setAccountantInvoice] = useState({
-        hasInvoice: 'no_yet',
-        invoiceDate: '',
-        invoiceNumber: ''
+    // ✅ [新增] 1. 控制發票編輯模式的 State
+    const [isEditingInvoice, setIsEditingInvoice] = useState(false);
+    const [invoiceData, setInvoiceData] = useState({ 
+        has_invoice: 'no_yet', 
+        invoice_date: '', 
+        invoice_number: '' 
     });
+
+    // ✅ [新增] 2. 當 request 載入時，同步發票資料到編輯狀態
+    useEffect(() => {
+        if (request) {
+            setInvoiceData({
+                has_invoice: request.has_invoice || 'no_yet',
+                invoice_date: request.invoice_date || '',
+                invoice_number: request.invoice_number || ''
+            });
+        }
+    }, [request]);
+    // ✅ [新增] 3. 獨立儲存發票資料的函式 (不影響簽核狀態)
+const handleSaveInvoice = async () => {
+    try {
+        setProcessing(true);
+        
+        // 準備要更新的資料
+        const updates = {
+            has_invoice: invoiceData.has_invoice,
+            // 如果狀態不是「已附」，清空日期與號碼
+            invoice_date: invoiceData.has_invoice === 'yes' ? invoiceData.invoice_date : null,
+            invoice_number: invoiceData.has_invoice === 'yes' ? invoiceData.invoice_number : null
+        };
+
+        const { error } = await supabase
+            .from('payment_requests')
+            .update(updates)
+            .eq('id', id);
+
+        if (error) throw error;
+
+        // 更新本地顯示資料
+        setRequest(prev => ({ ...prev, ...updates }));
+        setIsEditingInvoice(false);
+        alert('✅ 發票資料已更新！');
+    } catch (err) {
+        console.error(err);
+        alert('更新失敗: ' + err.message);
+    } finally {
+        setProcessing(false);
+    }
+};
     useEffect(() => {
         fetchRequestDetail();
         
@@ -120,15 +164,6 @@ export default function RequestDetail() {
 
         setRequest(data);
             if (data.handling_fee) setCashierFee(data.handling_fee);
-
-            // ✅ [新增] 初始化發票補登欄位 (如果是會計，預設帶入現有資料)
-            if (currentRole === 'accountant') {
-                setAccountantInvoice({
-                    hasInvoice: data.has_invoice || 'no_yet',
-                    invoiceDate: data.invoice_date || '',
-                    invoiceNumber: data.invoice_number || ''
-                });
-            }
         } catch (err) {
             console.error(err);
             alert('載入失敗: ' + err.message);
@@ -159,20 +194,6 @@ export default function RequestDetail() {
             // 特殊邏輯：如果是出納，記錄手續費
             if (currentRole === 'cashier') {
                 updatePayload.handling_fee = Number(cashierFee);
-            }
-
-            // ✅ [新增] 特殊邏輯：如果是會計，寫入補登的發票資訊
-            if (currentRole === 'accountant') {
-                updatePayload.has_invoice = accountantInvoice.hasInvoice;
-                // 如果改成「已附發票」或「免用」，則寫入日期號碼 (或清空)
-                if (accountantInvoice.hasInvoice === 'yes') {
-                    updatePayload.invoice_date = accountantInvoice.invoiceDate;
-                    updatePayload.invoice_number = accountantInvoice.invoiceNumber;
-                } else {
-                    // 如果還是未開或免用，視需求決定是否要清空日期 (這裡建議保留彈性)
-                    updatePayload.invoice_date = null;
-                    updatePayload.invoice_number = null;
-                }
             }
 
             // ★★★ 特殊邏輯：如果下一個關卡是「會計」，但申請人本身就是「會計」 ★★★
@@ -360,15 +381,82 @@ export default function RequestDetail() {
                                 <SectionHeader icon={Paperclip} title="四、附件、發票與傳票" />
                                 <div className="grid grid-cols-2 gap-4 print-grid-4">
                                     
-                                    {/* 發票資訊 */}
-                                    <div className="print-col-span-2">
-                                        <InfoField 
-                                            label="發票狀態" 
-                                            value={request.has_invoice === 'yes' ? '已附發票' : request.has_invoice === 'no_yet' ? '未開/後補' : '免用發票'} 
-                                            subValue={request.has_invoice === 'yes' ? 
-                                                `日期: ${request.invoice_date} | 號碼: ${request.invoice_number || '--'}` : ''
-                                            } 
-                                        />
+                                    {/* --- ✅ [修改] 發票資訊區塊 (支援會計補登) --- */}
+                                    <div className="print-col-span-2 relative group">
+
+                                        {isEditingInvoice ? (
+                                            // --- 編輯模式介面 ---
+                                            <div className="bg-white border-2 border-blue-100 rounded-lg p-3 shadow-sm animate-in fade-in space-y-3">
+                                                <div className="flex items-center justify-between border-b border-gray-100 pb-2 mb-2">
+                                                    <span className="text-sm font-bold text-blue-800">發票資訊補登</span>
+                                                    <div className="flex gap-2">
+                                                        <button onClick={() => setIsEditingInvoice(false)} className="text-gray-400 hover:text-gray-600">
+                                                            <X size={16} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                
+                                                {/* 1. 狀態選擇 */}
+                                                <div>
+                                                    <label className="block text-xs font-bold text-gray-500 mb-1">發票狀態</label>
+                                                    <select 
+                                                        value={invoiceData.has_invoice}
+                                                        onChange={(e) => setInvoiceData({ ...invoiceData, has_invoice: e.target.value })}
+                                                        className="w-full p-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    >
+                                                        <option value="no_yet">未開 / 後補</option>
+                                                        <option value="yes">已附發票</option>
+                                                        <option value="none">免用發票</option>
+                                                    </select>
+                                                </div>
+
+                                                {/* 2. 日期與號碼 (只有選「已附發票」才顯示) */}
+                                                {invoiceData.has_invoice === 'yes' && (
+                                                    <div className="grid grid-cols-2 gap-3 animate-in slide-in-from-top-2">
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-gray-500 mb-1">發票日期</label>
+                                                            <input 
+                                                                type="date"
+                                                                value={invoiceData.invoice_date}
+                                                                onChange={(e) => setInvoiceData({ ...invoiceData, invoice_date: e.target.value })}
+                                                                className="w-full p-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-gray-500 mb-1">發票號碼</label>
+                                                            <input 
+                                                                type="text"
+                                                                placeholder="例: AB-12345678"
+                                                                value={invoiceData.invoice_number}
+                                                                onChange={(e) => setInvoiceData({ ...invoiceData, invoice_number: e.target.value })}
+                                                                className="w-full p-2 text-sm border border-gray-300 rounded font-mono focus:ring-2 focus:ring-blue-500 outline-none"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* 3. 儲存按鈕 */}
+                                                <div className="pt-2">
+                                                    <button 
+                                                        onClick={handleSaveInvoice}
+                                                        disabled={processing}
+                                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded text-sm font-bold flex items-center justify-center gap-2 transition-colors"
+                                                    >
+                                                        {processing ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                                                        儲存變更
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            // --- 原本的顯示模式 ---
+                                            <InfoField 
+                                                label="發票狀態" 
+                                                value={request.has_invoice === 'yes' ? '已附發票' : request.has_invoice === 'no_yet' ? '未開/後補' : '免用發票'} 
+                                                subValue={request.has_invoice === 'yes' ? 
+                                                    `日期: ${request.invoice_date} | 號碼: ${request.invoice_number || '--'}` : ''
+                                                } 
+                                            />
+                                        )}
                                     </div>
 
                                     {/* 傳票資訊 (新增) */}
@@ -526,58 +614,7 @@ export default function RequestDetail() {
                                                     <div className="text-red-800 font-bold text-lg">等待您的簽核</div>
                                                     <div className="text-sm text-red-600">({currentConfig.label})</div>
                                                 </div>
-
-                                        {/* --- ✅ [新增] 會計專用：發票補登區 --- */}
-                                        {currentRole === 'accountant' && (
-                                            <div className="mb-4 bg-orange-50 p-4 rounded-lg border border-orange-200 text-left">
-                                                <div className="flex items-center gap-2 mb-3 text-orange-800 font-bold border-b border-orange-200 pb-2">
-                                                    <FileText size={18} />
-                                                    發票資訊補登/確認
-                                                </div>
                                                 
-                                                {/* 1. 發票狀態切換 */}
-                                                <div className="mb-3">
-                                                    <label className="block text-xs font-bold text-stone-500 mb-1">發票狀態</label>
-                                                    <div className="flex gap-2">
-                                                        {/* 這裡使用簡單的 Radio Button 或 Select */}
-                                                        <select 
-                                                            value={accountantInvoice.hasInvoice}
-                                                            onChange={(e) => setAccountantInvoice({...accountantInvoice, hasInvoice: e.target.value})}
-                                                            className="w-full p-2 rounded border border-stone-300 text-sm"
-                                                        >
-                                                            <option value="no_yet">未開 / 後補</option>
-                                                            <option value="yes">已附發票 (補登)</option>
-                                                            <option value="none">免用發票</option>
-                                                        </select>
-                                                    </div>
-                                                </div>
-
-                                                {/* 2. 當狀態選為「已附發票」時，顯示日期與號碼輸入框 */}
-                                                {accountantInvoice.hasInvoice === 'yes' && (
-                                                    <div className="space-y-3 animate-in fade-in slide-in-from-top-1">
-                                                        <div>
-                                                            <label className="block text-xs font-bold text-stone-500 mb-1">發票日期</label>
-                                                            <input 
-                                                                type="date" 
-                                                                value={accountantInvoice.invoiceDate}
-                                                                onChange={(e) => setAccountantInvoice({...accountantInvoice, invoiceDate: e.target.value})}
-                                                                className="w-full p-2 rounded border border-stone-300 text-sm"
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <label className="block text-xs font-bold text-stone-500 mb-1">發票號碼</label>
-                                                            <input 
-                                                                type="text" 
-                                                                placeholder="例：AB-12345678"
-                                                                value={accountantInvoice.invoiceNumber}
-                                                                onChange={(e) => setAccountantInvoice({...accountantInvoice, invoiceNumber: e.target.value})}
-                                                                className="w-full p-2 rounded border border-stone-300 text-sm font-mono"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
                                                 {currentRole === 'cashier' && (
                                                     <div className="mb-4 bg-white p-3 rounded border border-stone-200">
                                                         <label className="block text-sm font-bold text-gray-700 mb-1">實際手續費 (TWD)</label>
