@@ -74,7 +74,12 @@ export default function RequestDetail() {
     const currentRole = role;
     const [cashierFee, setCashierFee] = useState(0);
     const [previewFile, setPreviewFile] = useState(null);
-
+    // ✅ [新增] 會計補登發票用的 State
+    const [accountantInvoice, setAccountantInvoice] = useState({
+        hasInvoice: 'no_yet',
+        invoiceDate: '',
+        invoiceNumber: ''
+    });
     // ✅ [新增] 1. 控制發票編輯模式的 State
     const [isEditingInvoice, setIsEditingInvoice] = useState(false);
     const [invoiceData, setInvoiceData] = useState({ 
@@ -115,7 +120,7 @@ const handleSaveInvoice = async () => {
 
         // 更新本地顯示資料
         setRequest(prev => ({ ...prev, ...updates }));
-        setIsEditingInvoice(false);
+        setIsEditingInvoice(false);R
         alert('✅ 發票資料已更新！');
     } catch (err) {
         console.error(err);
