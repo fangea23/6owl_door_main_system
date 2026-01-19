@@ -110,14 +110,14 @@ export default function Dashboard() {
   const handleDeleteStore = async (store) => {
     if (!confirm(`確定要刪除店舖「${store.name}」嗎？`)) return;
 
-    const result = await deleteStore(store.id);
+    const result = await deleteStore(store.code);
     if (!result.success) {
       alert(`刪除失敗：${result.error}`);
     }
   };
 
   const handleToggleStore = async (store) => {
-    const result = await toggleStoreStatus(store.id, !store.is_active);
+    const result = await toggleStoreStatus(store.code, !store.is_active);
     if (!result.success) {
       alert(`更新失敗：${result.error}`);
     }
@@ -313,7 +313,7 @@ export default function Dashboard() {
                   <div className="space-y-2.5 sm:space-y-3">
                     {filteredStores.map((store) => (
                       <div
-                        key={store.id}
+                        key={store.code}
                         className="p-3 sm:p-4 border border-stone-200 rounded-lg hover:shadow-md hover:shadow-red-500/10 transition-all"
                       >
                         <div className="flex items-start justify-between gap-2 sm:gap-3">
@@ -349,7 +349,7 @@ export default function Dashboard() {
                               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                                 <span className="font-medium">店舖 ID:</span>
                                 <code className="bg-stone-100 px-2 py-0.5 rounded text-xs break-all">
-                                  {store.id}
+                                  {store.code}
                                 </code>
                               </div>
                               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
@@ -413,7 +413,7 @@ export default function Dashboard() {
           onClose={() => setShowStoreModal(false)}
           onSave={async (data) => {
             const result = editingStore
-              ? await updateStore(editingStore.id, data)
+              ? await updateStore(editingStore.code, data)
               : await addStore(data);
 
             if (result.success) {

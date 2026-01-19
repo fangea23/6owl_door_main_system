@@ -58,12 +58,12 @@ export function useStores(brandId = null) {
     }
   };
 
-  const updateStore = async (id, storeData) => {
+  const updateStore = async (code, storeData) => {
     try {
       const { data, error } = await supabase
         .from('stores')
         .update(storeData)
-        .eq('id', id)
+        .eq('code', code)
         .select(`
           *,
           brand:brands(id, name)
@@ -79,12 +79,12 @@ export function useStores(brandId = null) {
     }
   };
 
-  const deleteStore = async (id) => {
+  const deleteStore = async (code) => {
     try {
       const { error } = await supabase
         .from('stores')
         .delete()
-        .eq('id', id);
+        .eq('code', code);
 
       if (error) throw error;
       await fetchStores();
@@ -95,8 +95,8 @@ export function useStores(brandId = null) {
     }
   };
 
-  const toggleStoreStatus = async (id, isActive) => {
-    return await updateStore(id, { is_active: isActive });
+  const toggleStoreStatus = async (code, isActive) => {
+    return await updateStore(code, { is_active: isActive });
   };
 
   return {
