@@ -383,6 +383,16 @@ const handleSaveInvoice = async () => {
                                     
                                     {/* --- ✅ [修改] 發票資訊區塊 (支援會計補登) --- */}
                                     <div className="print-col-span-2 relative group">
+                                        
+                                        {/* 只有「會計」且「非編輯模式」時，顯示編輯按鈕 */}
+                                        {currentRole === 'accountant' && !isEditingInvoice && (
+                                            <button 
+                                                onClick={() => setIsEditingInvoice(true)}
+                                                className="absolute right-0 top-0 text-blue-600 hover:text-blue-800 text-xs flex items-center gap-1 no-print bg-blue-50 px-2 py-1 rounded transition-opacity"
+                                            >
+                                                <Edit2 size={12} /> 補登/修改
+                                            </button>
+                                        )}
 
                                         {isEditingInvoice ? (
                                             // --- 編輯模式介面 ---
@@ -614,7 +624,58 @@ const handleSaveInvoice = async () => {
                                                     <div className="text-red-800 font-bold text-lg">等待您的簽核</div>
                                                     <div className="text-sm text-red-600">({currentConfig.label})</div>
                                                 </div>
+
+                                        {/* --- ✅ [新增] 會計專用：發票補登區 --- */}
+                                        {currentRole === 'accountant' && (
+                                            <div className="mb-4 bg-orange-50 p-4 rounded-lg border border-orange-200 text-left">
+                                                <div className="flex items-center gap-2 mb-3 text-orange-800 font-bold border-b border-orange-200 pb-2">
+                                                    <FileText size={18} />
+                                                    發票資訊補登/確認
+                                                </div>
                                                 
+                                                {/* 1. 發票狀態切換 */}
+                                                <div className="mb-3">
+                                                    <label className="block text-xs font-bold text-stone-500 mb-1">發票狀態</label>
+                                                    <div className="flex gap-2">
+                                                        {/* 這裡使用簡單的 Radio Button 或 Select */}
+                                                        <select 
+                                                            value={accountantInvoice.hasInvoice}
+                                                            onChange={(e) => setAccountantInvoice({...accountantInvoice, hasInvoice: e.target.value})}
+                                                            className="w-full p-2 rounded border border-stone-300 text-sm"
+                                                        >
+                                                            <option value="no_yet">未開 / 後補</option>
+                                                            <option value="yes">已附發票 (補登)</option>
+                                                            <option value="none">免用發票</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                {/* 2. 當狀態選為「已附發票」時，顯示日期與號碼輸入框 */}
+                                                {accountantInvoice.hasInvoice === 'yes' && (
+                                                    <div className="space-y-3 animate-in fade-in slide-in-from-top-1">
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-stone-500 mb-1">發票日期</label>
+                                                            <input 
+                                                                type="date" 
+                                                                value={accountantInvoice.invoiceDate}
+                                                                onChange={(e) => setAccountantInvoice({...accountantInvoice, invoiceDate: e.target.value})}
+                                                                className="w-full p-2 rounded border border-stone-300 text-sm"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-stone-500 mb-1">發票號碼</label>
+                                                            <input 
+                                                                type="text" 
+                                                                placeholder="例：AB-12345678"
+                                                                value={accountantInvoice.invoiceNumber}
+                                                                onChange={(e) => setAccountantInvoice({...accountantInvoice, invoiceNumber: e.target.value})}
+                                                                className="w-full p-2 rounded border border-stone-300 text-sm font-mono"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                                 {currentRole === 'cashier' && (
                                                     <div className="mb-4 bg-white p-3 rounded border border-stone-200">
                                                         <label className="block text-sm font-bold text-gray-700 mb-1">實際手續費 (TWD)</label>
