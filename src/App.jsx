@@ -19,7 +19,7 @@ import StoreManagementSystemLayout from './pages/systems/StoreManagementSystemLa
 import EIPKMSystemLayout from './pages/systems/EIPKMSystemLayout';
 import TicketingSystemLayout from './pages/systems/TicketingSystemLayout'; 
 import { useAuth } from './contexts/AuthContext'; // 確保路徑正確
-
+/*
 function DebugSession() {
   const { user, profile } = useAuth();
   return (
@@ -30,12 +30,12 @@ function DebugSession() {
     </div>
   );
 }
+*/
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         {/* 🔥 加入這行！這樣左上角的黑色除錯框才會跑出來 */}
-        <DebugSession />
 
         {/* PWA 安裝提示 */}
         <PWAInstallPrompt />
