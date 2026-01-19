@@ -27,7 +27,7 @@ export const categories = [
     systems: [
       {
         id: 'management-center',
-        name: '統一管理中心',
+        name: '管理中心',
         description: '帳號、員工、部門統一管理平台',
         icon: '🛡️',
         url: '/management',

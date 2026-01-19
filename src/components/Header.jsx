@@ -194,18 +194,7 @@ export default function Header({ onSearch }) {
                   </div>
 
                   <div className="p-2 space-y-1">
-                    <Link
-                      to="/account"
-                      onClick={() => setShowUserMenu(false)}
-                      className="flex items-center gap-2.5 sm:gap-3 px-3 py-2.5 text-sm font-medium text-stone-600 hover:text-red-700 active:text-red-800 hover:bg-red-50 active:bg-red-100 rounded-lg sm:rounded-xl transition-colors group touch-manipulation"
-                    >
-                      <span className="p-1.5 bg-stone-100 text-stone-500 rounded-lg group-hover:bg-red-100 group-hover:text-red-600 transition-colors">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
-                      </span>
-                      個人資料
-                    </Link>
+
                     <Link
                       to="/account"
                       onClick={() => setShowUserMenu(false)}

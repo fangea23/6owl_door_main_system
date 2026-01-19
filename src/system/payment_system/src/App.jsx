@@ -29,7 +29,7 @@ export default function App() {
              <Route path="/dashboard" element={<Dashboard />} />
              <Route path="/apply" element={<ApplyForm />} />
              <Route path="/request/:id" element={<RequestDetail />} />
-             {/* AdminPanel 已移至統一管理中心 /management */}
+             {/* AdminPanel 已移至管理中心 /management */}
              <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Route>
         </Route>

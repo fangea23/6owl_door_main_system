@@ -84,9 +84,9 @@
       ]
     },
     {
-      "name": "統一管理中心",
+      "name": "管理中心",
       "short_name": "管理中心",
-      "description": "快速進入統一管理中心",
+      "description": "快速進入管理中心",
       "url": "/management",
       "icons": [
         {

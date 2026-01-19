@@ -23,7 +23,7 @@ const Logo = ({ size = 'default' }) => {
 };
 
 /**
- * 統一管理中心
+ * 管理中心
  * 整合所有系統的帳戶、員工、部門管理
  */
 export default function ManagementCenter() {
@@ -142,7 +142,7 @@ export default function ManagementCenter() {
                   <Shield size={18} className="text-blue-600" />
                 </div>
                 <div className="hidden sm:block">
-                  <p className="text-sm font-bold text-stone-700">統一管理中心</p>
+                  <p className="text-sm font-bold text-stone-700">管理中心</p>
                   <p className="text-[10px] text-stone-400 tracking-wider">MANAGEMENT CENTER</p>
                 </div>
               </div>
