@@ -3,7 +3,7 @@
 import { supabase as mainClient } from '../../../lib/supabase';
 
 // brands 和 stores 已遷移到 public schema
-const PUBLIC_TABLES = ['brands', 'stores','profiles','employees'];
+const PUBLIC_TABLES = ['brands', 'stores','profiles','employees','employees_with_details'];
 
 export const supabase = {
   // 共用主系統的 Auth, Storage, Channel
