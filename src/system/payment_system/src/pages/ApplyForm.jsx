@@ -25,8 +25,15 @@ import {
     Image as ImageIcon,
     ChevronLeft,
     RotateCcw,
-    Wallet
+    Wallet,
+    Ticket
 } from 'lucide-react';
+
+// ★ 設定：需要經過「單位主管」簽核的部門 (請依照你 DB 實際部門名稱修改)
+const DEPT_NEEDS_UNIT_MANAGER = '營運部'; 
+
+// ★ 設定：視為「會計」角色的職稱關鍵字 (若申請人有這些字，會計關自動通過)
+const ACCOUNTANT_KEYWORDS = ['會計'];
 
 const SectionTitle = ({ icon: Icon, title }) => (
     <div className="flex items-center gap-2 mb-4 pb-2 border-b border-stone-200 text-stone-700 font-bold text-lg">
@@ -55,7 +62,7 @@ export default function ApplyForm() {
     // --- 資料列表狀態 ---
     const [bankList, setBankList] = useState([]);
     const [branchList, setBranchList] = useState([]);
-
+    const [userInfo, setUserInfo] = useState({ name: '', department: '', jobTitle: '' });
     // [新增] 品牌與門店列表狀態
     const [brandList, setBrandList] = useState([]);
     const [storeList, setStoreList] = useState([]);
@@ -66,7 +73,8 @@ export default function ApplyForm() {
     // [新增] 品牌與門店載入狀態
     const [fetchingBrands, setFetchingBrands] = useState(false);
     const [fetchingStores, setFetchingStores] = useState(false);
-
+    const [existingAttachments, setExistingAttachments] = useState([]);
+    const [selectedFiles, setSelectedFiles] = useState([]);
     const [formData, setFormData] = useState({
         brand: '',       // 存品牌名稱 (給 DB 寫入用)
         brandId: '',     // [新增] 存品牌 ID (給前端關聯查詢用)
@@ -88,6 +96,10 @@ export default function ApplyForm() {
         attachmentDesc: '',
         hasInvoice: 'none',
         invoiceDate: '',
+        invoiceNumber: '', // [新增]
+        
+        hasVoucher: 'no',  // [新增]
+        voucherNumber: '', // [新增]
         remarks: '',
         creatorName: '',
         applyDate: new Intl.DateTimeFormat('en-CA', {
@@ -103,6 +115,44 @@ export default function ApplyForm() {
     // ==========================================
     
     // --- 修改：初始載入填單人名稱 (優先抓取 employees 資料表) ---
+    // 1. 新增一個 useEffect 來抓取員工詳細資料 (放在 fetchCreatorName 附近)
+// 1. 修改抓取員工詳細資料的 useEffect
+// 1. 修改抓取員工詳細資料的 useEffect
+    useEffect(() => {
+        const fetchUserInfo = async () => {
+            if (user) {
+                let finalName = user.user_metadata?.full_name || user.email?.split('@')[0] || '';
+                let dept = '';
+                let title = '';
+                let role = ''; // [新增] 角色變數
+
+                try {
+                    // ✅ 修改：多抓取 'role' 欄位
+                    const { data } = await supabase
+                        .from('employees_with_details') 
+                        .select('name, department_code, job_title, role') // <--- 這裡加上 role
+                        .eq('user_id', user.id)
+                        .single();
+                    
+                    if (data) {
+                        finalName = data.name || finalName;
+                        dept = data.department_code || ''; 
+                        title = data.job_title || '';
+                        role = data.role || ''; // [新增] 存取 role
+                    }
+                } catch (err) {
+                    console.error('Error fetching employee info:', err);
+                }
+
+                // ✅ 修改：存入 state (請記得去 useState 補上 role 初始值，或者直接在這裡存)
+                setUserInfo({ name: finalName, department: dept, jobTitle: title, role: role });
+            }
+        };
+
+        fetchUserInfo();
+    }, [user]);
+
+
     useEffect(() => {
         const fetchCreatorName = async () => {
             if (user && !editId) { // 只有在「新增模式」時自動帶入，編輯模式保留原記錄
@@ -245,7 +295,13 @@ export default function ApplyForm() {
         if (location.state && location.state.requestData) {
             const old = location.state.requestData;
             setEditId(old.id);
-
+            let oldAttachments = [];
+            if (Array.isArray(old.attachments)) {
+                oldAttachments = old.attachments;
+            } else if (typeof old.attachments === 'string' && old.attachments) {
+                oldAttachments = [{ url: old.attachments, name: '舊附件', type: 'old' }];
+            }
+            setExistingAttachments(oldAttachments);
             // 將舊資料填回表單
             setFormData(prev => ({
                 ...prev,
@@ -265,9 +321,12 @@ export default function ApplyForm() {
                 accountNumber: old.account_number || '',
                 branchCode: old.branch_code || '',
                 attachmentUrl: old.attachment_url, // ✅ 保留舊連結
-                attachmentDesc: old.attachment_desc || '',
                 hasInvoice: old.has_invoice,
                 invoiceDate: old.invoice_date || '',
+                invoiceNumber: old.invoice_number || '',
+                hasVoucher: old.has_voucher ? 'yes' : 'no',
+                voucherNumber: old.voucher_number || '',
+                attachmentDesc: old.attachment_desc || '',
                 remarks: old.remarks || '',
                 creatorName: old.creator_name,
                 applyDate: old.apply_date
@@ -315,22 +374,31 @@ export default function ApplyForm() {
     // --- 檔案處理邏輯 ---
 
     // 1. 處理檔案選取 (共用邏輯)
-    const processFile = (file) => {
-        if (!file) return;
-
-        // 檢查大小 (5MB)
-        if (file.size > 5 * 1024 * 1024) {
-            alert('檔案大小超過 5MB 限制');
-            return;
-        }
-
-        // 存入 State
-        setFormData(prev => ({ ...prev, attachment: file }));
-    };
 
     // 2. 傳統 input onChange
+// 1. 多檔選擇
     const handleFileChange = (e) => {
-        processFile(e.target.files[0]);
+        const files = Array.from(e.target.files);
+        // 過濾 5MB
+        const validFiles = files.filter(file => {
+             if (file.size > 5 * 1024 * 1024) {
+                 alert(`檔案 ${file.name} 超過 5MB，已略過。`);
+                 return false;
+             }
+             return true;
+        });
+        setSelectedFiles(prev => [...prev, ...validFiles]);
+        e.target.value = ''; // 清空 input 讓同檔名可再選
+    };
+
+    // 2. 移除新選擇的檔案
+    const removeSelectedFile = (index) => {
+        setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+    };
+
+    // 3. 移除舊有的附件
+    const removeExistingAttachment = (index) => {
+        setExistingAttachments(prev => prev.filter((_, i) => i !== index));
     };
 
     // 3. 拖曳相關事件
@@ -347,18 +415,24 @@ export default function ApplyForm() {
     const handleDrop = (e) => {
         e.preventDefault();
         setIsDragging(false);
-        const file = e.dataTransfer.files[0];
-        processFile(file);
-    };
+        
+        // 取得拖曳的所有檔案
+        const files = Array.from(e.dataTransfer.files);
+        
+        // 過濾檔案大小
+        const validFiles = files.filter(file => {
+            if (file.size > 5 * 1024 * 1024) {
+                alert(`檔案 ${file.name} 超過 5MB，已略過。`);
+                return false;
+            }
+            return true;
+        });
 
-    // 4. 移除檔案
-    const removeFile = () => {
-        setFormData(prev => ({ ...prev, attachment: null }));
-        // 清空 input 讓同個檔案可以再選一次 (非必要但體驗較好)
-        const fileInput = document.getElementById('file-upload');
-        if (fileInput) fileInput.value = '';
+        // 加入 selectedFiles 陣列
+        if (validFiles.length > 0) {
+            setSelectedFiles(prev => [...prev, ...validFiles]);
+        }
     };
-
 
     const handleBankChange = (e) => {
         const selectedBankCode = e.target.value;
@@ -430,26 +504,23 @@ export default function ApplyForm() {
 
             // 2. 處理附件上傳
             // 預設使用舊有的連結 (如果是編輯模式)
-            let finalAttachmentUrl = formData.attachmentUrl;
 
-            if (formData.attachment) {
-                // 如果使用者選了新檔案 -> 上傳並覆蓋連結
-                const file = formData.attachment;
-                const fileExt = file.name.split('.').pop();
-                const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+            let finalAttachments = [...existingAttachments]; // 先放舊的
 
-                const { error: uploadError } = await supabase.storage
-                    .from('attachments')
-                    .upload(fileName, file);
-
-                if (uploadError) throw uploadError;
-
-                const { data } = supabase.storage
-                    .from('attachments')
-                    .getPublicUrl(fileName);
-
-                finalAttachmentUrl = data.publicUrl;
-            }
+    if (selectedFiles.length > 0) {
+        // 使用 Promise.all 平行上傳
+        const uploadPromises = selectedFiles.map(async (file) => {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+            const { error } = await supabase.storage.from('attachments').upload(fileName, file);
+            if (error) throw error;
+            const { data } = supabase.storage.from('attachments').getPublicUrl(fileName);
+            
+            return { url: data.publicUrl, name: file.name, type: file.type };
+        });
+        const newUploadedAttachments = await Promise.all(uploadPromises);
+        finalAttachments = [...finalAttachments, ...newUploadedAttachments];
+    }
 
             const isTransfer = formData.paymentMethod === 'transfer';
 
@@ -474,8 +545,8 @@ export default function ApplyForm() {
                 account_number: isTransfer ? formData.accountNumber : '',
                 branch_code: isTransfer ? formData.branchCode : '',
 
-                has_attachment: !!finalAttachmentUrl,
-                attachment_url: finalAttachmentUrl,
+                has_attachment: finalAttachments.length > 0,
+                attachments: finalAttachments,
                 attachment_desc: formData.attachmentDesc,
 
                 // 動態加入 signature_url：只有當有新簽名時才更新，否則不傳此欄位(保留舊值)
@@ -485,7 +556,9 @@ export default function ApplyForm() {
                 invoice_date: formData.invoiceDate ? formData.invoiceDate : null,
                 remarks: formData.remarks,
                 creator_name: formData.creatorName,
-
+invoice_number: formData.invoiceNumber,
+        has_voucher: formData.hasVoucher === 'yes',
+        voucher_number: formData.hasVoucher === 'yes' ? formData.voucherNumber : null,
                 // ✅ 核心修改：無論是新增或修改，狀態都重置為第一關
                 status: 'pending_unit_manager',
                 rejection_reason: null, // 清空駁回原因
@@ -498,7 +571,22 @@ export default function ApplyForm() {
                 sign_boss_at: null, sign_boss_url: null,
                 current_step: 1
             };
+            const needsUnitManager = userInfo.department === DEPT_NEEDS_UNIT_MANAGER;
+            let initialStatus = needsUnitManager ? 'pending_unit_manager' : 'pending_accountant';
+            let currentStep = needsUnitManager ? 1 : 2;
 
+            // B. 判斷是否為會計 (改為檢查 role)
+            // ✅ 修改：這裡改成 userInfo.role
+            const isAccountant = ACCOUNTANT_KEYWORDS.some(k => userInfo.role?.includes(k));
+    
+            if (initialStatus === 'pending_accountant' && isAccountant) {
+                dbPayload.sign_accountant_at = new Date().toISOString(); // 自動簽核
+                initialStatus = 'pending_audit_manager'; // 跳下一關
+                currentStep = 3;
+            }
+
+            dbPayload.status = initialStatus;
+            dbPayload.current_step = currentStep;
             if (editId) {
                 // --- [編輯模式] Update ---
                 const { error } = await supabase
@@ -928,143 +1016,255 @@ export default function ApplyForm() {
                     )}
 
                     {/* 四、附件與發票 */}
-                    <section className="bg-stone-50/50 p-4 rounded-lg border border-stone-200/60">
-                        <SectionTitle icon={Paperclip} title="四、附件與發票" />
+                    {/* 四、附件、發票與傳票 */}
+<section className="bg-stone-50/50 p-4 rounded-lg border border-stone-200/60">
+    <SectionTitle icon={Paperclip} title="四、附件、發票與傳票" />
 
-                        <div className="space-y-4">
-                            <label className="block text-sm font-medium text-gray-700">
-                                相關附件 (支援圖片、PDF，最大 5MB)
-                            </label>
+    <div className="space-y-6">
+        {/* --- 4-1. 附件上傳區 (支援多檔 + 拍照) --- */}
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+                相關附件 (支援圖片、PDF，單檔最大 5MB)
+            </label>
 
-                            {/* 檔案上傳區 (這裡保持原樣) */}
-                            {!formData.attachment ? (
-                                <div
-                                    onDragOver={handleDragOver}
-                                    onDragLeave={handleDragLeave}
-                                    onDrop={handleDrop}
-                                    className={`
+            {/* 上傳觸發區塊 */}
+            <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`
                     border-2 border-dashed rounded-lg p-6 text-center transition-colors
                     ${isDragging ? 'border-red-500 bg-red-50' : 'border-stone-200 hover:border-red-400 bg-white'}
-                  `}
-                                >
-                                    <div className="flex flex-col items-center gap-2">
-                                        <UploadCloud className={`h-10 w-10 ${isDragging ? 'text-red-500' : 'text-gray-400'}`} />
+                `}
+            >
+                <div className="flex flex-col items-center gap-2">
+                    <UploadCloud className={`h-10 w-10 ${isDragging ? 'text-red-500' : 'text-gray-400'}`} />
 
-                                        <div className="text-sm text-gray-600">
-                                            <span className="font-semibold text-red-500">點擊上傳</span> 或將檔案拖曳至此
-                                        </div>
+                    <div className="text-sm text-gray-600">
+                        <span className="font-semibold text-red-500">點擊下方按鈕</span> 或將檔案拖曳至此
+                    </div>
 
-                                        <input
-                                            id="file-upload"
-                                            name="file-upload"
-                                            type="file"
-                                            className="hidden"
-                                            onChange={handleFileChange}
-                                            accept="image/*,application/pdf"
-                                        />
+                    {/* 隱藏的 input: 一般檔案選取 (支援多選) */}
+                    <input
+                        id="file-upload"
+                        type="file"
+                        multiple
+                        className="hidden"
+                        onChange={handleFileChange}
+                        accept="image/*,application/pdf"
+                    />
 
-                                        <div className="flex gap-3 mt-2">
-                                            <label
-                                                htmlFor="file-upload"
-                                                className="cursor-pointer bg-white border border-stone-200 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-stone-50/50 flex items-center gap-2 shadow-sm"
-                                            >
-                                                <FileText size={16} /> 瀏覽檔案
-                                            </label>
+                    {/* 隱藏的 input: 相機拍照 (手機專用) */}
+                    <input
+                        id="camera-upload"
+                        type="file"
+                        className="hidden"
+                        accept="image/*"
+                        capture="environment" // 呼叫後鏡頭
+                        onChange={handleFileChange}
+                    />
 
-                                            <label
-                                                htmlFor="camera-upload"
-                                                className="cursor-pointer bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-700 flex items-center gap-2 shadow-sm"
-                                            >
-                                                <Camera size={16} /> 拍照上傳
-                                            </label>
-                                            <input
-                                                id="camera-upload"
-                                                type="file"
-                                                className="hidden"
-                                                accept="image/*"
-                                                capture="environment"
-                                                onChange={handleFileChange}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="bg-white border border-stone-200 rounded-lg p-3 flex items-center justify-between shadow-sm">
-                                    <div className="flex items-center gap-3 overflow-hidden">
-                                        <div className="bg-red-100 p-2 rounded">
-                                            {formData.attachment.type.startsWith('image/') ? (
-                                                <ImageIcon className="text-red-500" size={24} />
-                                            ) : (
-                                                <FileText className="text-red-500" size={24} />
-                                            )}
-                                        </div>
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-medium text-gray-800 truncate">
-                                                {formData.attachment.name}
-                                            </p>
-                                            <p className="text-xs text-gray-500">
-                                                {(formData.attachment.size / 1024 / 1024).toFixed(2)} MB
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={removeFile}
-                                        className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                                    >
-                                        <X size={20} />
-                                    </button>
-                                </div>
-                            )}
+                    {/* 按鈕群組 */}
+                    <div className="flex gap-3 mt-2">
+                        {/* 按鈕 1: 瀏覽檔案 */}
+                        <label
+                            htmlFor="file-upload"
+                            className="cursor-pointer bg-white border border-stone-200 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-stone-50/50 flex items-center gap-2 shadow-sm transition-all"
+                        >
+                            <FileText size={16} /> 瀏覽檔案
+                        </label>
 
-                            <input
-                                type="text"
-                                name="attachmentDesc"
-                                value={formData.attachmentDesc}
-                                onChange={handleChange}
-                                placeholder="附件備註說明 (選填)"
-                                className="w-full rounded-md border-stone-200 p-2 border text-sm"
-                            />
+                        {/* 按鈕 2: 拍照上傳 (恢復此按鈕) */}
+                        <label
+                            htmlFor="camera-upload"
+                            className="cursor-pointer bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-700 flex items-center gap-2 shadow-sm transition-all"
+                        >
+                            <Camera size={16} /> 拍照上傳
+                        </label>
+                    </div>
+                </div>
+            </div>
 
-                            {/* ✅ [補回來的] 發票狀態與日期 */}
-                            <div className="border-t border-gray-200 pt-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">發票狀態</label>
-                                <div className="flex flex-wrap gap-4">
-                                    {['yes', 'no_yet', 'none'].map(val => (
-                                        <label key={val} className="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded border border-gray-200 hover:border-red-300">
-                                            <input
-                                                type="radio"
-                                                name="hasInvoice"
-                                                value={val}
-                                                checked={formData.hasInvoice === val}
-                                                onChange={handleChange}
-                                                className="text-red-500 focus:ring-red-500"
-                                            />
-                                            <span className="text-sm">
-                                                {val === 'yes' ? '已附發票' : val === 'no_yet' ? '未開/後補' : '免用發票'}
-                                            </span>
-                                        </label>
-                                    ))}
-                                </div>
-                                {/* 選擇已附發票時顯示日期 */}
-                                {formData.hasInvoice === 'yes' && (
-                                    <div className="mt-3 animate-in slide-in-from-top-2 duration-200">
-                                        <label className="text-xs text-gray-500 block mb-1">
-                                            發票日期 <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="date"
-                                            name="invoiceDate"
-                                            value={formData.invoiceDate}
-                                            onChange={handleChange}
-                                            required // 建議設為必填
-                                            className="block w-full md:w-auto rounded-md border-stone-200 p-2 border"
-                                        />
-                                    </div>
-                                )}
+            {/* 檔案列表顯示區 */}
+            <div className="mt-4 space-y-2">
+                {/* A. 舊有檔案 (來自 DB) - 藍色樣式 */}
+                {existingAttachments.map((file, idx) => (
+                    <div key={`old-${idx}`} className="bg-blue-50 border border-blue-100 rounded p-2 flex justify-between items-center animate-in fade-in">
+                        <div className="flex items-center gap-3 overflow-hidden">
+                            <div className="bg-blue-200 p-1.5 rounded text-blue-700">
+                                <FileText size={16} />
+                            </div>
+                            <div className="min-w-0">
+                                <a href={file.url} target="_blank" rel="noreferrer" className="block text-sm text-blue-700 hover:underline truncate">
+                                    {file.name || `附件 ${idx + 1}`}
+                                </a>
+                                <span className="text-xs text-blue-400">已儲存</span>
                             </div>
                         </div>
-                    </section>
+                        <button
+                            type="button"
+                            onClick={() => removeExistingAttachment(idx)}
+                            className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                        >
+                            <X size={18} />
+                        </button>
+                    </div>
+                ))}
+
+                {/* B. 新選檔案 (準備上傳) - 綠色樣式 */}
+                {selectedFiles.map((file, idx) => (
+                    <div key={`new-${idx}`} className="bg-green-50 border border-green-100 rounded p-2 flex justify-between items-center animate-in fade-in">
+                        <div className="flex items-center gap-3 overflow-hidden">
+                            <div className="bg-green-200 p-1.5 rounded text-green-700">
+                                {file.type.startsWith('image/') ? <ImageIcon size={16} /> : <FileText size={16} />}
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-sm font-medium text-gray-800 truncate">{file.name}</p>
+                                <p className="text-xs text-gray-500">{(file.size / 1024 / 1024).toFixed(2)} MB (準備上傳)</p>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => removeSelectedFile(idx)}
+                            className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                        >
+                            <X size={18} />
+                        </button>
+                    </div>
+                ))}
+            </div>
+
+            <input
+                type="text"
+                name="attachmentDesc"
+                value={formData.attachmentDesc}
+                onChange={handleChange}
+                placeholder="附件備註說明 (選填)"
+                className="mt-3 w-full rounded-md border-stone-200 p-2 border text-sm focus:ring-red-500 focus:border-red-500"
+            />
+        </div>
+
+        <hr className="border-gray-200" />
+
+        {/* --- 4-2. 發票區塊 (新增號碼欄位) --- */}
+        <div>
+            <div className="flex flex-col md:flex-row gap-4">
+                {/* 發票狀態選擇 */}
+                <div className="flex-1 min-w-[200px]">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">發票狀態</label>
+                    <div className="flex flex-wrap gap-2">
+                        {['yes', 'no_yet', 'none'].map(val => (
+                            <label key={val} className={`
+                                flex items-center gap-2 cursor-pointer px-3 py-2 rounded-md border transition-colors
+                                ${formData.hasInvoice === val ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-stone-200 hover:bg-stone-50'}
+                            `}>
+                                <input
+                                    type="radio"
+                                    name="hasInvoice"
+                                    value={val}
+                                    checked={formData.hasInvoice === val}
+                                    onChange={handleChange}
+                                    className="text-red-600 focus:ring-red-500"
+                                />
+                                <span className="text-sm font-medium">
+                                    {val === 'yes' ? '已附發票' : val === 'no_yet' ? '未開/後補' : '免用發票'}
+                                </span>
+                            </label>
+                        ))}
+                    </div>
+                </div>
+
+                {/* 當選擇「已附發票」時顯示輸入框 */}
+                {formData.hasInvoice === 'yes' && (
+                    <div className="contents md:flex md:gap-4 flex-1">
+                        <div className="flex-1 animate-in slide-in-from-top-2 duration-200">
+                            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                                發票日期 <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="date"
+                                name="invoiceDate"
+                                value={formData.invoiceDate}
+                                onChange={handleChange}
+                                required
+                                className="w-full rounded-md border-stone-200 p-2 border focus:ring-red-500 focus:border-red-500"
+                            />
+                        </div>
+                        <div className="flex-1 animate-in slide-in-from-top-2 duration-200 delay-75">
+                            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                                發票號碼
+                            </label>
+                            <input
+                                type="text"
+                                name="invoiceNumber"
+                                value={formData.invoiceNumber}
+                                onChange={handleChange}
+                                placeholder="例: AB-12345678"
+                                className="w-full rounded-md border-stone-200 p-2 border focus:ring-red-500 focus:border-red-500"
+                            />
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+
+        <hr className="border-gray-200" />
+
+        {/* --- 4-3. 傳票區塊 (新增功能) --- */}
+        <div>
+            <div className="flex items-center gap-2 mb-3 text-stone-700 font-bold">
+                <div className="p-1 bg-orange-100 text-orange-600 rounded">
+                    <Ticket size={16} />
+                </div>
+                <h4>傳票資訊</h4>
+            </div>
+
+            <div className="flex flex-col md:flex-row gap-4 items-start md:items-center bg-orange-50/30 p-3 rounded-lg border border-orange-100">
+                <div className="flex gap-6 items-center">
+                    <span className="text-sm font-medium text-gray-700">是否有傳票?</span>
+                    <div className="flex gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="radio"
+                                name="hasVoucher"
+                                value="yes"
+                                checked={formData.hasVoucher === 'yes'}
+                                onChange={handleChange}
+                                className="text-orange-600 focus:ring-orange-500"
+                            />
+                            <span className="text-sm">有</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="radio"
+                                name="hasVoucher"
+                                value="no"
+                                checked={formData.hasVoucher === 'no'}
+                                onChange={handleChange}
+                                className="text-orange-600 focus:ring-orange-500"
+                            />
+                            <span className="text-sm">無</span>
+                        </label>
+                    </div>
+                </div>
+
+                {formData.hasVoucher === 'yes' && (
+                    <div className="flex-1 w-full animate-in fade-in slide-in-from-left-2 duration-200">
+                        <input
+                            type="text"
+                            name="voucherNumber"
+                            value={formData.voucherNumber}
+                            onChange={handleChange}
+                            placeholder="請輸入傳票編號..."
+                            className="w-full rounded-md border-orange-200 p-2 border bg-white focus:ring-orange-500 focus:border-orange-500 transition-colors"
+                        />
+                    </div>
+                )}
+            </div>
+        </div>
+
+    </div>
+</section>
                     {/* 五、備註 */}
                     <section className="bg-stone-50/50 p-4 rounded-lg border border-stone-200/60">
                         <SectionTitle icon={MessageSquare} title="五、備註" />
