@@ -78,8 +78,10 @@ export function Header() {
   // --- 狀態管理 ---
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null); // 控制電腦版下拉
+  const [showUserMenu, setShowUserMenu] = useState(false); // 控制用戶下拉選單
   const [employeeName, setEmployeeName] = useState(null); // 員工姓名
   const dropdownRef = useRef(null); // 用於點擊外部關閉
+  const userMenuRef = useRef(null); // 用於用戶選單點擊外部關閉
 
   // --- 1. 抓取員工姓名邏輯 ---
   useEffect(() => {
@@ -121,6 +123,9 @@ export function Header() {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setOpenDropdown(null);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
+        setShowUserMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -251,52 +256,73 @@ export function Header() {
 
         {/* ================= 右側：使用者資訊 & 手機選單按鈕 ================= */}
         <div className="flex items-center gap-3">
-          
-          {/* 電腦版使用者資訊卡片 */}
-          {user && (
-            <Link
-              to="/account"
-              className={`hidden md:flex items-center gap-3 p-1.5 pr-3 rounded-xl transition-all border ${
-                isProfileIncomplete
-                  ? 'bg-amber-50 border-amber-200 text-amber-700 ring-1 ring-amber-100'
-                  : 'border-transparent hover:bg-gray-50 hover:border-gray-200 text-gray-600 hover:text-gray-900'
-              }`}
-              title={isProfileIncomplete ? "請點擊設定顯示名稱" : "個人資料設定"}
-            >
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-white font-medium text-sm shadow-sm ${
-                  isProfileIncomplete ? 'bg-amber-500' : 'bg-gradient-to-br from-blue-600 to-blue-800'
-              }`}>
-                {displayName?.charAt(0).toUpperCase() || <User size={16}/>}
-              </div>
-              
-              <div className="text-right">
-                <div className="text-sm font-bold leading-none mb-1 flex items-center justify-end gap-1">
-                  {isProfileIncomplete ? (
-                    <>
-                      <AlertCircle size={14} />
-                      <span>未設定</span>
-                    </>
-                  ) : (
-                    <span>{displayName}</span>
-                  )}
-                </div>
-                <div className={`text-[10px] font-medium tracking-wide ${
-                  isProfileIncomplete ? 'text-amber-600' : 'text-gray-400'
-                }`}>
-                  {isProfileIncomplete ? '點此設定' : roleNameDisplay}
-                </div>
-              </div>
-            </Link>
-          )}
 
-          {/* 電腦版登出按鈕 */}
-          <button
-            onClick={handleLogout}
-            className="hidden md:flex items-center justify-center p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all duration-200"
-            title="登出系統"
-          >
-            <LogOut size={20} />
-          </button>
+          {/* 使用者下拉選單 */}
+          <div className="relative hidden lg:block" ref={userMenuRef}>
+            <button
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className={`flex items-center gap-2 p-1.5 rounded-xl transition-all border ${
+                showUserMenu ? 'bg-blue-50 border-blue-200' : 'border-transparent hover:bg-gray-100 hover:border-gray-200'
+              }`}
+            >
+              <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-blue-800 rounded-lg flex items-center justify-center text-white font-medium text-sm shadow-md shadow-blue-500/20">
+                {displayName?.charAt(0).toUpperCase() || 'U'}
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-bold text-gray-700">
+                  {displayName}
+                </p>
+                <p className="text-[10px] text-gray-400 font-medium tracking-wide">
+                  {roleNameDisplay}
+                </p>
+              </div>
+              <ChevronDown
+                size={16}
+                className={`text-gray-400 transition-transform duration-300 ${showUserMenu ? 'rotate-180 text-blue-500' : ''}`}
+              />
+            </button>
+
+            {/* 下拉選單 */}
+            {showUserMenu && (
+              <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 py-2 z-50 overflow-hidden ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-200">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-cyan-500" />
+
+                <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/50">
+                  <p className="text-base font-bold text-gray-800 truncate">{displayName}</p>
+                  <p className="text-xs text-gray-500 mb-2 truncate">{user?.email}</p>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-medium bg-blue-100 text-blue-700 rounded-full border border-blue-200/50">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                    {roleNameDisplay}
+                  </span>
+                </div>
+
+                <div className="p-2 space-y-1">
+                  <Link
+                    to="/account"
+                    onClick={() => setShowUserMenu(false)}
+                    className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-xl transition-colors group"
+                  >
+                    <span className="p-1.5 bg-gray-100 text-gray-500 rounded-lg group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
+                      <Settings size={16} />
+                    </span>
+                    帳戶設定
+                  </Link>
+                </div>
+
+                <div className="p-2 border-t border-gray-100">
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center gap-3 w-full px-3 py-2.5 text-sm font-medium text-gray-600 hover:text-red-700 hover:bg-red-50 rounded-xl transition-colors group"
+                  >
+                    <span className="p-1.5 bg-gray-100 text-gray-500 rounded-lg group-hover:bg-red-100 group-hover:text-red-600 transition-colors">
+                      <LogOut size={16} />
+                    </span>
+                    登出系統
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* 手機版：漢堡選單按鈕 */}
           <button
@@ -318,30 +344,20 @@ export function Header() {
 
             {/* 手機版使用者資訊卡片 */}
             {user && (
-              <Link
-                to="/account"
-                onClick={() => setIsMenuOpen(false)}
-                className={`rounded-xl p-3 mb-4 flex items-center gap-3 border transition-colors ${
-                  isProfileIncomplete
-                    ? 'bg-amber-50 border-amber-200 text-amber-800'
-                    : 'bg-gray-50 border-gray-100 text-gray-800'
-                }`}
-              >
-                <div className={`p-2 rounded-lg text-white ${isProfileIncomplete ? 'bg-amber-500' : 'bg-blue-600'}`}>
-                  {isProfileIncomplete ? <AlertCircle size={20} /> : <User size={20} />}
-                </div>
-                <div className="overflow-hidden flex-1">
-                  <div className="text-sm font-bold truncate">
-                    {isProfileIncomplete ? '請設定顯示名稱' : displayName}
+              <div className="rounded-xl p-3 mb-4 bg-gray-50 border border-gray-100">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-800 rounded-lg flex items-center justify-center text-white font-medium shadow-sm">
+                    {displayName?.charAt(0).toUpperCase() || 'U'}
                   </div>
-                  <div className={`text-xs ${isProfileIncomplete ? 'text-amber-600' : 'text-gray-500'}`}>
-                    {isProfileIncomplete ? '點擊此處完善資料' : `目前身分：${roleNameDisplay}`}
+                  <div className="flex-1">
+                    <div className="text-sm font-bold text-gray-800 truncate">{displayName}</div>
+                    <div className="text-xs text-gray-500 truncate">{user?.email}</div>
                   </div>
                 </div>
-                <div className="text-gray-400">
-                    <Settings size={16} />
+                <div className="text-[10px] text-gray-400 px-1">
+                  {roleNameDisplay}
                 </div>
-              </Link>
+              </div>
             )}
 
             {/* 手機版導航連結 */}
@@ -391,7 +407,15 @@ export function Header() {
               );
             })}
 
-            <div className="border-t border-gray-100 my-2 pt-2 mt-4">
+            <div className="border-t border-gray-100 my-2 pt-2 mt-4 space-y-1">
+              <Link
+                to="/account"
+                onClick={() => setIsMenuOpen(false)}
+                className="w-full px-4 py-3 flex items-center gap-3 text-gray-600 hover:bg-gray-50 rounded-xl transition-colors font-medium"
+              >
+                <Settings size={20} />
+                帳戶設定
+              </Link>
               <button
                 onClick={handleLogout}
                 className="w-full px-4 py-3 flex items-center gap-3 text-red-600 hover:bg-red-50 rounded-xl transition-colors font-medium"
