@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation} from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-// 確保您已將 App.css 的新樣式套用
+import { supabase } from '../lib/supabase';
+import { Loader2, Mail, Lock, X, CheckCircle } from 'lucide-react';
 import logoSrc from '../assets/logo.png';
+
 export default function Login() {
   const [formData, setFormData] = useState({
     email: '',
@@ -10,30 +12,47 @@ export default function Login() {
   });
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+
+  // 忘記密碼彈窗狀態
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
+  const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false);
+  const [forgotPasswordError, setForgotPasswordError] = useState('');
 
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const from = location.state?.from?.pathname || '/';
-// 2. 放在這裡：組件載入後的自動跳轉邏輯
+
+  // 載入時檢查是否有記住的帳號
+  useEffect(() => {
+    const rememberedEmail = localStorage.getItem('rememberedEmail');
+    const isRemembered = localStorage.getItem('rememberMe') === 'true';
+
+    if (isRemembered && rememberedEmail) {
+      setFormData(prev => ({ ...prev, email: rememberedEmail }));
+      setRememberMe(true);
+    }
+  }, []);
+
   useEffect(() => {
     if (isAuthenticated) {
-      // 檢查網址，如果目的是要重設密碼，就「不要」跳轉到首頁
-      const isUpdatingPassword = 
-        window.location.hash.includes('access_token') || 
+      const isUpdatingPassword =
+        window.location.hash.includes('access_token') ||
         window.location.pathname === '/update-password';
 
       if (isUpdatingPassword) {
         console.log("偵測到密碼更新流程，停止自動導向首頁");
-        return; 
+        return;
       }
 
-      // 如果只是普通登入狀態，才導向首頁或來源頁
       navigate(from, { replace: true });
     }
   }, [isAuthenticated, navigate, from]);
-  12
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -45,6 +64,15 @@ export default function Login() {
     });
 
     if (result.success) {
+      // 處理記住我功能
+      if (rememberMe) {
+        localStorage.setItem('rememberedEmail', formData.email);
+        localStorage.setItem('rememberMe', 'true');
+      } else {
+        localStorage.removeItem('rememberedEmail');
+        localStorage.removeItem('rememberMe');
+      }
+
       navigate(from, { replace: true });
     } else {
       setError(result.error || '登入失敗');
@@ -57,6 +85,35 @@ export default function Login() {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     setError('');
+  };
+
+  // 忘記密碼處理
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setForgotPasswordError('');
+    setForgotPasswordLoading(true);
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        forgotPasswordEmail,
+        {
+          redirectTo: `${window.location.origin}/update-password`,
+        }
+      );
+
+      if (error) throw error;
+
+      setForgotPasswordSuccess(true);
+      setTimeout(() => {
+        setShowForgotPassword(false);
+        setForgotPasswordSuccess(false);
+        setForgotPasswordEmail('');
+      }, 3000);
+    } catch (err) {
+      setForgotPasswordError(err.message || '發送失敗，請稍後再試');
+    } finally {
+      setForgotPasswordLoading(false);
+    }
   };
 
   return (
@@ -181,11 +238,17 @@ export default function Login() {
                 <label className="flex items-center gap-1.5 sm:gap-2 cursor-pointer group">
                   <input
                     type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
                     className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded border-stone-300 text-red-600 focus:ring-red-500 transition-colors"
                   />
                   <span className="text-xs sm:text-sm text-stone-600 group-hover:text-stone-800 transition-colors">記住我</span>
                 </label>
-                <button type="button" className="text-xs sm:text-sm text-red-600 hover:text-red-700 active:text-red-800 font-medium hover:underline decoration-2 underline-offset-4">
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPassword(true)}
+                  className="text-xs sm:text-sm text-red-600 hover:text-red-700 active:text-red-800 font-medium hover:underline decoration-2 underline-offset-4"
+                >
                   忘記密碼？
                 </button>
               </div>
@@ -213,6 +276,103 @@ export default function Login() {
           </p>
         </div>
       </div>
+
+      {/* 忘記密碼彈窗 */}
+      {showForgotPassword && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-md p-6 sm:p-8 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                  <Mail className="w-5 h-5 text-red-600" />
+                </div>
+                <h3 className="text-xl font-bold text-stone-800">忘記密碼</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setShowForgotPassword(false);
+                  setForgotPasswordEmail('');
+                  setForgotPasswordError('');
+                  setForgotPasswordSuccess(false);
+                }}
+                className="w-8 h-8 rounded-full hover:bg-stone-100 flex items-center justify-center transition-colors"
+              >
+                <X className="w-5 h-5 text-stone-400" />
+              </button>
+            </div>
+
+            {forgotPasswordSuccess ? (
+              <div className="text-center py-6">
+                <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="w-8 h-8 text-green-600" />
+                </div>
+                <h4 className="text-lg font-semibold text-stone-800 mb-2">郵件已發送</h4>
+                <p className="text-sm text-stone-600 leading-relaxed">
+                  我們已將密碼重設連結發送至您的信箱，<br />請檢查您的電子郵件並按照指示重設密碼。
+                </p>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-stone-600 mb-6 leading-relaxed">
+                  請輸入您的電子郵件地址，我們會將密碼重設連結發送至您的信箱。
+                </p>
+
+                {forgotPasswordError && (
+                  <div className="mb-5 p-3 sm:p-4 bg-red-50 border-l-4 border-red-500 rounded-r-lg flex items-start gap-2.5">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5 text-red-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-xs sm:text-sm text-red-700 font-medium leading-relaxed">{forgotPasswordError}</p>
+                  </div>
+                )}
+
+                <form onSubmit={handleForgotPassword} className="space-y-5">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-semibold text-stone-700 ml-1">電子郵件</label>
+                    <div className="relative">
+                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
+                      <input
+                        type="email"
+                        value={forgotPasswordEmail}
+                        onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                        placeholder="user@6owldoor.com"
+                        required
+                        className="w-full pl-12 pr-5 py-3.5 text-base bg-stone-50 border border-stone-200 rounded-xl text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all hover:bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowForgotPassword(false);
+                        setForgotPasswordEmail('');
+                        setForgotPasswordError('');
+                      }}
+                      className="flex-1 py-3 px-4 text-base bg-stone-100 hover:bg-stone-200 active:bg-stone-300 text-stone-700 font-semibold rounded-xl transition-all"
+                    >
+                      取消
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={forgotPasswordLoading}
+                      className="flex-1 py-3 px-4 text-base bg-gradient-to-r from-red-700 to-red-800 hover:from-red-800 hover:to-red-900 active:from-red-900 active:to-red-950 text-white font-bold rounded-xl shadow-lg shadow-red-500/30 hover:shadow-red-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {forgotPasswordLoading ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <Loader2 className="animate-spin w-5 h-5" />
+                          發送中...
+                        </span>
+                      ) : '發送重設連結'}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
