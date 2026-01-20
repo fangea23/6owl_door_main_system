@@ -112,18 +112,29 @@ export default function Dashboard() {
     try {
       let query;
 
-      // 會計角色：使用品牌篩選邏輯
-      if (currentRole === 'accountant' && viewMode === 'todo') {
-        // 使用視圖查詢會計負責品牌的待簽核案件
-        query = supabase
-          .from('accountant_pending_requests')
-          .select('*')
-          .eq('accountant_id', user.id);
+      // 會計角色：使用品牌篩選邏輯（無論哪個模式都要過濾品牌）
+      if (currentRole === 'accountant') {
+        if (viewMode === 'todo') {
+          // 待辦事項：只顯示待簽核的案件
+          query = supabase
+            .from('accountant_pending_requests')
+            .select('*')
+            .eq('accountant_id', user.id);
 
-        // 待辦事項：舊的在上面 (急件先處理)
-        query = query.order('created_at', { ascending: true });
+          // 舊的在上面 (急件先處理)
+          query = query.order('created_at', { ascending: true });
+        } else {
+          // 所有歷史：顯示所有狀態，但仍然只顯示負責品牌的案件
+          query = supabase
+            .from('accountant_all_requests')
+            .select('*')
+            .eq('accountant_id', user.id);
+
+          // 新的在上面 (查看最新進度)
+          query = query.order('created_at', { ascending: false });
+        }
       } else {
-        // 其他角色或查看所有歷史：使用原有邏輯
+        // 其他角色：查看所有申請
         query = supabase.from('payment_requests').select('*');
 
         // 動態排序策略
@@ -142,8 +153,8 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error:', error);
       // 如果視圖查詢失敗（例如視圖不存在），回退到普通查詢
-      if (error.message?.includes('accountant_pending_requests')) {
-        console.warn('視圖 accountant_pending_requests 不存在，使用標準查詢');
+      if (error.message?.includes('accountant_pending_requests') || error.message?.includes('accountant_all_requests')) {
+        console.warn('會計視圖不存在，使用標準查詢（不含品牌過濾）');
         try {
           const { data, error: fallbackError } = await supabase
             .from('payment_requests')
