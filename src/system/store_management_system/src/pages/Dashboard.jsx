@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react'; // 1. 引入 useEffect
+import React, { useState, useEffect, useRef } from 'react'; // 1. 引入 useEffect, useRef
 import { Link, useNavigate } from 'react-router-dom';
-import { Store, Plus, Edit2, Trash2, Search, Building2, ToggleLeft, ToggleRight, AlertCircle, User, LogOut } from 'lucide-react';
+import { Store, Plus, Edit2, Trash2, Search, Building2, ToggleLeft, ToggleRight, AlertCircle, User, LogOut, ChevronDown, Settings } from 'lucide-react';
 import { useBrands } from '../hooks/useBrands';
 import { useStores } from '../hooks/useStores';
 import { useAuth } from '../AuthContext';
@@ -29,10 +29,12 @@ export default function Dashboard() {
   const [showStoreModal, setShowStoreModal] = useState(false);
   const [editingBrand, setEditingBrand] = useState(null);
   const [editingStore, setEditingStore] = useState(null);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef(null);
 
   const { brands, loading: brandsLoading, addBrand, updateBrand, deleteBrand } = useBrands();
   const { stores, loading: storesLoading, addStore, updateStore, deleteStore, toggleStoreStatus } = useStores(selectedBrand?.id);
-  const { user, profile } = useAuth();
+  const { user, profile, logout } = useAuth();
 
   // --- 3. 新增：員工姓名狀態與抓取邏輯 ---
   const [employeeName, setEmployeeName] = useState(null);
@@ -59,8 +61,31 @@ export default function Dashboard() {
     fetchEmployeeName();
   }, [user]);
 
+  // 點擊外部關閉用戶選單
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // 4. 修改：獲取顯示名稱（優先順序：employeeName > profile.name > user_metadata...）
   const displayName = employeeName || profile?.name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email;
+
+  // 登出處理
+  const handleLogout = async () => {
+    const confirmLogout = window.confirm("確定要登出系統嗎？");
+    if (!confirmLogout) return;
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('登出失敗:', error);
+    }
+  };
   // -------------------------------------
 
   // 過濾店舖
@@ -168,18 +193,64 @@ export default function Dashboard() {
 
             {/* User Menu */}
             <div className="flex items-center gap-3">
-              <Link
-                to="/account"
-                className="hidden sm:flex items-center gap-2 hover:bg-stone-50 p-1.5 rounded-lg transition-colors"
-                title="個人資料設定"
-              >
-                <div className="w-8 h-8 bg-gradient-to-br from-red-700 to-red-900 rounded-lg flex items-center justify-center text-white font-medium text-sm shadow-md shadow-red-500/20">
-                  {displayName?.charAt(0) || 'U'}
-                </div>
-                <div className="text-sm">
-                  <p className="font-medium text-stone-700">{displayName}</p>
-                </div>
-              </Link>
+              <div className="relative hidden sm:block" ref={userMenuRef}>
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className={`flex items-center gap-2 p-1.5 rounded-xl transition-all border ${
+                    showUserMenu ? 'bg-green-50 border-green-200' : 'border-transparent hover:bg-stone-100 hover:border-stone-200'
+                  }`}
+                >
+                  <div className="w-9 h-9 bg-gradient-to-br from-green-600 to-green-800 rounded-lg flex items-center justify-center text-white font-medium text-sm shadow-md shadow-green-500/20">
+                    {displayName?.charAt(0) || 'U'}
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-bold text-stone-700">
+                      {displayName}
+                    </p>
+                  </div>
+                  <ChevronDown
+                    size={16}
+                    className={`text-stone-400 transition-transform duration-300 ${showUserMenu ? 'rotate-180 text-green-500' : ''}`}
+                  />
+                </button>
+
+                {/* 下拉選單 */}
+                {showUserMenu && (
+                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl shadow-stone-200/50 border border-stone-100 py-2 z-50 overflow-hidden ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-200">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-500 to-teal-500" />
+
+                    <div className="px-5 py-4 border-b border-stone-100 bg-stone-50/50">
+                      <p className="text-base font-bold text-stone-800 truncate">{displayName}</p>
+                      <p className="text-xs text-stone-500 mb-2 truncate">{user?.email}</p>
+                    </div>
+
+                    <div className="p-2 space-y-1">
+                      <Link
+                        to="/account"
+                        onClick={() => setShowUserMenu(false)}
+                        className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-stone-600 hover:text-green-700 hover:bg-green-50 rounded-xl transition-colors group"
+                      >
+                        <span className="p-1.5 bg-stone-100 text-stone-500 rounded-lg group-hover:bg-green-100 group-hover:text-green-600 transition-colors">
+                          <Settings size={16} />
+                        </span>
+                        帳戶設定
+                      </Link>
+                    </div>
+
+                    <div className="p-2 border-t border-stone-100">
+                      <button
+                        onClick={handleLogout}
+                        className="flex items-center gap-3 w-full px-3 py-2.5 text-sm font-medium text-stone-600 hover:text-red-700 hover:bg-red-50 rounded-xl transition-colors group"
+                      >
+                        <span className="p-1.5 bg-stone-100 text-stone-500 rounded-lg group-hover:bg-red-100 group-hover:text-red-600 transition-colors">
+                          <LogOut size={16} />
+                        </span>
+                        登出系統
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
