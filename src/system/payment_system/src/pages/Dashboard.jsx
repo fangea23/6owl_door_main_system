@@ -110,15 +110,30 @@ export default function Dashboard() {
   const fetchRequests = async () => {
     setLoading(true);
     try {
-      let query = supabase.from('payment_requests').select('*');
+      let query;
 
-      // ✅ 動態排序策略
-      if (viewMode === 'todo') {
+      // 會計角色：使用品牌篩選邏輯
+      if (currentRole === 'accountant' && viewMode === 'todo') {
+        // 使用視圖查詢會計負責品牌的待簽核案件
+        query = supabase
+          .from('accountant_pending_requests')
+          .select('*')
+          .eq('accountant_id', user.id);
+
         // 待辦事項：舊的在上面 (急件先處理)
-        query = query.order('created_at', { ascending: true }); 
+        query = query.order('created_at', { ascending: true });
       } else {
-        // 所有歷史：新的在上面 (查看最新進度)
-        query = query.order('created_at', { ascending: false });
+        // 其他角色或查看所有歷史：使用原有邏輯
+        query = supabase.from('payment_requests').select('*');
+
+        // 動態排序策略
+        if (viewMode === 'todo') {
+          // 待辦事項：舊的在上面 (急件先處理)
+          query = query.order('created_at', { ascending: true });
+        } else {
+          // 所有歷史：新的在上面 (查看最新進度)
+          query = query.order('created_at', { ascending: false });
+        }
       }
 
       const { data, error } = await query;
@@ -126,6 +141,20 @@ export default function Dashboard() {
       setRequests(data || []);
     } catch (error) {
       console.error('Error:', error);
+      // 如果視圖查詢失敗（例如視圖不存在），回退到普通查詢
+      if (error.message?.includes('accountant_pending_requests')) {
+        console.warn('視圖 accountant_pending_requests 不存在，使用標準查詢');
+        try {
+          const { data, error: fallbackError } = await supabase
+            .from('payment_requests')
+            .select('*')
+            .order('created_at', { ascending: viewMode === 'todo' });
+          if (fallbackError) throw fallbackError;
+          setRequests(data || []);
+        } catch (fallbackErr) {
+          console.error('Fallback query error:', fallbackErr);
+        }
+      }
     } finally {
       setLoading(false);
     }
