@@ -367,7 +367,7 @@ const handleSaveInvoice = async () => {
                                                     付款明細 (共 {paymentItems.length} 筆)
                                                 </label>
                                                 <div className="text-lg font-bold text-emerald-700">
-                                                    總金額: ${Number(request.total_amount || 0).toLocaleString()}
+                                                    總金額: ${Math.round(Number(request.total_amount || 0)).toLocaleString('zh-TW')}
                                                 </div>
                                             </div>
 
@@ -389,7 +389,7 @@ const handleSaveInvoice = async () => {
                                                                 </div>
                                                             </div>
                                                             <div className="text-lg font-bold text-stone-800">
-                                                                ${Number(item.amount).toLocaleString()}
+                                                                ${Math.round(Number(item.amount)).toLocaleString('zh-TW')}
                                                             </div>
                                                         </div>
                                                         <div className="text-sm text-stone-600 bg-white rounded p-2 mt-2">
@@ -408,7 +408,7 @@ const handleSaveInvoice = async () => {
                                         <InfoField label="申請日期" value={request.apply_date} />
                                         <InfoField label="付款日期" value={request.payment_date} />
                                         <div className="col-span-2 print-col-span-2">
-                                            <InfoField label="金額" value={`$${Number(request.amount).toLocaleString()}`} highlight />
+                                            <InfoField label="金額" value={`$${Math.round(Number(request.amount)).toLocaleString('zh-TW')}`} highlight />
                                         </div>
                                         <div className="col-span-2 print-col-span-4">
                                             <InfoField label="付款內容" value={request.content} />

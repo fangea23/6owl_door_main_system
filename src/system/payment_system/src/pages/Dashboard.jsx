@@ -456,7 +456,7 @@ export default function Dashboard() {
                         <div>
                             <p className="text-xs text-stone-400 mb-0.5">付款金額</p>
                             <p className="text-xl font-bold text-stone-700 font-mono">
-                              ${Number(req.amount).toLocaleString()}
+                              ${Math.round(Number(req.amount)).toLocaleString('zh-TW')}
                             </p>
                         </div>
 
@@ -555,7 +555,7 @@ export default function Dashboard() {
                       </td>
                       <td className="p-4 text-right">
                         <span className="font-mono font-bold text-stone-700">
-                          ${Number(req.amount).toLocaleString()}
+                          ${Math.round(Number(req.amount)).toLocaleString('zh-TW')}
                         </span>
                       </td>
 

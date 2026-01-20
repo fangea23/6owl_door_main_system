@@ -271,7 +271,7 @@ export default function PaymentItemsInput({
               <span className="text-lg font-bold text-stone-700">總計金額</span>
             </div>
             <div className="text-2xl font-bold text-red-600 font-mono">
-              $ {calculateTotal().toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              $ {Math.round(calculateTotal()).toLocaleString('zh-TW')}
             </div>
           </div>
           <div className="mt-2 text-xs text-stone-500">
