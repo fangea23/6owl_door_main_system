@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Portal from './pages/Portal';
 import Login from './pages/Login';
@@ -35,10 +36,11 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        {/* 🔥 加入這行！這樣左上角的黑色除錯框才會跑出來 */}
+        <NotificationProvider>
+          {/* 🔥 加入這行！這樣左上角的黑色除錯框才會跑出來 */}
 
-        {/* PWA 安裝提示 */}
-        <PWAInstallPrompt />
+          {/* PWA 安裝提示 */}
+          <PWAInstallPrompt />
 
         <Routes>
           {/* ... (原本的路由都不用動) ... */}
@@ -73,6 +75,7 @@ function App() {
            </Route>
 
         </Routes>
+        </NotificationProvider>
       </AuthProvider>
     </BrowserRouter>
   );
