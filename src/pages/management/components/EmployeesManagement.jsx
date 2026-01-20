@@ -143,7 +143,7 @@ export default function EmployeesManagement() {
   // 開始編輯
   const startEdit = (employee) => {
     setFormData({
-      employee_id: employee.employee_id,
+      employee_id: employee.employee_id || '', // 允許空值
       name: employee.name,
       email: employee.email || '',
       phone: employee.phone || '',
@@ -152,6 +152,7 @@ export default function EmployeesManagement() {
       position: employee.position || '',
       role: employee.role || 'user', // 確保有預設值
       status: employee.status,
+      _originalEmployeeId: employee.employee_id, // 記錄原始值
     });
     setEditingId(employee.id);
     setShowCreateForm(false);
@@ -268,16 +269,29 @@ const handleDelete = async (employeeId, employeeName, employeeRole) => { // 1. �
           <form onSubmit={editingId ? handleUpdate : handleCreate} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">員工編號 *</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  員工編號 *
+                  {editingId && !formData._originalEmployeeId && (
+                    <span className="ml-2 text-xs text-amber-600">(請填寫員工編號)</span>
+                  )}
+                  {editingId && formData._originalEmployeeId && (
+                    <span className="ml-2 text-xs text-gray-500">(已鎖定，無法修改)</span>
+                  )}
+                </label>
                 <input
                   type="text"
                   required
                   placeholder="EMP001"
                   value={formData.employee_id}
                   onChange={e => setFormData({ ...formData, employee_id: e.target.value })}
-                  disabled={!!editingId}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100"
+                  disabled={editingId && !!formData._originalEmployeeId}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
+                {editingId && !formData._originalEmployeeId && (
+                  <p className="mt-1 text-xs text-amber-600">
+                    此員工尚未設定員工編號，請在此輸入後保存。設定後將無法再修改。
+                  </p>
+                )}
               </div>
 
               <div>
