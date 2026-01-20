@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react'; // 1. 引入 useEffect 和 useRef
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { Shield, Users, Building2, Briefcase, ChevronDown, Settings, LogOut } from 'lucide-react';
+import { Shield, Users, Building2, Briefcase, ChevronDown, Settings, LogOut, BadgeDollarSign } from 'lucide-react';
 import ProfilesManagement from './components/ProfilesManagement';
 import EmployeesManagement from './components/EmployeesManagement';
 import DepartmentsManagement from './components/DepartmentsManagement';
+import AccountantBrandsManagement from './components/AccountantBrandsManagement';
 import { supabase } from '../../lib/supabase.js'; // 2. 引入 supabase (請確認路徑是否正確，通常與 contexts 同層級或在 src 根目錄)
 import logoSrc from '../../assets/logo.png';
 
@@ -128,6 +129,13 @@ export default function ManagementCenter() {
       icon: Building2,
       description: '管理公司部門架構',
       component: DepartmentsManagement,
+    },
+    {
+      id: 'accountant-brands',
+      name: '會計品牌分配',
+      icon: BadgeDollarSign,
+      description: '管理會計人員負責的品牌分配，設定後會計只能處理所負責品牌的付款申請',
+      component: AccountantBrandsManagement,
     },
   ];
 

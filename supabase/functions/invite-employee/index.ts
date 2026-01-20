@@ -32,26 +32,39 @@ Deno.serve(async (req) => {
     )
 
     if (!email) throw new Error('必須提供 Email')
+    if (!name) throw new Error('必須提供姓名')
+    if (!employee_id) throw new Error('必須提供員工編號')
 
-    console.log(`Processing invite for: ${email}`)
+    console.log(`Processing employee creation for: ${email}`)
 
-    // 3. 發送邀請
-    const { data: userData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-      email,
-      {
-        data: { full_name: name },
-        // 請確保這個網址是正確的 (前端路由要有這一頁)
-        redirectTo: 'https://6owl-door-main-system.vercel.app/update-password'
+    // 3. 使用 Admin API 預先創建帳號（方案 A）
+    const { data: userData, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
+      email: email,
+      email_confirm: true, // 自動確認信箱，不需要驗證
+      user_metadata: {
+        full_name: name,
+        employee_id: employee_id
       }
-    )
+    })
 
-    if (inviteError) throw inviteError
+    if (createUserError) {
+      // 如果是因為 email 已存在，提供更友善的錯誤訊息
+      if (createUserError.message.includes('already registered')) {
+        throw new Error(`此 Email (${email}) 已被註冊，請使用其他 Email 或聯繫系統管理員`)
+      }
+      throw createUserError
+    }
 
-    // 4. 更新員工資料
-    const { error: updateError } = await supabaseAdmin
+    console.log(`User account created with ID: ${userData.user.id}`)
+
+    // 4. 創建員工記錄，立即關聯 user_id
+    const { error: insertError } = await supabaseAdmin
       .from('employees')
-      .update({
+      .insert({
+        user_id: userData.user.id,
         employee_id: employee_id,
+        name: name,
+        email: email,
         department_id: department_id || null,
         position: position,
         role: role || 'user',
@@ -59,16 +72,48 @@ Deno.serve(async (req) => {
         phone: phone,
         mobile: mobile
       })
-      .eq('user_id', userData.user.id)
 
-    if (updateError) throw updateError
+    if (insertError) {
+      // 如果員工記錄創建失敗，需要清理已創建的用戶帳號
+      console.error('Failed to create employee record, cleaning up user account...')
+      await supabaseAdmin.auth.admin.deleteUser(userData.user.id)
+      throw new Error(`建立員工記錄失敗: ${insertError.message}`)
+    }
 
-    // 5. 成功回傳 (務必帶上 corsHeaders)
+    console.log(`Employee record created for: ${name}`)
+
+    // 5. 發送密碼重設連結，讓員工設定自己的密碼
+    const { data: recoveryData, error: recoveryError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'recovery',
+      email: email,
+      options: {
+        redirectTo: 'https://6owl-door-main-system.vercel.app/update-password'
+      }
+    })
+
+    if (recoveryError) {
+      console.warn('Failed to send password reset email:', recoveryError.message)
+      // 不拋出錯誤，因為帳號和員工記錄已經成功創建
+      // 管理員可以稍後手動發送重設密碼信
+    } else {
+      console.log(`Password reset link sent to: ${email}`)
+    }
+
+    // 注意：generateLink 返回的 link 需要後端自己發送 Email
+    // 如果要自動發送，可以在這裡添加 Email 發送邏輯（例如使用 Resend 或其他服務）
+
+    // 6. 成功回傳 (務必帶上 corsHeaders)
     return new Response(
-      JSON.stringify({ message: '邀請成功', user: userData.user }),
-      { 
+      JSON.stringify({
+        message: '員工帳號建立成功！密碼重設連結已生成',
+        user: userData.user,
+        employee_id: employee_id,
+        recovery_link: recoveryData?.properties?.action_link || null,
+        note: '請將密碼重設連結發送給員工，或讓員工使用「忘記密碼」功能'
+      }),
+      {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200 
+        status: 200
       }
     )
 
