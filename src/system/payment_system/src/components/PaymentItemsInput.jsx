@@ -48,12 +48,21 @@ export default function PaymentItemsInput({
 
   // 處理品牌變更
   const handleBrandChange = (index, brandId) => {
-    const selectedBrand = brandList.find(b => String(b.id) === brandId);
+    console.log('Brand change:', { index, brandId, brandList });
+    const selectedBrand = brandList.find(b => String(b.id) === String(brandId));
+    console.log('Selected brand:', selectedBrand);
     if (selectedBrand) {
-      updateItem(index, 'brandId', brandId);
-      updateItem(index, 'brandName', selectedBrand.name);
-      updateItem(index, 'storeId', '');
-      updateItem(index, 'storeName', '');
+      // 先清空門店選擇
+      const newItems = [...items];
+      newItems[index] = {
+        ...newItems[index],
+        brandId: String(brandId),
+        brandName: selectedBrand.name,
+        storeId: '',
+        storeName: ''
+      };
+      onChange(newItems);
+
       // 通知父組件載入該品牌的門店
       onBrandChange && onBrandChange(brandId, index);
     }
@@ -67,12 +76,13 @@ export default function PaymentItemsInput({
     }, 0);
   };
 
-  // 如果沒有明細，初始化一筆
-  if (items.length === 0) {
-    React.useEffect(() => {
+  // 當組件首次渲染且沒有明細時，初始化一筆
+  React.useEffect(() => {
+    if (items.length === 0) {
+      console.log('Initializing first item');
       addItem();
-    }, []);
-  }
+    }
+  }, []); // 只在首次掛載時執行
 
   return (
     <div className="space-y-4">
@@ -111,15 +121,18 @@ export default function PaymentItemsInput({
                 支付品牌 <span className="text-red-500">*</span>
               </label>
               <select
-                value={item.brandId}
-                onChange={(e) => handleBrandChange(index, e.target.value)}
+                value={item.brandId || ''}
+                onChange={(e) => {
+                  console.log('Brand select onChange:', e.target.value);
+                  handleBrandChange(index, e.target.value);
+                }}
                 required
                 disabled={disabled}
                 className="w-full rounded-md border-stone-200 p-3 border bg-white focus:ring-2 focus:ring-red-500 outline-none shadow-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
               >
                 <option value="">請選擇品牌</option>
                 {brandList.map(brand => (
-                  <option key={brand.id} value={brand.id}>
+                  <option key={brand.id} value={String(brand.id)}>
                     {String(brand.id).padStart(2, '0')} - {brand.name}
                   </option>
                 ))}
@@ -141,16 +154,23 @@ export default function PaymentItemsInput({
                 options={storeList
                   .filter(store => item.brandId ? String(store.brand_id) === String(item.brandId) : true)
                   .map(store => ({
-                    value: store.id,
+                    value: String(store.id),
                     label: store.name,
                     subLabel: store.code
                   })) || []}
                 value={item.storeId}
                 onChange={(value) => {
-                  const selectedStore = storeList.find(s => String(s.id) === value);
+                  console.log('Store selected:', value);
+                  const selectedStore = storeList.find(s => String(s.id) === String(value));
+                  console.log('Found store:', selectedStore);
                   if (selectedStore) {
-                    updateItem(index, 'storeId', value);
-                    updateItem(index, 'storeName', selectedStore.name);
+                    const newItems = [...items];
+                    newItems[index] = {
+                      ...newItems[index],
+                      storeId: String(value),
+                      storeName: selectedStore.name
+                    };
+                    onChange(newItems);
                   }
                 }}
                 placeholder={!item.brandId ? '請先選擇品牌' : '請選擇或搜尋門店'}
