@@ -67,6 +67,7 @@ export default function RequestDetail() {
     const navigate = useNavigate();
     const { user, role } = useAuth();
     const [request, setRequest] = useState(null);
+    const [paymentItems, setPaymentItems] = useState([]); // [新增] 多門店付款明細
     const [applicantRole, setApplicantRole] = useState(null); // 用來判斷是否為會計申請
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState(false);
@@ -147,7 +148,7 @@ const handleSaveInvoice = async () => {
             setLoading(true);
             const { data, error } = await supabase.from('payment_requests').select('*').eq('id', id).single();
             if (error) throw error;
-            
+
             // 資料正規化：確保 attachments 是陣列
             if (!Array.isArray(data.attachments)) {
                 // 如果是舊資料 null 或 json string，轉為空陣列或嘗試解析
@@ -160,14 +161,31 @@ const handleSaveInvoice = async () => {
                     data.attachments = [];
                 }
             }
-            
+
+            // [新增] 如果是多門店付款，查詢明細
+            if (data.is_multi_store) {
+                const { data: itemsData, error: itemsError } = await supabase
+                    .from('payment_request_items')
+                    .select('*')
+                    .eq('request_id', id)
+                    .order('display_order', { ascending: true });
+
+                if (itemsError) {
+                    console.error('Failed to fetch payment items:', itemsError);
+                } else {
+                    setPaymentItems(itemsData || []);
+                }
+            } else {
+                setPaymentItems([]);
+            }
+
             // 獲取申請人的角色 (用於判斷是否跳過會計關卡)
             if (data.applicant_id) {
                 const { data: userData } = await supabase.from('employees').select('role').eq('user_id', data.applicant_id).single();
                 if (userData) setApplicantRole(userData.role);
             }
 
-        setRequest(data);
+            setRequest(data);
             if (data.handling_fee) setCashierFee(data.handling_fee);
         } catch (err) {
             console.error(err);
@@ -333,18 +351,70 @@ const handleSaveInvoice = async () => {
                             {/* 一、基本資訊 */}
                             <section className="print-section">
                                 <SectionHeader icon={FileText} title="一、基本付款資訊" />
-                                <div className="grid grid-cols-2 gap-4 print-grid-4">
-                                    <InfoField label="支付品牌" value={request.brand} />
-                                    <InfoField label="支付門店" value={request.store} />
-                                    <InfoField label="申請日期" value={request.apply_date} />
-                                    <InfoField label="付款日期" value={request.payment_date} />
-                                    <div className="col-span-2 print-col-span-2">
-                                        <InfoField label="金額" value={`$${Number(request.amount).toLocaleString()}`} highlight />
+
+                                {request.is_multi_store ? (
+                                    /* 多門店付款顯示 */
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-2 gap-4 print-grid-4">
+                                            <InfoField label="申請日期" value={request.apply_date} />
+                                            <InfoField label="付款日期" value={request.payment_date} />
+                                        </div>
+
+                                        {/* 多門店付款明細 */}
+                                        <div className="mt-4">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <label className="text-xs text-stone-400 uppercase tracking-wider font-semibold">
+                                                    付款明細 (共 {paymentItems.length} 筆)
+                                                </label>
+                                                <div className="text-lg font-bold text-emerald-700">
+                                                    總金額: ${Math.round(Number(request.total_amount || 0)).toLocaleString('zh-TW')}
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                {paymentItems.map((item, index) => (
+                                                    <div key={item.id} className="border-2 border-stone-200 rounded-lg p-4 bg-stone-50">
+                                                        <div className="flex items-start justify-between mb-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-7 h-7 bg-red-100 text-red-600 rounded-lg flex items-center justify-center font-bold text-sm">
+                                                                    {index + 1}
+                                                                </div>
+                                                                <div>
+                                                                    <div className="font-medium text-stone-800">
+                                                                        {item.brand_name} - {item.store_name}
+                                                                    </div>
+                                                                    <div className="text-xs text-stone-500">
+                                                                        {item.tax_type === 'tax_included' ? '含稅' : '未稅'}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-lg font-bold text-stone-800">
+                                                                ${Math.round(Number(item.amount)).toLocaleString('zh-TW')}
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-sm text-stone-600 bg-white rounded p-2 mt-2">
+                                                            {item.content}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="col-span-2 print-col-span-4">
-                                        <InfoField label="付款內容" value={request.content} />
+                                ) : (
+                                    /* 單門店付款顯示（原有邏輯） */
+                                    <div className="grid grid-cols-2 gap-4 print-grid-4">
+                                        <InfoField label="支付品牌" value={request.brand} />
+                                        <InfoField label="支付門店" value={request.store} />
+                                        <InfoField label="申請日期" value={request.apply_date} />
+                                        <InfoField label="付款日期" value={request.payment_date} />
+                                        <div className="col-span-2 print-col-span-2">
+                                            <InfoField label="金額" value={`$${Math.round(Number(request.amount)).toLocaleString('zh-TW')}`} highlight />
+                                        </div>
+                                        <div className="col-span-2 print-col-span-4">
+                                            <InfoField label="付款內容" value={request.content} />
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                             </section>
 
                             {/* 二、付款方式 */}

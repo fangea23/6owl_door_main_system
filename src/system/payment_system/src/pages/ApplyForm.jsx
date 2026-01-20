@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { supabase } from '../supabaseClient'; 
+import { supabase } from '../supabaseClient';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 // 付款系統的基礎路徑
 const BASE_PATH = '/systems/payment-approval';
 import SignatureCanvas from 'react-signature-canvas';
-import { useAuth } from '../AuthContext'; 
-import SearchableSelect from '../components/SearchableSelect'; 
+import { useAuth } from '../AuthContext';
+import SearchableSelect from '../components/SearchableSelect';
+import PaymentItemsInput from '../components/PaymentItemsInput';
 import {
     Save,
     CheckCircle,
@@ -26,7 +27,9 @@ import {
     ChevronLeft,
     RotateCcw,
     Wallet,
-    Ticket
+    Ticket,
+    Plus,
+    List
 } from 'lucide-react';
 
 // ★ 設定：需要經過「單位主管」簽核的部門 (請依照你 DB 實際部門名稱修改)
@@ -75,6 +78,20 @@ export default function ApplyForm() {
     const [fetchingStores, setFetchingStores] = useState(false);
     const [existingAttachments, setExistingAttachments] = useState([]);
     const [selectedFiles, setSelectedFiles] = useState([]);
+
+    // [新增] 多門店付款相關狀態
+    const [isMultiStore, setIsMultiStore] = useState(false);
+    const [paymentItems, setPaymentItems] = useState([{
+        id: Date.now(),
+        brandId: '',
+        brandName: '',
+        storeId: '',
+        storeName: '',
+        content: '',
+        taxType: 'tax_included',
+        amount: ''
+    }]);
+
     const [formData, setFormData] = useState({
         brand: '',       // 存品牌名稱 (給 DB 寫入用)
         brandId: '',     // [新增] 存品牌 ID (給前端關聯查詢用)
@@ -259,10 +276,31 @@ export default function ApplyForm() {
         fetchBranches();
     }, [formData.bankCode]);
 
-    // --- 2-2. [新增] 當品牌改變 (brandId) 時：從 Supabase 抓取門店 (Stores) ---
-// --- 2-2. 當品牌改變時：抓取門店 (Stores) ---
+    // --- 2-2. 當品牌改變時：抓取門店 (Stores) ---
     useEffect(() => {
         const fetchStores = async () => {
+            // 多門店模式：加載所有門店（在組件內部過濾）
+            if (isMultiStore) {
+                setFetchingStores(true);
+                try {
+                    const { data, error } = await supabase
+                        .from('stores')
+                        .select('id, name, code, brand_id')
+                        .eq('is_active', true)
+                        .order('code', { ascending: true });
+
+                    if (error) throw error;
+                    setStoreList(data || []);
+                } catch (err) {
+                    console.error('查詢門店失敗:', err);
+                    setStoreList([]);
+                } finally {
+                    setFetchingStores(false);
+                }
+                return;
+            }
+
+            // 單門店模式：根據選中品牌查詢
             if (!formData.brandId) {
                 setStoreList([]);
                 return;
@@ -270,13 +308,12 @@ export default function ApplyForm() {
 
             setFetchingStores(true);
             try {
-                // ✅ 修改：多抓取 code 欄位
                 const { data, error } = await supabase
                     .from('stores')
-                    .select('id, name, code') // 這裡加上 code
+                    .select('id, name, code, brand_id')
                     .eq('brand_id', formData.brandId)
                     .eq('is_active', true)
-                    .order('code', { ascending: true }); // 建議改用 code 排序比較直覺
+                    .order('code', { ascending: true });
 
                 if (error) throw error;
                 if (data) setStoreList(data || []);
@@ -289,7 +326,7 @@ export default function ApplyForm() {
         };
 
         fetchStores();
-    }, [formData.brandId]);
+    }, [formData.brandId, isMultiStore]);
     useEffect(() => {
         if (location.state && location.state.requestData) {
             const old = location.state.requestData;
@@ -370,6 +407,14 @@ export default function ApplyForm() {
             store: ''                 // 品牌換了，門店要重置
         }));
     };
+
+    // 處理多門店模式的品牌變更（這個函數會被 PaymentItemsInput 調用）
+    const handleMultiStoreBrandChange = (brandId, itemIndex) => {
+        // 當品牌變更時，門店列表會通過 useEffect 自動更新
+        // 這裡不需要特別處理，因為 storeList 是全局的
+        // 如果需要每個item有獨立的門店列表，需要更複雜的狀態管理
+    };
+
     // --- 檔案處理邏輯 ---
 
     // 1. 處理檔案選取 (共用邏輯)
@@ -531,15 +576,33 @@ export default function ApplyForm() {
             const isTransfer = formData.paymentMethod === 'transfer';
 
             // 3. 準備寫入資料庫的物件
+            // 多門店模式：計算總金額和項目數
+            let totalAmount = 0;
+            let itemCount = 0;
+            if (isMultiStore) {
+                totalAmount = paymentItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+                itemCount = paymentItems.length;
+            }
+
             const dbPayload = {
                 applicant_id: user.id,
-                brand: formData.brand,
-                store: formData.store,
+                // 多門店模式下，brand 和 store 使用第一個項目的值，或設為空（因為有多個）
+                brand: isMultiStore ? (paymentItems[0]?.brandName || '') : formData.brand,
+                store: isMultiStore ? (paymentItems[0]?.storeName || '') : formData.store,
                 payment_date: formData.paymentDate,
                 payee_name: formData.paymentMethod === 'transfer' ? formData.payeeName : '',
-                content: formData.content,
-                tax_type: formData.taxType,
-                amount: Number(formData.amount),
+                // 多門店模式下，content 由各項目組合（或使用共同說明）
+                content: isMultiStore
+                    ? paymentItems.map(item => `${item.storeName}: ${item.content}`).join('; ')
+                    : formData.content,
+                // 多門店模式下，稅別由各項目獨立管理，主表可以設為第一個項目的值
+                tax_type: isMultiStore ? (paymentItems[0]?.taxType || 'tax_included') : formData.taxType,
+                // 多門店模式下使用計算的總金額，單門店使用表單金額
+                amount: isMultiStore ? totalAmount : Number(formData.amount),
+                // 多門店相關欄位
+                is_multi_store: isMultiStore,
+                total_amount: isMultiStore ? totalAmount : null,
+                item_count: isMultiStore ? itemCount : null,
                 payment_method: formData.paymentMethod,
                 payment_method_other: formData.paymentMethodOther,
                 handling_fee: 0, // 申請/重送時，手續費歸零，由出納後續填寫
@@ -598,26 +661,78 @@ invoice_number: formData.invoiceNumber,
 
             dbPayload.status = initialStatus;
             dbPayload.current_step = currentStep;
+
             if (editId) {
                 // --- [編輯模式] Update ---
-                const { error } = await supabase
+                const { error: updateError } = await supabase
                     .from('payment_requests')
                     .update(dbPayload)
                     .eq('id', editId);
 
-                if (error) throw error;
+                if (updateError) throw updateError;
+
+                // 如果是多門店模式，需要更新明細表
+                if (isMultiStore) {
+                    // 先刪除舊的明細
+                    const { error: deleteError } = await supabase
+                        .from('payment_request_items')
+                        .delete()
+                        .eq('request_id', editId);
+
+                    if (deleteError) throw deleteError;
+
+                    // 插入新的明細
+                    const items = paymentItems.map((item, index) => ({
+                        request_id: editId,
+                        store_id: item.storeId || null,
+                        store_name: item.storeName,
+                        brand_name: item.brandName,
+                        content: item.content,
+                        tax_type: item.taxType,
+                        amount: parseFloat(item.amount) || 0,
+                        display_order: index
+                    }));
+
+                    const { error: itemsError } = await supabase
+                        .from('payment_request_items')
+                        .insert(items);
+
+                    if (itemsError) throw itemsError;
+                }
+
                 alert('✅ 案件已重新提交！簽核流程將重新開始。');
             } else {
                 // --- [新增模式] Insert ---
-                // 新增模式需要補上 apply_date (編輯時通常不改申請日，或視需求更新)
-                // 這裡選擇沿用表單上的日期 (預設是今天)
                 dbPayload.apply_date = formData.applyDate;
 
-                const { error } = await supabase
+                const { data: insertedData, error: insertError } = await supabase
                     .from('payment_requests')
-                    .insert([dbPayload]);
+                    .insert([dbPayload])
+                    .select('id')
+                    .single();
 
-                if (error) throw error;
+                if (insertError) throw insertError;
+
+                // 如果是多門店模式，需要插入明細表
+                if (isMultiStore && insertedData) {
+                    const items = paymentItems.map((item, index) => ({
+                        request_id: insertedData.id,
+                        store_id: item.storeId || null,
+                        store_name: item.storeName,
+                        brand_name: item.brandName,
+                        content: item.content,
+                        tax_type: item.taxType,
+                        amount: parseFloat(item.amount) || 0,
+                        display_order: index
+                    }));
+
+                    const { error: itemsError } = await supabase
+                        .from('payment_request_items')
+                        .insert(items);
+
+                    if (itemsError) throw itemsError;
+                }
+
                 alert('✅ 提交成功！');
             }
 
@@ -676,7 +791,44 @@ invoice_number: formData.invoiceNumber,
                     <section className="bg-stone-50/50 p-4 rounded-lg border border-stone-200/60">
                         <SectionTitle icon={FileText} title="一、基本付款資訊" />
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        {/* 多門店付款切換按鈕 */}
+                        <div className="mb-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <div className="flex items-start gap-2">
+                                <List className="text-blue-600 mt-0.5" size={18} />
+                                <div>
+                                    <p className="text-sm font-semibold text-blue-900">多門店付款</p>
+                                    <p className="text-xs text-blue-700">
+                                        {isMultiStore ? '已啟用：可以同時為多個門店支付給同一個廠商' : '未啟用：單一門店付款'}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsMultiStore(!isMultiStore)}
+                                className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2 ${
+                                    isMultiStore
+                                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                        : 'bg-white text-blue-600 border border-blue-300 hover:bg-blue-50'
+                                }`}
+                            >
+                                {isMultiStore ? (
+                                    <>
+                                        <List size={16} />
+                                        切換為單門店
+                                    </>
+                                ) : (
+                                    <>
+                                        <Plus size={16} />
+                                        切換為多門店
+                                    </>
+                                )}
+                            </button>
+                        </div>
+
+                        {/* 根據模式顯示不同的表單 */}
+                        {!isMultiStore ? (
+                            /* 單門店模式：原有的表單 */
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
                             {/* 1. 支付品牌 */}
                             <div className="col-span-1 flex flex-col">
@@ -821,6 +973,41 @@ invoice_number: formData.invoiceNumber,
                             </div>
 
                         </div>
+                        ) : (
+                            /* 多門店模式：使用 PaymentItemsInput 組件 */
+                            <div className="space-y-4">
+                                {/* 付款日期 */}
+                                <div className="flex flex-col">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                                        付款日期 <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="date"
+                                        name="paymentDate"
+                                        value={formData.paymentDate}
+                                        onChange={handleChange}
+                                        required
+                                        className="w-full md:w-1/2 rounded-md border-stone-200 p-2.5 border bg-white focus:ring-2 focus:ring-red-500 outline-none shadow-sm"
+                                    />
+                                </div>
+
+                                {/* 多門店付款明細 */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        付款明細 <span className="text-red-500">*</span>
+                                    </label>
+                                    <PaymentItemsInput
+                                        items={paymentItems}
+                                        onChange={setPaymentItems}
+                                        brandList={brandList}
+                                        storeList={storeList}
+                                        onBrandChange={handleMultiStoreBrandChange}
+                                        fetchingStores={fetchingStores}
+                                        disabled={loading}
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </section>
 
                     {/* 二、付款方式 */}
