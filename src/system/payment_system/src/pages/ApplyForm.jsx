@@ -276,10 +276,31 @@ export default function ApplyForm() {
         fetchBranches();
     }, [formData.bankCode]);
 
-    // --- 2-2. [新增] 當品牌改變 (brandId) 時：從 Supabase 抓取門店 (Stores) ---
-// --- 2-2. 當品牌改變時：抓取門店 (Stores) ---
+    // --- 2-2. 當品牌改變時：抓取門店 (Stores) ---
     useEffect(() => {
         const fetchStores = async () => {
+            // 多門店模式：加載所有門店（在組件內部過濾）
+            if (isMultiStore) {
+                setFetchingStores(true);
+                try {
+                    const { data, error } = await supabase
+                        .from('stores')
+                        .select('id, name, code, brand_id')
+                        .eq('is_active', true)
+                        .order('code', { ascending: true });
+
+                    if (error) throw error;
+                    setStoreList(data || []);
+                } catch (err) {
+                    console.error('查詢門店失敗:', err);
+                    setStoreList([]);
+                } finally {
+                    setFetchingStores(false);
+                }
+                return;
+            }
+
+            // 單門店模式：根據選中品牌查詢
             if (!formData.brandId) {
                 setStoreList([]);
                 return;
@@ -287,13 +308,12 @@ export default function ApplyForm() {
 
             setFetchingStores(true);
             try {
-                // ✅ 修改：多抓取 code 欄位
                 const { data, error } = await supabase
                     .from('stores')
-                    .select('id, name, code') // 這裡加上 code
+                    .select('id, name, code, brand_id')
                     .eq('brand_id', formData.brandId)
                     .eq('is_active', true)
-                    .order('code', { ascending: true }); // 建議改用 code 排序比較直覺
+                    .order('code', { ascending: true });
 
                 if (error) throw error;
                 if (data) setStoreList(data || []);
@@ -306,7 +326,7 @@ export default function ApplyForm() {
         };
 
         fetchStores();
-    }, [formData.brandId]);
+    }, [formData.brandId, isMultiStore]);
     useEffect(() => {
         if (location.state && location.state.requestData) {
             const old = location.state.requestData;

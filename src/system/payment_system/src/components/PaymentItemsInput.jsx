@@ -138,14 +138,16 @@ export default function PaymentItemsInput({
                 )}
               </label>
               <SearchableSelect
-                options={storeList[index]?.map(store => ({
-                  value: store.id,
-                  label: store.name,
-                  subLabel: store.code
-                })) || []}
+                options={storeList
+                  .filter(store => item.brandId ? String(store.brand_id) === String(item.brandId) : true)
+                  .map(store => ({
+                    value: store.id,
+                    label: store.name,
+                    subLabel: store.code
+                  })) || []}
                 value={item.storeId}
                 onChange={(value) => {
-                  const selectedStore = storeList[index]?.find(s => String(s.id) === value);
+                  const selectedStore = storeList.find(s => String(s.id) === value);
                   if (selectedStore) {
                     updateItem(index, 'storeId', value);
                     updateItem(index, 'storeName', selectedStore.name);
