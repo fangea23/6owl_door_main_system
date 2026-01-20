@@ -101,8 +101,8 @@ BEGIN
   -- 根據操作類型發送不同通知
   IF TG_OP = 'INSERT' THEN
     -- === 新增預約 ===
-    v_title := '公車預約確認';
-    v_message := '您已成功預約公司車輛' ||
+    v_title := '公務車預約確認';
+    v_message := '您已成功預約公務車輛' ||
                  E'\n出發時間：' || v_booking_time ||
                  CASE WHEN NEW.destination IS NOT NULL
                       THEN E'\n目的地：' || NEW.destination
@@ -125,8 +125,8 @@ BEGIN
     IF OLD.status != NEW.status THEN
       CASE NEW.status
         WHEN 'approved' THEN
-          v_title := '✅ 公車預約已核准';
-          v_message := '您的公車預約已核准' ||
+          v_title := '✅ 公務車預約已核准';
+          v_message := '您的公務車預約已核准' ||
                        E'\n出發時間：' || v_booking_time ||
                        CASE WHEN NEW.vehicle_number IS NOT NULL
                             THEN E'\n車牌號碼：' || NEW.vehicle_number
@@ -134,8 +134,8 @@ BEGIN
                        END;
 
         WHEN 'rejected' THEN
-          v_title := '❌ 公車預約已拒絕';
-          v_message := '您的公車預約已被拒絕' ||
+          v_title := '❌ 公務車預約已拒絕';
+          v_message := '您的公務車預約已被拒絕' ||
                        E'\n預約時間：' || v_booking_time ||
                        CASE WHEN NEW.rejection_reason IS NOT NULL
                             THEN E'\n原因：' || NEW.rejection_reason
@@ -143,13 +143,13 @@ BEGIN
                        END;
 
         WHEN 'cancelled' THEN
-          v_title := '公車預約已取消';
-          v_message := '公車預約已取消' ||
+          v_title := '公務車預約已取消';
+          v_message := '公務車預約已取消' ||
                        E'\n原預約時間：' || v_booking_time;
 
         WHEN 'completed' THEN
-          v_title := '公車行程已完成';
-          v_message := '您的公車行程已完成，感謝使用';
+          v_title := '公務車行程已完成';
+          v_message := '您的公務車行程已完成，感謝使用';
       END CASE;
 
       -- 通知預約人
@@ -226,7 +226,7 @@ COMMENT ON FUNCTION notify_meeting_room_booking() IS
 '會議室預約通知：當預約創建、狀態改變或被取消時，自動通知預約人';
 
 COMMENT ON FUNCTION notify_vehicle_booking() IS
-'公車預約通知：當預約創建、狀態改變時，自動通知預約人';
+'公務車預約通知：當預約創建、狀態改變時，自動通知預約人';
 
 COMMENT ON FUNCTION notify_upcoming_meeting() IS
 '會議提醒：提前 15 分鐘提醒預約人。需要配合 pg_cron 或外部排程器定期執行';
