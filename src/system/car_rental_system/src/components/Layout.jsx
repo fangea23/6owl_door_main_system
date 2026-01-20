@@ -1,14 +1,17 @@
-import React, { useState, useEffect } from 'react'; // 1. 引入 useEffect
+import React, { useState, useEffect, useRef } from 'react'; // 1. 引入 useEffect, useRef
 import { Link, Outlet, useNavigate, NavLink } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { 
-  Car, 
-  LayoutDashboard, 
-  FileText, 
-  History, 
-  Menu, 
-  X, 
-  Key 
+import {
+  Car,
+  LayoutDashboard,
+  FileText,
+  History,
+  Menu,
+  X,
+  Key,
+  ChevronDown,
+  Settings,
+  LogOut
 } from 'lucide-react';
 import { useAuth } from '../../../../contexts/AuthContext';
 import logoSrc from '../../../../assets/logo.png';
@@ -29,8 +32,10 @@ const Logo = ({ size = 'default' }) => {
 
 export const Layout = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef(null);
 
   // --- 3. 新增：員工姓名狀態與抓取邏輯 ---
   const [employeeName, setEmployeeName] = useState(null);
@@ -57,8 +62,31 @@ export const Layout = () => {
     fetchEmployeeName();
   }, [user]);
 
+  // 點擊外部關閉用戶選單
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // 4. 定義顯示名稱變數 (優先使用員工表姓名)
   const displayName = employeeName || user?.user_metadata?.full_name || user?.email?.split('@')[0] || '使用者';
+
+  // 登出處理
+  const handleLogout = async () => {
+    const confirmLogout = window.confirm("確定要登出系統嗎？");
+    if (!confirmLogout) return;
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('登出失敗:', error);
+    }
+  };
   // -------------------------------------
 
   // ✅ 修改：加入「租借管理」並調整順序
@@ -135,22 +163,65 @@ export const Layout = () => {
 
             {/* User Menu */}
             <div className="flex items-center gap-3">
-              <Link
-                to="/account"
-                className="hidden sm:flex items-center gap-2 hover:bg-stone-50 p-1.5 rounded-lg transition-colors"
-                title="個人資料設定"
-              >
-                <div className="w-8 h-8 bg-gradient-to-br from-red-700 to-red-900 rounded-lg flex items-center justify-center text-white font-medium text-sm shadow-md shadow-red-500/20">
-                  {/* 5. 修改：使用 displayName 的第一個字 */}
-                  {displayName.charAt(0)}
-                </div>
-                <div className="text-sm">
-                  <p className="font-medium text-stone-700">
-                    {/* 6. 修改：顯示 displayName */}
-                    {displayName}
-                  </p>
-                </div>
-              </Link>
+              {/* 使用者下拉選單 */}
+              <div className="relative hidden md:block" ref={userMenuRef}>
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className={`flex items-center gap-2 p-1.5 rounded-xl transition-all border ${
+                    showUserMenu ? 'bg-red-50 border-red-200' : 'border-transparent hover:bg-stone-100 hover:border-stone-200'
+                  }`}
+                >
+                  <div className="w-9 h-9 bg-gradient-to-br from-red-700 to-red-900 rounded-lg flex items-center justify-center text-white font-medium text-sm shadow-md shadow-red-500/20">
+                    {displayName?.charAt(0) || 'U'}
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-bold text-stone-700">
+                      {displayName}
+                    </p>
+                  </div>
+                  <ChevronDown
+                    size={16}
+                    className={`text-stone-400 transition-transform duration-300 ${showUserMenu ? 'rotate-180 text-red-500' : ''}`}
+                  />
+                </button>
+
+                {/* 下拉選單 */}
+                {showUserMenu && (
+                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl shadow-stone-200/50 border border-stone-100 py-2 z-50 overflow-hidden ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-200">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 to-orange-500" />
+
+                    <div className="px-5 py-4 border-b border-stone-100 bg-stone-50/50">
+                      <p className="text-base font-bold text-stone-800 truncate">{displayName}</p>
+                      <p className="text-xs text-stone-500 mb-2 truncate">{user?.email}</p>
+                    </div>
+
+                    <div className="p-2 space-y-1">
+                      <Link
+                        to="/account"
+                        onClick={() => setShowUserMenu(false)}
+                        className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-stone-600 hover:text-red-700 hover:bg-red-50 rounded-xl transition-colors group"
+                      >
+                        <span className="p-1.5 bg-stone-100 text-stone-500 rounded-lg group-hover:bg-red-100 group-hover:text-red-600 transition-colors">
+                          <Settings size={16} />
+                        </span>
+                        帳戶設定
+                      </Link>
+                    </div>
+
+                    <div className="p-2 border-t border-stone-100">
+                      <button
+                        onClick={handleLogout}
+                        className="flex items-center gap-3 w-full px-3 py-2.5 text-sm font-medium text-stone-600 hover:text-red-700 hover:bg-red-50 rounded-xl transition-colors group"
+                      >
+                        <span className="p-1.5 bg-stone-100 text-stone-500 rounded-lg group-hover:bg-red-100 group-hover:text-red-600 transition-colors">
+                          <LogOut size={16} />
+                        </span>
+                        登出系統
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Mobile Menu Button */}
               <button
@@ -166,6 +237,19 @@ export const Layout = () => {
         {/* Mobile Nav */}
         {mobileMenuOpen && (
           <nav className="md:hidden border-t border-stone-200 bg-white p-4 space-y-2">
+            {/* 用戶資訊卡片 */}
+            <div className="rounded-xl p-3 mb-4 bg-stone-50 border border-stone-100">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 bg-gradient-to-br from-red-700 to-red-900 rounded-lg flex items-center justify-center text-white font-medium shadow-sm">
+                  {displayName?.charAt(0) || 'U'}
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-bold text-stone-800 truncate">{displayName}</div>
+                  <div className="text-xs text-stone-500 truncate">{user?.email}</div>
+                </div>
+              </div>
+            </div>
+
             {navItems.map(item => (
               <NavLink
                 key={item.path}
@@ -183,6 +267,24 @@ export const Layout = () => {
                 {item.label}
               </NavLink>
             ))}
+
+            <div className="border-t border-stone-100 my-2 pt-2 space-y-1">
+              <Link
+                to="/account"
+                onClick={() => setMobileMenuOpen(false)}
+                className="w-full px-4 py-3 flex items-center gap-3 text-stone-600 hover:bg-stone-50 rounded-xl transition-colors font-medium"
+              >
+                <Settings size={20} />
+                帳戶設定
+              </Link>
+              <button
+                onClick={handleLogout}
+                className="w-full px-4 py-3 flex items-center gap-3 text-red-600 hover:bg-red-50 rounded-xl transition-colors font-medium"
+              >
+                <LogOut size={20} />
+                登出系統
+              </button>
+            </div>
           </nav>
         )}
       </header>
