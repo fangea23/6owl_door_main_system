@@ -36,7 +36,7 @@ export default function AccountantBrandsManagement() {
       const { data: brandsData, error: brandsError } = await supabase
         .from('brands')
         .select('*')
-        .order('name');
+        .order('id', { ascending: true });
 
       if (brandsError) throw brandsError;
 
