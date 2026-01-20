@@ -13,6 +13,7 @@ export default function AccountantBrandsManagement() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState(null);
+  const [selectedBrands, setSelectedBrands] = useState({}); // { accountantId: [brandId1, brandId2, ...] }
 
   // 獲取所有資料
   const fetchData = async () => {
@@ -80,7 +81,72 @@ export default function AccountantBrandsManagement() {
     return assignments.some(a => a.employee_id === accountantId && a.brand_id === brandId);
   };
 
-  // 添加品牌分配
+  // 切換品牌選擇狀態
+  const toggleBrandSelection = (accountantId, brandId) => {
+    setSelectedBrands(prev => {
+      const current = prev[accountantId] || [];
+      const isSelected = current.includes(brandId);
+
+      return {
+        ...prev,
+        [accountantId]: isSelected
+          ? current.filter(id => id !== brandId)
+          : [...current, brandId]
+      };
+    });
+  };
+
+  // 全選/取消全選
+  const toggleSelectAll = (accountantId, availableBrands) => {
+    const currentSelected = selectedBrands[accountantId] || [];
+    const allBrandIds = availableBrands.map(b => b.id);
+
+    setSelectedBrands(prev => ({
+      ...prev,
+      [accountantId]: currentSelected.length === allBrandIds.length ? [] : allBrandIds
+    }));
+  };
+
+  // 批量添加品牌分配
+  const handleBulkAddBrands = async (accountantId) => {
+    const selectedIds = selectedBrands[accountantId] || [];
+    if (selectedIds.length === 0) {
+      alert('請先選擇要分配的品牌');
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      // 批量插入
+      const insertData = selectedIds.map(brandId => ({
+        employee_id: accountantId,
+        brand_id: brandId
+      }));
+
+      const { error } = await supabase
+        .from('accountant_brands')
+        .insert(insertData);
+
+      if (error) throw error;
+
+      alert(`✅ 成功分配 ${selectedIds.length} 個品牌！`);
+
+      // 清除選擇狀態
+      setSelectedBrands(prev => ({
+        ...prev,
+        [accountantId]: []
+      }));
+
+      await fetchData();
+    } catch (err) {
+      console.error('Error bulk adding brands:', err);
+      alert('❌ 批量分配失敗: ' + err.message);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  // 單個添加品牌分配（保留原有功能）
   const handleAddBrand = async (accountantId, brandId) => {
     if (isBrandAssigned(accountantId, brandId)) {
       alert('此品牌已分配給該會計！');
@@ -292,47 +358,71 @@ export default function AccountantBrandsManagement() {
                     </div>
                   )}
 
-                  {/* 添加品牌 */}
+                  {/* 添加品牌 - 多選模式 */}
                   {availableBrands.length > 0 && (
                     <div className="pt-4 border-t border-gray-100">
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        添加品牌
-                      </label>
-                      <div className="flex gap-2">
-                        <select
-                          id={`brand-select-${accountant.id}`}
-                          className="flex-1 p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                          disabled={processing}
-                        >
-                          <option value="">請選擇品牌</option>
-                          {availableBrands.map((brand) => (
-                            <option key={brand.id} value={brand.id}>
-                              {String(brand.id).padStart(2, '0')} - {brand.name}
-                            </option>
-                          ))}
-                        </select>
+                      <div className="flex items-center justify-between mb-3">
+                        <label className="text-sm font-semibold text-gray-700">
+                          添加品牌（可多選）
+                        </label>
                         <button
-                          onClick={() => {
-                            const select = document.getElementById(`brand-select-${accountant.id}`);
-                            const brandId = parseInt(select.value);
-                            if (brandId) {
-                              handleAddBrand(accountant.id, brandId);
-                              select.value = '';
-                            } else {
-                              alert('請先選擇品牌');
-                            }
-                          }}
-                          disabled={processing}
-                          className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium text-sm transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          onClick={() => toggleSelectAll(accountant.id, availableBrands)}
+                          className="text-xs text-indigo-600 hover:text-indigo-700 font-medium underline"
                         >
-                          {processing ? (
-                            <Loader2 size={16} className="animate-spin" />
-                          ) : (
-                            <Plus size={16} />
-                          )}
-                          添加
+                          {(selectedBrands[accountant.id] || []).length === availableBrands.length
+                            ? '取消全選'
+                            : '全選'}
                         </button>
                       </div>
+
+                      {/* 品牌多選列表 */}
+                      <div className="max-h-60 overflow-y-auto bg-gray-50 border border-gray-200 rounded-lg p-3 mb-3 space-y-2">
+                        {availableBrands.map((brand) => {
+                          const isSelected = (selectedBrands[accountant.id] || []).includes(brand.id);
+                          return (
+                            <label
+                              key={brand.id}
+                              className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-all ${
+                                isSelected
+                                  ? 'bg-indigo-100 border-2 border-indigo-300'
+                                  : 'bg-white border-2 border-gray-200 hover:border-indigo-200 hover:bg-indigo-50'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleBrandSelection(accountant.id, brand.id)}
+                                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"
+                              />
+                              <span className={`flex-1 text-sm font-medium ${
+                                isSelected ? 'text-indigo-700' : 'text-gray-700'
+                              }`}>
+                                {String(brand.id).padStart(2, '0')} - {brand.name}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+
+                      {/* 批量添加按鈕 */}
+                      <button
+                        onClick={() => handleBulkAddBrands(accountant.id)}
+                        disabled={processing || (selectedBrands[accountant.id] || []).length === 0}
+                        className="w-full px-4 py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-lg font-semibold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/30"
+                      >
+                        {processing ? (
+                          <>
+                            <Loader2 size={18} className="animate-spin" />
+                            處理中...
+                          </>
+                        ) : (
+                          <>
+                            <Plus size={18} />
+                            批量添加 {(selectedBrands[accountant.id] || []).length > 0 &&
+                              `(${(selectedBrands[accountant.id] || []).length} 個品牌)`}
+                          </>
+                        )}
+                      </button>
                     </div>
                   )}
                 </div>
