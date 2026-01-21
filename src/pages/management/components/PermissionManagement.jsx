@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { Shield, Users, Key, Search, Plus, Edit2, Trash2, Save, X, Loader2 } from 'lucide-react';
+import { Shield, Users, Key, Search, Plus, Edit2, Trash2, Save, X, Loader2, AlertCircle } from 'lucide-react';
+import { usePermission } from '../../../hooks/usePermission';
 
 /**
  * 權限管理組件
  * 管理角色、權限和權限分配
  */
 export default function PermissionManagement() {
+  // RBAC 權限檢查
+  const { hasPermission: canManage, loading: permissionLoading } = usePermission('rbac.manage');
+
   const [activeTab, setActiveTab] = useState('roles'); // roles, permissions, assignments
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -167,11 +171,49 @@ export default function PermissionManagement() {
     rbac: '🔐 權限管理'
   };
 
+  // 權限檢查載入中
+  if (permissionLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="animate-spin text-blue-600" size={40} />
+        <span className="ml-3 text-gray-600">檢查權限中...</span>
+      </div>
+    );
+  }
+
+  // 沒有管理權限
+  if (!canManage) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md text-center border border-red-100">
+          <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Shield size={32} />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">無管理權限</h2>
+          <p className="text-gray-600 mb-4">您沒有權限管理系統角色和權限設定</p>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <AlertCircle size={20} className="text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-left text-sm text-amber-800">
+                <p className="font-medium mb-1">需要以下權限：</p>
+                <code className="bg-amber-100 px-2 py-0.5 rounded text-xs">rbac.manage</code>
+              </div>
+            </div>
+          </div>
+          <p className="text-sm text-gray-500">
+            請聯絡系統管理員申請權限管理權限
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // 資料載入中
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="animate-spin text-blue-600" size={40} />
-        <span className="ml-3 text-gray-600">載入中...</span>
+        <span className="ml-3 text-gray-600">載入資料中...</span>
       </div>
     );
   }
