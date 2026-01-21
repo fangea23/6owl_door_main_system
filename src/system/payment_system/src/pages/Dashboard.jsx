@@ -15,9 +15,10 @@ import {
   Check, 
   XCircle 
 } from 'lucide-react';
-import { supabase } from '../supabaseClient'; 
+import { supabase } from '../supabaseClient';
 import InstallPrompt from '../components/InstallPrompt';
 import { useAuth } from '../../../../contexts/AuthContext'; // 修正引用路徑以配合您的檔案結構
+import { usePermission } from '../../../../hooks/usePermission'; // RBAC 權限系統
 
 // 付款系統的基礎路徑
 const BASE_PATH = '/systems/payment-approval';
@@ -49,7 +50,17 @@ export default function Dashboard() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user, role } = useAuth();
-  const currentRole = role || 'staff'; 
+  const currentRole = role || 'staff';
+
+  // RBAC 權限檢查
+  const { hasPermission: canCreate } = usePermission('payment.create');
+  const { hasPermission: canViewAll } = usePermission('payment.view.all');
+  const { hasPermission: canViewOwn } = usePermission('payment.view.own');
+  const { hasPermission: canApproveAccountant } = usePermission('payment.approve.accountant');
+  const { hasPermission: canApproveManager } = usePermission('payment.approve.manager');
+  const { hasPermission: canApproveAudit } = usePermission('payment.approve.audit');
+  const { hasPermission: canApproveCashier } = usePermission('payment.approve.cashier');
+  const { hasPermission: canApproveBoss } = usePermission('payment.approve.boss'); 
 
   // --- 1. 新增：員工姓名狀態與抓取邏輯 ---
   const [employeeName, setEmployeeName] = useState('');
@@ -78,15 +89,25 @@ export default function Dashboard() {
   const displayName = employeeName || user?.user_metadata?.full_name || user?.email;
   // -------------------------------------
 
-  // --- 模擬角色與視圖狀態 ---
+  // --- 視圖狀態 (基於權限) ---
   const [viewMode, setViewMode] = useState('all');
+
+  // 檢查用戶是否有任何審核權限
+  const hasAnyApprovalPermission =
+    canApproveManager ||
+    canApproveAccountant ||
+    canApproveAudit ||
+    canApproveCashier ||
+    canApproveBoss;
+
   useEffect(() => {
-    if (currentRole !== 'staff') {
+    // 有審核權限的用戶預設顯示待辦事項
+    if (hasAnyApprovalPermission) {
       setViewMode('todo');
     } else {
       setViewMode('all');
     }
-  }, [currentRole]);
+  }, [hasAnyApprovalPermission]);
 
   // ✅ Task 1: 批量操作 State
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -178,9 +199,9 @@ export default function Dashboard() {
 
   // --- 切換紙本入庫狀態 ---
   const togglePaperStatus = async (id, currentStatus) => {
-    // ✅ Task 2: 權限檢查
-    if (currentRole !== 'accountant') {
-        alert('只有「會計」角色可以執行紙本入庫作業');
+    // RBAC 權限檢查：只有會計可以執行紙本入庫
+    if (!canApproveAccountant) {
+        alert('只有具有會計審核權限的人可以執行紙本入庫作業');
         return;
     }
 
@@ -205,15 +226,30 @@ export default function Dashboard() {
     }
   };
 
-  // --- 資料篩選邏輯 ---
+  // --- 資料篩選邏輯 (使用 RBAC 權限) ---
   const filteredRequests = requests.filter(req => {
     if (viewMode === 'all') return true;
-    const myResponsibilities = ROLE_RESPONSIBILITY[currentRole] || [];
+
+    // 根據權限決定哪些狀態是我負責的
+    const myResponsibilities = [];
+    if (canApproveManager) myResponsibilities.push('pending_unit_manager');
+    if (canApproveAccountant) myResponsibilities.push('pending_accountant');
+    if (canApproveAudit) myResponsibilities.push('pending_audit_manager');
+    if (canApproveCashier) myResponsibilities.push('pending_cashier');
+    if (canApproveBoss) myResponsibilities.push('pending_boss');
+
     return myResponsibilities.includes(req.status);
   });
 
   const todoCount = requests.filter(req => {
-    const myResponsibilities = ROLE_RESPONSIBILITY[currentRole] || [];
+    // 計算待辦事項數量
+    const myResponsibilities = [];
+    if (canApproveManager) myResponsibilities.push('pending_unit_manager');
+    if (canApproveAccountant) myResponsibilities.push('pending_accountant');
+    if (canApproveAudit) myResponsibilities.push('pending_audit_manager');
+    if (canApproveCashier) myResponsibilities.push('pending_cashier');
+    if (canApproveBoss) myResponsibilities.push('pending_boss');
+
     return myResponsibilities.includes(req.status);
   }).length;
 
@@ -471,18 +507,18 @@ export default function Dashboard() {
                             </p>
                         </div>
 
-                        {/* 紙本按鈕 */}
+                        {/* 紙本按鈕 - 使用 RBAC 權限 */}
                         <button
                             onClick={(e) => {
-                                e.preventDefault(); 
+                                e.preventDefault();
                                 togglePaperStatus(req.id, req.is_paper_received);
                             }}
-                            disabled={currentRole !== 'accountant'}
+                            disabled={!canApproveAccountant}
                             className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                            req.is_paper_received 
-                                ? 'bg-blue-50 text-blue-700 border-blue-200' 
+                            req.is_paper_received
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
                                 : 'bg-stone-50 text-stone-400 border-stone-200'
-                            } ${currentRole !== 'accountant' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-stone-100'}`}
+                            } ${!canApproveAccountant ? 'opacity-50 cursor-not-allowed' : 'hover:bg-stone-100'}`}
                         >
                             {req.is_paper_received ? <FileCheck size={14} /> : <FileX size={14} />}
                             {req.is_paper_received ? '紙本已收' : '未收紙本'}
@@ -573,13 +609,13 @@ export default function Dashboard() {
                       <td className="p-4 text-center">
                         <button
                             onClick={() => togglePaperStatus(req.id, req.is_paper_received)}
-                            disabled={currentRole !== 'accountant'}
-                            title={currentRole !== 'accountant' ? "只有會計可操作" : req.is_paper_received ? "點擊取消入庫" : "點擊確認入庫"}
+                            disabled={!canApproveAccountant}
+                            title={!canApproveAccountant ? "只有具有會計審核權限的人可操作" : req.is_paper_received ? "點擊取消入庫" : "點擊確認入庫"}
                             className={`p-1.5 rounded-lg transition-colors ${
-                            req.is_paper_received 
-                                ? 'text-blue-600 bg-blue-50' 
+                            req.is_paper_received
+                                ? 'text-blue-600 bg-blue-50'
                                 : 'text-stone-300'
-                            } ${currentRole === 'accountant' ? 'hover:bg-stone-100' : ''}`}
+                            } ${canApproveAccountant ? 'hover:bg-stone-100' : ''}`}
                         >
                             {req.is_paper_received ? <FileCheck size={18} /> : <FileX size={18} />}
                         </button>
