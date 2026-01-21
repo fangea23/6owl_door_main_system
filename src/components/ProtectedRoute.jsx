@@ -1,5 +1,6 @@
 import { Navigate, useLocation, Outlet } from 'react-router-dom'; // 👈 1. 記得引入 Outlet
 import { useAuth } from '../contexts/AuthContext';
+import { usePermission, usePermissions } from '../hooks/usePermission';
 
 /**
  * 受保護的路由組件
@@ -16,9 +17,20 @@ import { useAuth } from '../contexts/AuthContext';
  * <AdminPage />
  * </ProtectedRoute>
  */
-export default function ProtectedRoute({ children, requiredPermission }) {
+export default function ProtectedRoute({
+  children,
+  requiredPermission,
+  requiredPermissions = [],
+  permissionMode = 'any',
+}) {
   const { isAuthenticated, isLoading, user } = useAuth();
+  const { hasPermission, loading: isPermissionLoading } = usePermission(requiredPermission);
+  const { hasPermission: hasPermissions, loading: isPermissionsLoading } = usePermissions(
+    requiredPermissions,
+    permissionMode
+  );
   const location = useLocation();
+  const needsPermissionCheck = Boolean(requiredPermission || requiredPermissions.length > 0);
 
   // 載入中顯示 Loading
   if (isLoading) {
@@ -34,18 +46,28 @@ export default function ProtectedRoute({ children, requiredPermission }) {
     );
   }
 
+  if (needsPermissionCheck && (isPermissionLoading || isPermissionsLoading)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50 dark:bg-slate-900">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-stone-500 dark:text-stone-400">載入中...</p>
+        </div>
+      </div>
+    );
+  }
+
   // 未登入則導向登入頁面
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   // 檢查權限
-  if (requiredPermission) {
-    const hasPermission =
+  if (needsPermissionCheck) {
+    const canAccess =
       user?.permissions?.includes('all') ||
-      user?.permissions?.includes(requiredPermission);
-
-    if (!hasPermission) {
+      (requiredPermissions.length > 0 ? hasPermissions : hasPermission);
+    if (!canAccess) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-stone-50 dark:bg-slate-900">
           <div className="text-center max-w-md p-8">

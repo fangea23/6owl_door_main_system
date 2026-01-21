@@ -286,6 +286,12 @@ INSERT INTO rbac.permissions (code, name, description, module, category) VALUES
   ('meeting.approve', '核准會議室', '可以核准會議室預約', 'meeting', 'approve'),
   ('meeting.manage', '管理會議室', '可以新增/編輯/刪除會議室', 'meeting', 'write'),
 
+  -- 其他系統
+  ('license.view', '查看軟體授權', '可以查看軟體授權系統', 'license', 'read'),
+  ('store.view', '查看店舖管理', '可以查看店舖管理系統', 'store', 'read'),
+  ('eip.view', '查看企業入口網', '可以查看企業入口網', 'eip', 'read'),
+  ('ticketing.view', '查看叫修服務', '可以查看叫修服務系統', 'ticketing', 'read'),
+
   -- 員工管理
   ('employee.view', '查看員工', '可以查看員工列表', 'employee', 'read'),
   ('employee.create', '新增員工', '可以新增員工', 'employee', 'write'),
@@ -351,7 +357,30 @@ WHERE r.code = 'staff'
     'vehicle.view',
     'vehicle.book',
     'meeting.view',
-    'meeting.book'
+    'meeting.book',
+    'license.view',
+    'store.view',
+    'eip.view',
+    'ticketing.view'
+  )
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+-- 一般使用者權限
+INSERT INTO rbac.role_permissions (role_id, permission_id)
+SELECT
+  r.id,
+  p.id
+FROM rbac.roles r
+CROSS JOIN rbac.permissions p
+WHERE r.code = 'user'
+  AND p.code IN (
+    'payment.view.own',
+    'vehicle.view',
+    'meeting.view',
+    'license.view',
+    'store.view',
+    'eip.view',
+    'ticketing.view'
   )
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
