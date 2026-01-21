@@ -18,7 +18,7 @@ import {
 import { supabase } from '../supabaseClient';
 import InstallPrompt from '../components/InstallPrompt';
 import { useAuth } from '../../../../contexts/AuthContext'; // 修正引用路徑以配合您的檔案結構
-import { usePermission } from '../../../../hooks/usePermission'; // RBAC 權限系統
+import { usePermission, PermissionGuard } from '../../../../hooks/usePermission'; // RBAC 權限系統
 
 // 付款系統的基礎路徑
 const BASE_PATH = '/systems/payment-approval';
@@ -361,14 +361,16 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {/* 新增申請按鈕 - 修改為紅色系 */}
-        <Link
-          to={`${BASE_PATH}/apply`}
-          className="w-full md:w-auto bg-red-600 text-white px-6 py-2.5 rounded-xl hover:bg-red-700 font-medium shadow-md shadow-red-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
-        >
-          <FileText size={18} />
-          新增申請
-        </Link>
+        {/* 新增申請按鈕 - 使用 RBAC 權限控制 */}
+        <PermissionGuard permission="payment.create">
+          <Link
+            to={`${BASE_PATH}/apply`}
+            className="w-full md:w-auto bg-red-600 text-white px-6 py-2.5 rounded-xl hover:bg-red-700 font-medium shadow-md shadow-red-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+          >
+            <FileText size={18} />
+            新增申請
+          </Link>
+        </PermissionGuard>
       </div>
 
       {/* ✅ Task 1: 批量操作工具列 (只有在待辦模式 + 有選取時顯示) */}
