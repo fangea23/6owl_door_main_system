@@ -139,7 +139,11 @@ CREATE OR REPLACE FUNCTION rbac.user_has_permission(
   p_user_id UUID,
   p_permission_code VARCHAR
 )
-RETURNS BOOLEAN AS $$
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = rbac, public, pg_temp
+AS $$
 DECLARE
   v_has_permission BOOLEAN;
 BEGIN
@@ -184,7 +188,7 @@ BEGIN
 
   RETURN COALESCE(v_has_permission, FALSE);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- 獲取用戶的所有權限
 CREATE OR REPLACE FUNCTION rbac.get_user_permissions(p_user_id UUID)
@@ -192,7 +196,11 @@ RETURNS TABLE(
   permission_code VARCHAR,
   permission_name VARCHAR,
   source VARCHAR  -- 'role' 或 'direct'
-) AS $$
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = rbac, public, pg_temp
+AS $$
 BEGIN
   RETURN QUERY
   -- 來自角色的權限
@@ -224,7 +232,7 @@ BEGIN
     AND p.deleted_at IS NULL
     AND (up.expires_at IS NULL OR up.expires_at > NOW());
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- ============================================================================
 -- 7. 初始化權限資料
