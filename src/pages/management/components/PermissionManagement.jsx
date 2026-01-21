@@ -33,6 +33,7 @@ export default function PermissionManagement() {
 
       // 獲取所有角色
       const { data: rolesData, error: rolesError } = await supabase
+        .schema('rbac')
         .from('roles')
         .select('*')
         .is('deleted_at', null)
@@ -42,6 +43,7 @@ export default function PermissionManagement() {
 
       // 獲取所有權限
       const { data: permissionsData, error: permissionsError } = await supabase
+        .schema('rbac')
         .from('permissions')
         .select('*')
         .is('deleted_at', null)
@@ -51,6 +53,7 @@ export default function PermissionManagement() {
 
       // 獲取角色權限關聯
       const { data: rpData, error: rpError } = await supabase
+        .schema('rbac')
         .from('role_permissions')
         .select(`
           id,
@@ -108,6 +111,7 @@ export default function PermissionManagement() {
     try {
       // 1. 刪除該角色的所有權限
       const { error: deleteError } = await supabase
+        .schema('rbac')
         .from('role_permissions')
         .delete()
         .eq('role_id', selectedRole.id);
@@ -122,6 +126,7 @@ export default function PermissionManagement() {
         }));
 
         const { error: insertError } = await supabase
+          .schema('rbac')
           .from('role_permissions')
           .insert(insertData);
 
