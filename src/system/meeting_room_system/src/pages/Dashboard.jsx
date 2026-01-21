@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../AuthContext';
+import { usePermission, PermissionGuard } from '../../../../hooks/usePermission';
 import {
   Calendar,
   Clock,
@@ -82,6 +83,11 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState('schedule'); // 'list' | 'schedule'
+
+  // RBAC 權限檢查
+  const { hasPermission: canCreate } = usePermission('meeting.booking.create');
+  const { hasPermission: canCancelOwn } = usePermission('meeting.booking.cancel.own');
+  const { hasPermission: canCancelAll } = usePermission('meeting.booking.cancel.all');
 
   // 取得本週日期範圍
   const getWeekDates = (date) => {
@@ -243,13 +249,15 @@ export default function Dashboard() {
               列表
             </button>
           </div>
-          <button
-            onClick={() => navigate(`${BASE_PATH}/booking`)}
-            className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl font-medium transition-colors shadow-sm"
-          >
-            <Plus size={18} />
-            新增預約
-          </button>
+          <PermissionGuard permission="meeting.booking.create">
+            <button
+              onClick={() => navigate(`${BASE_PATH}/booking`)}
+              className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl font-medium transition-colors shadow-sm"
+            >
+              <Plus size={18} />
+              新增預約
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 

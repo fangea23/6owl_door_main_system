@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../AuthContext';
+import { usePermission } from '../../../../hooks/usePermission';
 import {
   Calendar,
   Clock,
@@ -12,7 +13,8 @@ import {
   Save,
   Loader2,
   AlertCircle,
-  Trash2
+  Trash2,
+  Shield
 } from 'lucide-react';
 
 const BASE_PATH = '/systems/meeting-room';
@@ -32,6 +34,10 @@ export default function BookingForm() {
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const isEditMode = !!id;
+
+  // RBAC 權限檢查
+  const { hasPermission: canCreate, loading: permissionLoading } = usePermission('meeting.booking.create');
+  const { hasPermission: canEdit } = usePermission('meeting.booking.edit.own');
 
   // 從 URL 參數取得預設值（從時間表視圖快速預約）
   const urlRoom = searchParams.get('room') || '';
@@ -287,6 +293,57 @@ export default function BookingForm() {
       const time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
       timeOptions.push(time);
     }
+  }
+
+  // 權限載入狀態處理
+  if (permissionLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-amber-500 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">檢查權限中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 無權限處理
+  if (!isEditMode && !canCreate) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md text-center">
+          <Shield className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">無建立權限</h2>
+          <p className="text-gray-600 mb-6">您沒有建立會議室預約的權限</p>
+          <p className="text-sm text-gray-400 mb-6">請聯絡系統管理員申請 meeting.booking.create 權限</p>
+          <button
+            onClick={() => navigate(`${BASE_PATH}/dashboard`)}
+            className="w-full bg-amber-500 text-white px-6 py-2.5 rounded-xl hover:bg-amber-600 font-medium shadow-md transition-all"
+          >
+            返回總覽
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isEditMode && !canEdit) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md text-center">
+          <Shield className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">無編輯權限</h2>
+          <p className="text-gray-600 mb-6">您沒有編輯預約的權限</p>
+          <p className="text-sm text-gray-400 mb-6">請聯絡系統管理員申請 meeting.booking.edit.own 權限</p>
+          <button
+            onClick={() => navigate(`${BASE_PATH}/dashboard`)}
+            className="w-full bg-amber-500 text-white px-6 py-2.5 rounded-xl hover:bg-amber-600 font-medium shadow-md transition-all"
+          >
+            返回總覽
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (loading) {
