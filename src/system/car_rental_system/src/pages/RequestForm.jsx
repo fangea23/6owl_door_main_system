@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, Car, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, Car, AlertCircle, Shield, Loader2 } from 'lucide-react';
 import { useRentalRequests } from '../hooks/useRentalRequests';
 import { useVehicles } from '../hooks/useVehicles';
 import { useCurrentEmployee } from '../hooks/useCurrentEmployee';
+import { usePermission } from '../../../../hooks/usePermission';
 import toast from 'react-hot-toast';
 
 export const RequestForm = () => {
@@ -11,6 +12,9 @@ export const RequestForm = () => {
   const { createRequest } = useRentalRequests();
   const { fetchAvailableVehicles, vehicles } = useVehicles();
   const { employee, loading: employeeLoading, error: employeeError } = useCurrentEmployee();
+
+  // RBAC 權限檢查
+  const { hasPermission: canCreate, loading: permissionLoading } = usePermission('car.request.create');
 
   const [formData, setFormData] = useState({
     vehicle_id: '',
@@ -82,6 +86,38 @@ export const RequestForm = () => {
       toast.error(result.error || '提交失敗');
     }
   };
+
+  // 權限載入狀態處理
+  if (permissionLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-rose-600 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">檢查權限中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 無權限處理
+  if (!canCreate) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md text-center">
+          <Shield className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">無建立權限</h2>
+          <p className="text-gray-600 mb-6">您沒有建立租車申請的權限</p>
+          <p className="text-sm text-gray-400 mb-6">請聯絡系統管理員申請 car.request.create 權限</p>
+          <button
+            onClick={() => navigate('/systems/car-rental/my-rentals')}
+            className="w-full bg-rose-600 text-white px-6 py-2.5 rounded-xl hover:bg-rose-700 font-medium shadow-md transition-all"
+          >
+            返回我的租借
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // 載入狀態處理
   if (employeeLoading) {
