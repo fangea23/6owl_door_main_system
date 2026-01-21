@@ -165,8 +165,10 @@ export default function PermissionManagement() {
 
   const moduleNames = {
     payment: '💰 付款簽核',
-    vehicle: '🚗 車輛租借',
-    meeting: '🏢 會議室',
+    car_rental: '🚗 車輛租借',
+    vehicle: '🚗 車輛租借（舊）',  // 舊的 vehicle 模組
+    meeting_room: '🏢 會議室',
+    meeting: '🏢 會議室（舊）',  // 舊的 meeting 模組
     employee: '👥 員工管理',
     rbac: '🔐 權限管理'
   };
