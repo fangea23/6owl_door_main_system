@@ -28,11 +28,13 @@ export function usePermission(permissionCode) {
       setLoading(true);
       setError(null);
 
-      // 呼叫資料庫函數檢查權限
-      const { data, error: rpcError } = await supabase.rpc('user_has_permission', {
-        p_user_id: user.id,
-        p_permission_code: permissionCode
-      });
+      // 呼叫資料庫函數檢查權限（指定 rbac schema）
+      const { data, error: rpcError } = await supabase
+        .schema('rbac')
+        .rpc('user_has_permission', {
+          p_user_id: user.id,
+          p_permission_code: permissionCode
+        });
 
       if (rpcError) throw rpcError;
 
@@ -74,10 +76,12 @@ export function useUserPermissions() {
       setLoading(true);
       setError(null);
 
-      // 呼叫資料庫函數獲取所有權限
-      const { data, error: rpcError } = await supabase.rpc('get_user_permissions', {
-        p_user_id: user.id
-      });
+      // 呼叫資料庫函數獲取所有權限（指定 rbac schema）
+      const { data, error: rpcError } = await supabase
+        .schema('rbac')
+        .rpc('get_user_permissions', {
+          p_user_id: user.id
+        });
 
       if (rpcError) throw rpcError;
 
@@ -142,13 +146,15 @@ export function usePermissions(permissionCodes = [], mode = 'any') {
       setLoading(true);
       setError(null);
 
-      // 批量檢查每個權限
+      // 批量檢查每個權限（指定 rbac schema）
       const checks = await Promise.all(
         permissionCodes.map(async (code) => {
-          const { data, error: rpcError } = await supabase.rpc('user_has_permission', {
-            p_user_id: user.id,
-            p_permission_code: code
-          });
+          const { data, error: rpcError } = await supabase
+            .schema('rbac')
+            .rpc('user_has_permission', {
+              p_user_id: user.id,
+              p_permission_code: code
+            });
 
           if (rpcError) throw rpcError;
 
