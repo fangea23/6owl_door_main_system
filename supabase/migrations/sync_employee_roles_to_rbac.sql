@@ -6,11 +6,10 @@
 -- 為所有有 user_id 的員工創建對應的角色關聯
 -- 只處理角色已在 rbac.roles 中定義的員工
 
-INSERT INTO rbac.user_roles (user_id, role_id, is_active)
+INSERT INTO rbac.user_roles (user_id, role_id)
 SELECT DISTINCT
   e.user_id,
-  r.id,
-  true
+  r.id
 FROM public.employees e
 JOIN rbac.roles r ON (
   -- 映射邏輯：employees.role -> rbac.roles.code
@@ -83,11 +82,9 @@ BEGIN
       WHERE user_id = NEW.user_id;
 
       -- 插入新角色
-      INSERT INTO rbac.user_roles (user_id, role_id, is_active)
-      VALUES (NEW.user_id, v_role_id, true)
-      ON CONFLICT (user_id, role_id) DO UPDATE
-        SET is_active = true,
-            updated_at = NOW();
+      INSERT INTO rbac.user_roles (user_id, role_id)
+      VALUES (NEW.user_id, v_role_id)
+      ON CONFLICT (user_id, role_id) DO NOTHING;
     END IF;
   END IF;
 
