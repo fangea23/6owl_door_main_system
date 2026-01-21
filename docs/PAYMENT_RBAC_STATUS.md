@@ -19,7 +19,8 @@
 - ✅ 視圖模式（待辦/全部）基於審核權限
 - ✅ 資料篩選基於權限
 - ✅ 紙本入庫按鈕權限控制
-- ✅ 批量操作權限控制（待實現完整版）
+- ✅ 批量操作權限控制（已完整實現）
+- ✅ 新增申請按鈕權限控制
 
 ### 2. **RequestDetail.jsx** - 付款申請詳情
 **整合狀態**: ✅ 完成
@@ -37,28 +38,16 @@
 - ✅ 申請人撤銷/修改（基於 requester_id + 權限）
 
 ### 3. **ApplyForm.jsx** - 建立申請表單
-**整合狀態**: ⚠️ 部分完成
+**整合狀態**: ✅ 完成
 
-**現狀**:
-- 目前通過 ProtectedRoute 保護（只檢查登入）
-- 沒有明確的 `payment.create` 權限檢查
+**權限使用**:
+- `payment.create` - 建立付款申請權限
 
-**建議**:
-```jsx
-// 在 ApplyForm 開頭添加
-const { hasPermission: canCreate } = usePermission('payment.create');
-
-if (!canCreate) {
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <Shield size={48} className="mx-auto text-gray-300 mb-4" />
-        <p className="text-gray-600">您沒有建立付款申請的權限</p>
-      </div>
-    </div>
-  );
-}
-```
+**控制點**:
+- ✅ 頁面級別權限檢查
+- ✅ 權限載入中顯示載入動畫
+- ✅ 無權限時顯示友好提示訊息
+- ✅ 提示用戶需要的權限代碼
 
 ### 4. **ProtectedRoute.jsx** - 路由保護
 **整合狀態**: ✅ 正確（不需修改）
@@ -69,64 +58,29 @@ if (!canCreate) {
 
 ---
 
-## ❌ 尚未完成的部分
+## ✅ 前端 RBAC 整合已全部完成！
 
-### 1. **批量審核功能**
-**位置**: Dashboard.jsx
+付款系統所有前端頁面和操作現已完整整合 RBAC 權限系統：
 
-**現狀**:
-```javascript
-const handleBatchApprove = async () => {
-  // TODO: 添加權限檢查
-};
-```
+- ✅ **Dashboard.jsx** - 總覽頁（包含批量操作）
+- ✅ **RequestDetail.jsx** - 詳情頁
+- ✅ **ApplyForm.jsx** - 建立申請表單
+- ✅ **新增申請按鈕** - 權限控制
+- ✅ **批量核准功能** - 權限檢查
+- ✅ **批量駁回功能** - 權限檢查
+- ✅ **紙本入庫** - 權限控制
 
-**應該添加**:
-```javascript
-const handleBatchApprove = async () => {
-  // 檢查當前用戶是否有對應的審核權限
-  const currentStatus = selectedRequests[0]?.status;
+---
 
-  if (currentStatus === 'pending_accountant' && !canApproveAccountant) {
-    alert('您沒有會計審核權限');
-    return;
-  }
+## ⚠️ 建議但非必要的增強項目
 
-  if (currentStatus === 'pending_boss' && !canApproveBoss) {
-    alert('您沒有放行決行權限');
-    return;
-  }
-
-  // ... 執行批量審核
-};
-```
-
-### 2. **新增申請按鈕**
-**位置**: Dashboard.jsx Line 365-371
-
-**現狀**: 按鈕始終顯示
-
-**應該改為**:
-```jsx
-import { PermissionGuard } from '../../../../hooks/usePermission';
-
-<PermissionGuard permission="payment.create">
-  <Link
-    to={`${BASE_PATH}/apply`}
-    className="..."
-  >
-    <FileText size={18} />
-    新增申請
-  </Link>
-</PermissionGuard>
-```
-
-### 3. **資料訪問權限（RLS）**
+### 1. **資料訪問權限（RLS）**
 **位置**: 資料庫層級
 
-**現狀**: 尚未實現
+**說明**:
+前端權限控制已完成，資料庫層級的 Row Level Security (RLS) 可作為額外的安全防護層。
 
-**應該添加**:
+**建議添加**:
 ```sql
 -- 範例：只有相關人員可以查看付款申請
 CREATE POLICY "Users can view relevant payment requests"

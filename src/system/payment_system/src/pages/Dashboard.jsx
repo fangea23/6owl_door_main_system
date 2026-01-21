@@ -272,15 +272,49 @@ export default function Dashboard() {
   // ✅ Task 1: 批量核准 API
   const handleBatchApprove = async () => {
     if (selectedIds.size === 0) return;
+
+    // RBAC 權限檢查：驗證用戶是否有權限批量核准
+    const selectedRequests = requests.filter(r => selectedIds.has(r.id));
+    const statuses = [...new Set(selectedRequests.map(r => r.status))];
+
+    // 檢查是否所有選取的單據狀態一致
+    if (statuses.length > 1) {
+      alert('⚠️ 批量操作失敗\n\n選取的單據處於不同審核階段，無法一次核准。\n請分別選取相同狀態的單據進行批量操作。');
+      return;
+    }
+
+    const currentStatus = statuses[0];
+
+    // 根據狀態檢查對應權限
+    const statusPermissionMap = {
+      'pending_unit_manager': { hasPermission: canApproveManager, name: '主管審核' },
+      'pending_accountant': { hasPermission: canApproveAccountant, name: '會計審核' },
+      'pending_audit_manager': { hasPermission: canApproveAudit, name: '審核主管' },
+      'pending_cashier': { hasPermission: canApproveCashier, name: '出納撥款' },
+      'pending_boss': { hasPermission: canApproveBoss, name: '放行決行' }
+    };
+
+    const permissionCheck = statusPermissionMap[currentStatus];
+
+    if (!permissionCheck) {
+      alert('⚠️ 無法批量核准\n\n選取的單據狀態無法進行批量核准操作。');
+      return;
+    }
+
+    if (!permissionCheck.hasPermission) {
+      alert(`⚠️ 權限不足\n\n您沒有「${permissionCheck.name}」權限，無法批量核准這些單據。\n請聯絡系統管理員申請相應權限。`);
+      return;
+    }
+
     if (!window.confirm(`確定要一次核准選取的 ${selectedIds.size} 筆單據嗎？`)) return;
-    
+
     setBatchProcessing(true);
-    
+
     const NEXT_STEP_MAP = {
       'pending_unit_manager': { status: 'pending_accountant', step: 2, key: 'sign_manager' },
       'pending_accountant':   { status: 'pending_audit_manager', step: 3, key: 'sign_accountant' },
       'pending_audit_manager':{ status: 'pending_cashier', step: 4, key: 'sign_audit' },
-      'pending_cashier':      { status: 'pending_boss', step: 5, key: 'sign_cashier' }, 
+      'pending_cashier':      { status: 'pending_boss', step: 5, key: 'sign_cashier' },
       'pending_boss':         { status: 'completed', step: 6, key: 'sign_boss' }
     };
 
@@ -313,7 +347,40 @@ export default function Dashboard() {
   // ✅ Task 1: 批量駁回 API
   const handleBatchReject = async () => {
     if (selectedIds.size === 0) return;
-    
+
+    // RBAC 權限檢查：驗證用戶是否有權限批量駁回
+    const selectedRequests = requests.filter(r => selectedIds.has(r.id));
+    const statuses = [...new Set(selectedRequests.map(r => r.status))];
+
+    // 檢查是否所有選取的單據狀態一致
+    if (statuses.length > 1) {
+      alert('⚠️ 批量操作失敗\n\n選取的單據處於不同審核階段，無法一次駁回。\n請分別選取相同狀態的單據進行批量操作。');
+      return;
+    }
+
+    const currentStatus = statuses[0];
+
+    // 根據狀態檢查對應權限（駁回需要該階段的審核權限）
+    const statusPermissionMap = {
+      'pending_unit_manager': { hasPermission: canApproveManager, name: '主管審核' },
+      'pending_accountant': { hasPermission: canApproveAccountant, name: '會計審核' },
+      'pending_audit_manager': { hasPermission: canApproveAudit, name: '審核主管' },
+      'pending_cashier': { hasPermission: canApproveCashier, name: '出納撥款' },
+      'pending_boss': { hasPermission: canApproveBoss, name: '放行決行' }
+    };
+
+    const permissionCheck = statusPermissionMap[currentStatus];
+
+    if (!permissionCheck) {
+      alert('⚠️ 無法批量駁回\n\n選取的單據狀態無法進行批量駁回操作。');
+      return;
+    }
+
+    if (!permissionCheck.hasPermission) {
+      alert(`⚠️ 權限不足\n\n您沒有「${permissionCheck.name}」權限，無法批量駁回這些單據。\n請聯絡系統管理員申請相應權限。`);
+      return;
+    }
+
     const reason = prompt(`⚠️ 您即將駁回選取的 ${selectedIds.size} 筆單據。\n\n請輸入駁回原因 (將套用至所有選取案件)：`);
     if (!reason?.trim()) return;
 
