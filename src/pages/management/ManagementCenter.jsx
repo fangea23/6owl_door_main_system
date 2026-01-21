@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'; // 1. 引入 useEffect 和 useRef
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePermission } from '../../hooks/usePermission';
 import { Shield, Users, Building2, Briefcase, ChevronDown, Settings, LogOut, BadgeDollarSign, Key } from 'lucide-react';
 import ProfilesManagement from './components/ProfilesManagement';
 import EmployeesManagement from './components/EmployeesManagement';
@@ -30,6 +31,7 @@ const Logo = ({ size = 'default' }) => {
  */
 export default function ManagementCenter() {
   const { user, role, logout } = useAuth();
+  const { hasPermission: canManageRbac, loading: isPermissionLoading } = usePermission('rbac.manage');
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('profiles');
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -90,8 +92,19 @@ export default function ManagementCenter() {
   };
   // -------------------------------------
 
-  // 權限檢查：只有 admin 和 hr 可以訪問
-  if (role !== 'admin' && role !== 'hr') {
+  if (isPermissionLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-stone-500">載入中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 權限檢查：只有擁有 rbac.manage 可以訪問
+  if (!canManageRbac && role !== 'admin') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md text-center">

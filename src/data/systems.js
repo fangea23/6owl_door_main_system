@@ -33,7 +33,7 @@ export const categories = [
         url: '/management',
         status: 'active',
         isExternal: false,
-        requiresRole: ['admin', 'hr'], // 需要特定角色才能看到
+        requiresPermissions: ['rbac.manage'], // 需要特定權限才能看到
       },
     ],
   },
@@ -52,6 +52,7 @@ export const categories = [
         url: '/systems/payment-approval',
         status: 'active',
         isExternal: false,
+        requiresPermissions: ['payment.view', 'payment.view.own', 'payment.view.all'],
       },
     ],
   },
@@ -70,6 +71,7 @@ export const categories = [
         url: '/systems/software-license',
         status: 'active',
         isExternal: false,
+        requiresPermissions: ['license.view'],
       },
     ],
   },
@@ -88,6 +90,7 @@ export const categories = [
         url: '/systems/meeting-room',
         status: 'active',
         isExternal: false,
+        requiresPermissions: ['meeting.view', 'meeting.book'],
       },
       {
         id: 'car-rental',
@@ -97,6 +100,7 @@ export const categories = [
         url: '/systems/car-rental',
         status: 'active',
         isExternal: false,
+        requiresPermissions: ['vehicle.view', 'vehicle.book'],
       },
       {
         id: 'store-management',
@@ -106,6 +110,7 @@ export const categories = [
         url: '/systems/store-management',
         status: 'active',
         isExternal: false,
+        requiresPermissions: ['store.view'],
       },
       {
         id: 'eip-km',
@@ -115,6 +120,7 @@ export const categories = [
         url: '/systems/eip-km',
         status: 'active',
         isExternal: false,
+        requiresPermissions: ['eip.view'],
       },
       {
         id: 'ticketing',
@@ -124,6 +130,7 @@ export const categories = [
         url: '/systems/ticketing',
         status: 'active',
         isExternal: false,
+        requiresPermissions: ['ticketing.view'],
       },
     ],
   },

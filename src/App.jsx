@@ -62,16 +62,75 @@ function App() {
                <Route path="/account" element={<Account />} />
                {/* 注意：這裡有兩個 /account，建議把 UserProfile 改路徑或移除其中一個，避免衝突 */}
                {/* <Route path="/user-profile" element={<UserProfile />} /> */} 
-               <Route path="/management/*" element={<ManagementCenter />} />
+               <Route
+                 path="/management/*"
+                 element={
+                   <ProtectedRoute requiredPermission="rbac.manage">
+                     <ManagementCenter />
+                   </ProtectedRoute>
+                 }
+               />
 
                {/* 子系統 */}
-               <Route path="/systems/payment-approval/*" element={<PaymentSystemLayout />} />
-               <Route path="/systems/software-license/*" element={<LicenseSystemLayout />} />
-               <Route path="/systems/meeting-room/*" element={<MeetingRoomSystemLayout />} />
-               <Route path="/systems/car-rental/*" element={<CarRentalSystemLayout />} />
-               <Route path="/systems/store-management/*" element={<StoreManagementSystemLayout />} />
-               <Route path="/systems/eip-km/*" element={<EIPKMSystemLayout />} />
-               <Route path="/systems/ticketing/*" element={<TicketingSystemLayout />} /> 
+               <Route
+                 path="/systems/payment-approval/*"
+                 element={
+                   <ProtectedRoute
+                     requiredPermissions={['payment.view', 'payment.view.own', 'payment.view.all']}
+                     permissionMode="any"
+                   >
+                     <PaymentSystemLayout />
+                   </ProtectedRoute>
+                 }
+               />
+               <Route
+                 path="/systems/software-license/*"
+                 element={
+                   <ProtectedRoute requiredPermission="license.view">
+                     <LicenseSystemLayout />
+                   </ProtectedRoute>
+                 }
+               />
+               <Route
+                 path="/systems/meeting-room/*"
+                 element={
+                   <ProtectedRoute requiredPermissions={['meeting.view', 'meeting.book']} permissionMode="any">
+                     <MeetingRoomSystemLayout />
+                   </ProtectedRoute>
+                 }
+               />
+               <Route
+                 path="/systems/car-rental/*"
+                 element={
+                   <ProtectedRoute requiredPermissions={['vehicle.view', 'vehicle.book']} permissionMode="any">
+                     <CarRentalSystemLayout />
+                   </ProtectedRoute>
+                 }
+               />
+               <Route
+                 path="/systems/store-management/*"
+                 element={
+                   <ProtectedRoute requiredPermission="store.view">
+                     <StoreManagementSystemLayout />
+                   </ProtectedRoute>
+                 }
+               />
+               <Route
+                 path="/systems/eip-km/*"
+                 element={
+                   <ProtectedRoute requiredPermission="eip.view">
+                     <EIPKMSystemLayout />
+                   </ProtectedRoute>
+                 }
+               />
+               <Route
+                 path="/systems/ticketing/*"
+                 element={
+                   <ProtectedRoute requiredPermission="ticketing.view">
+                     <TicketingSystemLayout />
+                   </ProtectedRoute>
+                 }
+               />
            </Route>
 
         </Routes>
