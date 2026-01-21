@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'; // 1. 引入 useEffect 和 useRef
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { Shield, Users, Building2, Briefcase, ChevronDown, Settings, LogOut, BadgeDollarSign, Key } from 'lucide-react';
+import { useUserPermissions } from '../../hooks/usePermission'; // RBAC 權限系統
+import { Shield, Users, Building2, Briefcase, ChevronDown, Settings, LogOut, BadgeDollarSign, Key, Loader2 } from 'lucide-react';
 import ProfilesManagement from './components/ProfilesManagement';
 import EmployeesManagement from './components/EmployeesManagement';
 import DepartmentsManagement from './components/DepartmentsManagement';
@@ -31,9 +32,12 @@ const Logo = ({ size = 'default' }) => {
 export default function ManagementCenter() {
   const { user, role, logout } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('profiles');
+  const [activeTab, setActiveTab] = useState(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef(null);
+
+  // RBAC 權限系統
+  const { permissions, loading: permissionsLoading } = useUserPermissions();
 
   // --- 3. 新增：員工姓名狀態與抓取邏輯 ---
   const [employeeName, setEmployeeName] = useState(null);
@@ -90,14 +94,79 @@ export default function ManagementCenter() {
   };
   // -------------------------------------
 
-  // 權限檢查：只有 admin 和 hr 可以訪問
-  if (role !== 'admin' && role !== 'hr') {
+  // 載入權限中
+  if (permissionsLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">載入權限中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 轉換權限為 Set 以便快速查找
+  const permSet = new Set(permissions.map(p => p.permission_code));
+
+  // 定義所有頁籤及其所需權限
+  const allTabs = [
+    {
+      id: 'profiles',
+      name: '用戶帳號',
+      icon: Users,
+      description: '管理系統登入帳號與權限',
+      component: ProfilesManagement,
+      requiredPermission: 'employee.view', // 需要查看員工權限
+    },
+    {
+      id: 'employees',
+      name: '員工資料',
+      icon: Briefcase,
+      description: '管理員工組織架構資訊',
+      component: EmployeesManagement,
+      requiredPermission: 'employee.edit', // 需要編輯員工權限
+    },
+    {
+      id: 'departments',
+      name: '部門管理',
+      icon: Building2,
+      description: '管理公司部門架構',
+      component: DepartmentsManagement,
+      requiredPermission: 'employee.edit', // 需要編輯員工權限
+    },
+    {
+      id: 'accountant-brands',
+      name: '會計品牌分配',
+      icon: BadgeDollarSign,
+      description: '管理會計人員負責的品牌分配，設定後會計只能處理所負責品牌的付款申請',
+      component: AccountantBrandsManagement,
+      requiredPermission: 'employee.edit', // 需要編輯員工權限
+    },
+    {
+      id: 'permissions',
+      name: '權限管理',
+      icon: Key,
+      description: '管理系統角色和權限設定，控制不同角色可以存取的功能模組',
+      component: PermissionManagement,
+      requiredPermission: 'rbac.manage', // 需要權限管理權限
+    },
+  ];
+
+  // 過濾出用戶有權限訪問的頁籤
+  const tabs = allTabs.filter(tab =>
+    !tab.requiredPermission || permSet.has(tab.requiredPermission)
+  );
+
+  // 如果用戶沒有任何可訪問的頁籤
+  if (tabs.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md text-center">
-          <Shield className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">權限不足</h2>
-          <p className="text-gray-600 mb-6">您沒有權限存取管理中心</p>
+          <Shield className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">無訪問權限</h2>
+          <p className="text-gray-600 mb-6">您目前沒有權限訪問管理中心的任何功能</p>
+          <p className="text-sm text-gray-400 mb-6">請聯絡系統管理員申請權限</p>
           <button
             onClick={() => navigate('/')}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
@@ -109,43 +178,10 @@ export default function ManagementCenter() {
     );
   }
 
-  const tabs = [
-    {
-      id: 'profiles',
-      name: '用戶帳號',
-      icon: Users,
-      description: '管理系統登入帳號與權限',
-      component: ProfilesManagement,
-    },
-    {
-      id: 'employees',
-      name: '員工資料',
-      icon: Briefcase,
-      description: '管理員工組織架構資訊',
-      component: EmployeesManagement,
-    },
-    {
-      id: 'departments',
-      name: '部門管理',
-      icon: Building2,
-      description: '管理公司部門架構',
-      component: DepartmentsManagement,
-    },
-    {
-      id: 'accountant-brands',
-      name: '會計品牌分配',
-      icon: BadgeDollarSign,
-      description: '管理會計人員負責的品牌分配，設定後會計只能處理所負責品牌的付款申請',
-      component: AccountantBrandsManagement,
-    },
-    {
-      id: 'permissions',
-      name: '權限管理',
-      icon: Key,
-      description: '管理系統角色和權限設定，控制不同角色可以存取的功能模組',
-      component: PermissionManagement,
-    },
-  ];
+  // 設定預設頁籤（第一個有權限的頁籤）
+  if (!activeTab && tabs.length > 0) {
+    setActiveTab(tabs[0].id);
+  }
 
   const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component;
 
