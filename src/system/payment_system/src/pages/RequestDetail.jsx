@@ -86,6 +86,11 @@ export default function RequestDetail() {
     const { hasPermission: canApproveBoss } = usePermission('payment.approve.boss');
     const { hasPermission: canReject } = usePermission('payment.reject');
     const { hasPermission: canCancel } = usePermission('payment.cancel');
+
+    // 操作權限（細粒度）
+    const { hasPermission: canManageFee } = usePermission('payment.fee.manage');
+    const { hasPermission: canManageInvoice } = usePermission('payment.invoice.manage');
+    const { hasPermission: canViewInvoice } = usePermission('payment.invoice.view');
     // ✅ [新增] 會計補登發票用的 State
     const [accountantInvoice, setAccountantInvoice] = useState({
         hasInvoice: 'no_yet',
@@ -225,8 +230,8 @@ const handleSaveInvoice = async () => {
                 [`${config.fieldPrefix}_url`]: 'BUTTON_APPROVED',
             };
 
-            // 特殊邏輯：如果是出納，記錄手續費（使用 RBAC 權限）
-            if (canApproveCashier) {
+            // 特殊邏輯：如果有手續費管理權限，記錄手續費（使用細粒度 RBAC 權限）
+            if (canManageFee) {
                 updatePayload.handling_fee = Number(cashierFee);
             }
 
@@ -478,8 +483,8 @@ const handleSaveInvoice = async () => {
                                     {/* --- ✅ [修改] 發票資訊區塊 (支援會計補登) --- */}
                                     <div className="print-col-span-2 relative group">
                                         
-                                        {/* 只有「具有會計審核權限」且「非編輯模式」時，顯示編輯按鈕 */}
-                                        {canApproveAccountant && !isEditingInvoice && (
+                                        {/* 只有「具有發票管理權限」且「非編輯模式」時，顯示編輯按鈕 */}
+                                        {canManageInvoice && !isEditingInvoice && (
                                             <button
                                                 onClick={() => setIsEditingInvoice(true)}
                                                 className="absolute right-0 top-0 text-blue-600 hover:text-blue-800 text-xs flex items-center gap-1 no-print bg-blue-50 px-2 py-1 rounded transition-opacity"
@@ -722,8 +727,8 @@ const handleSaveInvoice = async () => {
                                                     <div className="text-sm text-red-600">({currentConfig.label})</div>
                                                 </div>
 
-                                        {/* --- ✅ [新增] 會計專用：發票補登區（使用 RBAC 權限）--- */}
-                                        {canApproveAccountant && (
+                                        {/* --- ✅ [新增] 發票補登區（使用細粒度 RBAC 權限）--- */}
+                                        {canManageInvoice && (
                                             <div className="mb-4 bg-orange-50 p-4 rounded-lg border border-orange-200 text-left">
                                                 <div className="flex items-center gap-2 mb-3 text-orange-800 font-bold border-b border-orange-200 pb-2">
                                                     <FileText size={18} />
@@ -773,7 +778,7 @@ const handleSaveInvoice = async () => {
                                                 )}
                                             </div>
                                         )}
-                                                {canApproveCashier && (
+                                                {canManageFee && (
                                                     <div className="mb-4 bg-white p-3 rounded border border-stone-200">
                                                         <label className="block text-sm font-bold text-gray-700 mb-1">實際手續費 (TWD)</label>
                                                         <input type="number" value={cashierFee} onChange={(e) => setCashierFee(e.target.value)} className="w-full border-gray-300 border rounded p-2 text-right font-mono font-bold text-lg focus:ring-red-500 focus:border-red-500" placeholder="0" />

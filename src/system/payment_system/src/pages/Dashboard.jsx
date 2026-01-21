@@ -60,7 +60,10 @@ export default function Dashboard() {
   const { hasPermission: canApproveManager } = usePermission('payment.approve.manager');
   const { hasPermission: canApproveAudit } = usePermission('payment.approve.audit');
   const { hasPermission: canApproveCashier } = usePermission('payment.approve.cashier');
-  const { hasPermission: canApproveBoss } = usePermission('payment.approve.boss'); 
+  const { hasPermission: canApproveBoss } = usePermission('payment.approve.boss');
+
+  // 操作權限（細粒度）
+  const { hasPermission: canManagePaper } = usePermission('payment.paper.manage'); 
 
   // --- 1. 新增：員工姓名狀態與抓取邏輯 ---
   const [employeeName, setEmployeeName] = useState('');
@@ -199,9 +202,9 @@ export default function Dashboard() {
 
   // --- 切換紙本入庫狀態 ---
   const togglePaperStatus = async (id, currentStatus) => {
-    // RBAC 權限檢查：只有會計可以執行紙本入庫
-    if (!canApproveAccountant) {
-        alert('只有具有會計審核權限的人可以執行紙本入庫作業');
+    // RBAC 權限檢查：只有有紙本管理權限的人可以執行
+    if (!canManagePaper) {
+        alert('⚠️ 權限不足\n\n您沒有紙本入庫管理權限，請聯絡系統管理員申請 payment.paper.manage 權限。');
         return;
     }
 
@@ -582,12 +585,12 @@ export default function Dashboard() {
                                 e.preventDefault();
                                 togglePaperStatus(req.id, req.is_paper_received);
                             }}
-                            disabled={!canApproveAccountant}
+                            disabled={!canManagePaper}
                             className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
                             req.is_paper_received
                                 ? 'bg-blue-50 text-blue-700 border-blue-200'
                                 : 'bg-stone-50 text-stone-400 border-stone-200'
-                            } ${!canApproveAccountant ? 'opacity-50 cursor-not-allowed' : 'hover:bg-stone-100'}`}
+                            } ${!canManagePaper ? 'opacity-50 cursor-not-allowed' : 'hover:bg-stone-100'}`}
                         >
                             {req.is_paper_received ? <FileCheck size={14} /> : <FileX size={14} />}
                             {req.is_paper_received ? '紙本已收' : '未收紙本'}
@@ -678,13 +681,13 @@ export default function Dashboard() {
                       <td className="p-4 text-center">
                         <button
                             onClick={() => togglePaperStatus(req.id, req.is_paper_received)}
-                            disabled={!canApproveAccountant}
-                            title={!canApproveAccountant ? "只有具有會計審核權限的人可操作" : req.is_paper_received ? "點擊取消入庫" : "點擊確認入庫"}
+                            disabled={!canManagePaper}
+                            title={!canManagePaper ? "只有具有紙本管理權限的人可操作" : req.is_paper_received ? "點擊取消入庫" : "點擊確認入庫"}
                             className={`p-1.5 rounded-lg transition-colors ${
                             req.is_paper_received
                                 ? 'text-blue-600 bg-blue-50'
                                 : 'text-stone-300'
-                            } ${canApproveAccountant ? 'hover:bg-stone-100' : ''}`}
+                            } ${canManagePaper ? 'hover:bg-stone-100' : ''}`}
                         >
                             {req.is_paper_received ? <FileCheck size={18} /> : <FileX size={18} />}
                         </button>

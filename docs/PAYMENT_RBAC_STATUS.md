@@ -3,38 +3,43 @@
 ## ✅ 已完成的部分
 
 ### 1. **Dashboard.jsx** - 付款申請總覽
-**整合狀態**: ✅ 完成
+**整合狀態**: ✅ 完成（含細粒度權限）
 
 **權限使用**:
 - `payment.create` - 顯示「新增申請」按鈕
 - `payment.view.all` - 查看所有申請
 - `payment.view.own` - 查看自己的申請
 - `payment.approve.manager` - 主管審核
-- `payment.approve.accountant` - 會計審核（含紙本入庫）
+- `payment.approve.accountant` - 會計審核
 - `payment.approve.audit` - 審核主管
 - `payment.approve.cashier` - 出納撥款
 - `payment.approve.boss` - 放行決行
+- **`payment.paper.manage`** - 紙本入庫管理（細粒度權限）⭐
 
 **控制點**:
 - ✅ 視圖模式（待辦/全部）基於審核權限
 - ✅ 資料篩選基於權限
-- ✅ 紙本入庫按鈕權限控制
+- ✅ **紙本入庫按鈕權限控制（使用 payment.paper.manage）**
 - ✅ 批量操作權限控制（已完整實現）
 - ✅ 新增申請按鈕權限控制
 
 ### 2. **RequestDetail.jsx** - 付款申請詳情
-**整合狀態**: ✅ 完成
+**整合狀態**: ✅ 完成（含細粒度權限）
 
 **權限使用**:
 - `payment.approve.*` - 各階段審核權限
 - `payment.reject` - 駁回權限
 - `payment.cancel` - 撤銷權限
 - `payment.create` - 修改/重新提交權限
+- **`payment.fee.manage`** - 手續費管理（細粒度權限）⭐
+- **`payment.invoice.manage`** - 發票資訊管理（細粒度權限）⭐
+- **`payment.invoice.view`** - 發票資訊查看（細粒度權限）⭐
 
 **控制點**:
 - ✅ 審核按鈕顯示（基於當前狀態 + 權限）
-- ✅ 會計補登發票區域
-- ✅ 出納手續費輸入
+- ✅ **會計補登發票區域（使用 payment.invoice.manage）**
+- ✅ **發票編輯按鈕（使用 payment.invoice.manage）**
+- ✅ **出納手續費輸入（使用 payment.fee.manage）**
 - ✅ 申請人撤銷/修改（基於 requester_id + 權限）
 
 ### 3. **ApplyForm.jsx** - 建立申請表單
@@ -68,7 +73,54 @@
 - ✅ **新增申請按鈕** - 權限控制
 - ✅ **批量核准功能** - 權限檢查
 - ✅ **批量駁回功能** - 權限檢查
-- ✅ **紙本入庫** - 權限控制
+- ✅ **紙本入庫** - 細粒度權限控制 ⭐
+- ✅ **手續費管理** - 細粒度權限控制 ⭐
+- ✅ **發票補登** - 細粒度權限控制 ⭐
+
+---
+
+## 🎯 細粒度操作權限（2026-01-21 新增）
+
+為了更精確地控制特定操作，新增以下細粒度權限：
+
+### 新增權限定義
+
+| 權限代碼 | 權限名稱 | 說明 | 預設角色 |
+|---------|---------|------|---------|
+| `payment.paper.manage` | 管理紙本入庫 | 可以標記和管理付款申請的紙本收件狀態 | 會計 |
+| `payment.fee.manage` | 管理手續費 | 可以輸入和修改實際手續費金額 | 出納 |
+| `payment.invoice.manage` | 管理發票資訊 | 可以補登和修改發票資訊（狀態、日期、號碼） | 會計 |
+| `payment.invoice.view` | 查看發票資訊 | 可以查看發票詳細資訊 | 主管、會計、出納 |
+
+### 權限應用場景
+
+1. **紙本入庫** (`payment.paper.manage`)
+   - **位置**: Dashboard.jsx
+   - **功能**: 標記付款申請的紙本單據是否已收到
+   - **UI 控制**: 紙本按鈕只在有權限時可操作
+   - **使用者**: 會計人員
+
+2. **手續費管理** (`payment.fee.manage`)
+   - **位置**: RequestDetail.jsx（審核區）
+   - **功能**: 出納在撥款時輸入實際手續費金額
+   - **UI 控制**: 手續費輸入框只在有權限時顯示
+   - **使用者**: 出納人員
+
+3. **發票補登** (`payment.invoice.manage`)
+   - **位置**: RequestDetail.jsx（發票資訊區 + 審核區）
+   - **功能**: 會計補登和修改發票狀態、日期、號碼
+   - **UI 控制**: 編輯按鈕和補登區塊只在有權限時顯示
+   - **使用者**: 會計人員
+
+### 資料庫遷移
+
+已創建遷移檔案：`add_payment_operation_permissions.sql`
+
+執行此遷移將：
+- 在 `rbac.permissions` 表中新增 4 個權限
+- 自動為會計角色分配紙本和發票權限
+- 自動為出納角色分配手續費權限
+- 自動為管理員分配所有權限
 
 ---
 
