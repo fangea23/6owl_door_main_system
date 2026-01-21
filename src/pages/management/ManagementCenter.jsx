@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react'; // 1. 引入 useEffect 和 useRef
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { Shield, Users, Building2, Briefcase, ChevronDown, Settings, LogOut, BadgeDollarSign } from 'lucide-react';
+import { Shield, Users, Building2, Briefcase, ChevronDown, Settings, LogOut, BadgeDollarSign, Key } from 'lucide-react';
 import ProfilesManagement from './components/ProfilesManagement';
 import EmployeesManagement from './components/EmployeesManagement';
 import DepartmentsManagement from './components/DepartmentsManagement';
 import AccountantBrandsManagement from './components/AccountantBrandsManagement';
+import PermissionManagement from './components/PermissionManagement';
 import { supabase } from '../../lib/supabase.js'; // 2. 引入 supabase (請確認路徑是否正確，通常與 contexts 同層級或在 src 根目錄)
 import logoSrc from '../../assets/logo.png';
 
@@ -136,6 +137,13 @@ export default function ManagementCenter() {
       icon: BadgeDollarSign,
       description: '管理會計人員負責的品牌分配，設定後會計只能處理所負責品牌的付款申請',
       component: AccountantBrandsManagement,
+    },
+    {
+      id: 'permissions',
+      name: '權限管理',
+      icon: Key,
+      description: '管理系統角色和權限設定，控制不同角色可以存取的功能模組',
+      component: PermissionManagement,
     },
   ];
 
