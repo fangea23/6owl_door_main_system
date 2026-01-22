@@ -123,7 +123,7 @@ BEGIN
 
   -- 如果有需要通知的用戶，發送通知
   IF v_user_ids IS NOT NULL AND array_length(v_user_ids, 1) > 0 THEN
-    PERFORM send_notification_to_users(v_user_ids, v_title, v_message, 'payment');
+    PERFORM send_notification_to_users(v_user_ids, v_title, v_message, 'approval');
   END IF;
 
   RETURN NEW;

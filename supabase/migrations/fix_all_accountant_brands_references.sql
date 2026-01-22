@@ -18,7 +18,6 @@ DECLARE
   v_user_ids UUID[];
   v_title TEXT;
   v_message TEXT;
-  v_link TEXT;
   v_amount TEXT;
   v_brand_id BIGINT;
 BEGIN
@@ -124,18 +123,9 @@ BEGIN
       RETURN NEW;
   END CASE;
 
-  -- 如果有需要通知的用戶，插入通知記錄
+  -- 如果有需要通知的用戶，發送通知
   IF v_user_ids IS NOT NULL AND array_length(v_user_ids, 1) > 0 THEN
-    v_link := '/payment-system/request/' || NEW.id;
-
-    INSERT INTO payment_approval.notifications (user_id, title, message, link, type, related_id)
-    SELECT
-      unnest(v_user_ids),
-      v_title,
-      v_message,
-      v_link,
-      'payment_approval',
-      NEW.id;
+    PERFORM send_notification_to_users(v_user_ids, v_title, v_message, 'approval');
   END IF;
 
   RETURN NEW;
