@@ -87,11 +87,30 @@ export const categories = [
     ],
   },
   {
+    id: 'hr-service',
+    name: '人力資源',
+    description: '員工發展與教育訓練',
+    icon: '👥',
+    color: 'amber',
+    systems: [
+      {
+        id: 'training',
+        name: '教育訓練系統',
+        description: '線上課程學習與測驗',
+        icon: '🎓',
+        url: '/systems/training',
+        status: 'active',
+        isExternal: false,
+        permissionCode: 'system.training', // 需要系統訪問權限
+      },
+    ],
+  },
+  {
     id: 'admin-service',
     name: '行政服務',
     description: '日常行政與辦公支援',
     icon: '🏢',
-    color: 'amber', // 改為琥珀橘，保持暖色調但不刺眼
+    color: 'stone', // 改為岩石灰，與 HR 區分
     systems: [
       {
         id: 'meeting-room',
