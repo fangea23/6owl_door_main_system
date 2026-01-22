@@ -38,6 +38,8 @@ export default function BookingForm() {
   // RBAC 權限檢查
   const { hasPermission: canCreate, loading: permissionLoading } = usePermission('meeting.booking.create');
   const { hasPermission: canEdit } = usePermission('meeting.booking.edit.own');
+  const { hasPermission: canCancelOwn } = usePermission('meeting.booking.cancel.own');
+  const { hasPermission: canCancelAll } = usePermission('meeting.booking.cancel.all');
 
   // 從 URL 參數取得預設值（從時間表視圖快速預約）
   const urlRoom = searchParams.get('room') || '';
@@ -48,6 +50,7 @@ export default function BookingForm() {
   const [submitting, setSubmitting] = useState(false);
   const [rooms, setRooms] = useState([]);
   const [errorMsg, setErrorMsg] = useState('');
+  const [bookingUserId, setBookingUserId] = useState(null); // 保存預約的 user_id
   const [conflicts, setConflicts] = useState([]);
 
   // 計算預設結束時間（開始時間 + 1 小時）
@@ -110,6 +113,8 @@ export default function BookingForm() {
             booker_email: data.booker_email || '',
             booker_phone: data.booker_phone || '',
           });
+          // 保存預約的 user_id 用於權限檢查
+          setBookingUserId(data.user_id);
         }
         setLoading(false);
       } 
@@ -273,6 +278,24 @@ export default function BookingForm() {
     if (!confirm('確定要取消此預約嗎？')) return;
 
     try {
+      // 🔒 權限檢查：先查詢預約資料
+      const { data: booking, error: fetchError } = await supabase
+        .from('bookings')
+        .select('user_id')
+        .eq('id', id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // 檢查取消權限
+      const isOwnBooking = booking.user_id === user.id;
+      const canCancel = canCancelAll || (canCancelOwn && isOwnBooking);
+
+      if (!canCancel) {
+        alert('⚠️ 權限不足\n\n您沒有取消此預約的權限。');
+        return;
+      }
+
       const { error } = await supabase
         .from('bookings')
         .update({ status: 'cancelled' })
@@ -592,7 +615,8 @@ export default function BookingForm() {
 
         {/* 提交按鈕 */}
         <div className="flex justify-between items-center pt-4 border-t border-stone-200">
-          {isEditMode && (
+          {/* 🔒 取消預約按鈕：需要取消權限 */}
+          {isEditMode && (canCancelAll || (canCancelOwn && bookingUserId === user?.id)) && (
             <button
               type="button"
               onClick={handleDelete}

@@ -18,6 +18,7 @@ export default function RoomManagement() {
   const { user } = useAuth();
 
   // 權限檢查
+  const { hasPermission: canView, loading: viewLoading } = usePermission('meeting.room.view');
   const { hasPermission: canCreate, loading: createLoading } = usePermission('meeting.room.create');
   const { hasPermission: canEdit, loading: editLoading } = usePermission('meeting.room.edit');
   const { hasPermission: canDelete, loading: deleteLoading } = usePermission('meeting.room.delete');
@@ -124,7 +125,7 @@ export default function RoomManagement() {
   };
 
   // 權限檢查載入中
-  if (createLoading || editLoading || deleteLoading) {
+  if (viewLoading || createLoading || editLoading || deleteLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="animate-spin text-amber-500" size={40} />
@@ -133,8 +134,8 @@ export default function RoomManagement() {
     );
   }
 
-  // 沒有任何管理權限
-  const hasAnyPermission = canCreate || canEdit || canDelete;
+  // 沒有任何權限（包含查看權限）
+  const hasAnyPermission = canView || canCreate || canEdit || canDelete;
   if (!hasAnyPermission) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -142,11 +143,12 @@ export default function RoomManagement() {
           <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
             <Shield size={32} />
           </div>
-          <h2 className="text-2xl font-bold text-stone-800 mb-2">無管理權限</h2>
-          <p className="text-stone-600 mb-4">您沒有權限管理會議室</p>
+          <h2 className="text-2xl font-bold text-stone-800 mb-2">無查看權限</h2>
+          <p className="text-stone-600 mb-4">您沒有權限查看或管理會議室</p>
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-left text-sm">
             <p className="font-medium text-amber-800 mb-2">需要以下任一權限：</p>
             <ul className="space-y-1 text-amber-700">
+              <li><code className="bg-amber-100 px-2 py-0.5 rounded text-xs">meeting.room.view</code> - 查看會議室清單</li>
               <li><code className="bg-amber-100 px-2 py-0.5 rounded text-xs">meeting.room.create</code> - 新增會議室</li>
               <li><code className="bg-amber-100 px-2 py-0.5 rounded text-xs">meeting.room.edit</code> - 編輯會議室</li>
               <li><code className="bg-amber-100 px-2 py-0.5 rounded text-xs">meeting.room.delete</code> - 刪除會議室</li>

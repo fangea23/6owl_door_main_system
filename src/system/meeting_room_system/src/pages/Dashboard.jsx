@@ -86,6 +86,8 @@ export default function Dashboard() {
 
   // RBAC 權限檢查
   const { hasPermission: canCreate } = usePermission('meeting.booking.create');
+  const { hasPermission: canViewAll } = usePermission('meeting.booking.view.all');
+  const { hasPermission: canViewOwn } = usePermission('meeting.booking.view.own');
   const { hasPermission: canCancelOwn } = usePermission('meeting.booking.cancel.own');
   const { hasPermission: canCancelAll } = usePermission('meeting.booking.cancel.all');
 
@@ -120,18 +122,29 @@ export default function Dashboard() {
         const startOfWeek = toDateString(weekDates[0]);
         const endOfWeek = toDateString(weekDates[6]);
 
+        // 根據權限查詢預約資料
+        let bookingsQuery = supabase
+          .from('bookings')
+          .select(`
+            *,
+            rooms (id, name, location, capacity)
+          `)
+          .gte('booking_date', startOfWeek)
+          .lte('booking_date', endOfWeek);
+
+        // 🔒 權限過濾：只能查看自己的預約
+        if (canViewOwn && !canViewAll) {
+          bookingsQuery = bookingsQuery.eq('user_id', user.id);
+        }
+        // 如果有 canViewAll，則不加過濾（查看所有）
+
+        bookingsQuery = bookingsQuery
+          .order('booking_date', { ascending: true })
+          .order('start_time', { ascending: true });
+
         // 同時取得預約和會議室資料
         const [bookingsRes, roomsRes] = await Promise.all([
-          supabase
-            .from('bookings')
-            .select(`
-              *,
-              rooms (id, name, location, capacity)
-            `)
-            .gte('booking_date', startOfWeek)
-            .lte('booking_date', endOfWeek)
-            .order('booking_date', { ascending: true })
-            .order('start_time', { ascending: true }),
+          bookingsQuery,
           supabase
             .from('rooms')
             .select('*')
@@ -214,6 +227,28 @@ export default function Dashboard() {
     };
     return colors[status] || colors.pending;
   };
+
+  // 🔒 權限檢查：必須有查看權限才能進入 Dashboard
+  if (!canViewAll && !canViewOwn) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md">
+          <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Shield size={32} />
+          </div>
+          <h2 className="text-2xl font-bold text-center mb-2">無查看權限</h2>
+          <p className="text-gray-600 text-center mb-4">
+            您沒有查看會議室預約的權限。
+          </p>
+          <p className="text-sm text-gray-500 text-center">
+            需要以下任一權限：
+            <br />• meeting.booking.view.all（查看所有預約）
+            <br />• meeting.booking.view.own（查看自己的預約）
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
