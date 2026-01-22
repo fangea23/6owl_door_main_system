@@ -31,6 +31,7 @@ export default function Dashboard() {
   const [editingBrand, setEditingBrand] = useState(null);
   const [editingStore, setEditingStore] = useState(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showStoreDetail, setShowStoreDetail] = useState(null);
   const userMenuRef = useRef(null);
 
   const { brands, loading: brandsLoading, addBrand, updateBrand, deleteBrand } = useBrands();
@@ -360,10 +361,23 @@ export default function Dashboard() {
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-stone-900 text-sm sm:text-base truncate">{brand.name}</div>
-                            <div className="text-xs text-stone-500 mt-0.5 sm:mt-1 truncate">
-                              ID: {brand.id ? String(brand.id).substring(0, 8) + '...' : 'N/A'}
+                            <div className="flex items-center gap-2">
+                              {brand.code && (
+                                <code className={`px-2 py-0.5 rounded text-xs font-bold ${
+                                  brand.brand_type === 'supplier'
+                                    ? 'bg-purple-50 text-purple-700'
+                                    : 'bg-red-50 text-red-700'
+                                }`}>
+                                  {brand.code}
+                                </code>
+                              )}
+                              <div className="font-semibold text-stone-900 text-sm sm:text-base truncate">{brand.name}</div>
                             </div>
+                            {brand.brand_type && (
+                              <div className="text-xs text-stone-500 mt-0.5 sm:mt-1">
+                                {brand.brand_type === 'supplier' ? '供應商' : '品牌'}
+                              </div>
+                            )}
                           </div>
                           {(canEditBrand || canDeleteBrand) && (
                             <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
@@ -455,7 +469,8 @@ export default function Dashboard() {
                     {filteredStores.map((store) => (
                       <div
                         key={store.code}
-                        className="p-3 sm:p-4 border border-stone-200 rounded-lg hover:shadow-md hover:shadow-red-500/10 transition-all"
+                        className="p-3 sm:p-4 border border-stone-200 rounded-lg hover:shadow-md hover:shadow-red-500/10 transition-all cursor-pointer"
+                        onClick={() => setShowStoreDetail(store)}
                       >
                         <div className="flex items-start justify-between gap-2 sm:gap-3">
                           <div className="flex-1 min-w-0">
@@ -491,75 +506,27 @@ export default function Dashboard() {
                               )}
                             </div>
 
-                            <div className="mt-1.5 sm:mt-2 space-y-0.5 sm:space-y-1 text-xs sm:text-sm text-stone-600">
+                            <div className="mt-1.5 sm:mt-2 flex items-center gap-2 flex-wrap">
                               {store.code && (
-                                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                                  <span className="font-medium">店舖代碼:</span>
-                                  <code className="bg-amber-50 px-2 py-0.5 rounded text-xs text-amber-700 font-semibold">
-                                    {store.code}
-                                  </code>
-                                </div>
+                                <code className="bg-amber-50 px-2 py-0.5 rounded text-xs text-amber-700 font-semibold">
+                                  {store.code}
+                                </code>
                               )}
                               {store.store_type && (
-                                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                                  <span className="font-medium">店家類型:</span>
-                                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                                    store.store_type === 'direct'
-                                      ? 'bg-blue-50 text-blue-700'
-                                      : 'bg-green-50 text-green-700'
-                                  }`}>
-                                    {store.store_type === 'direct' ? '直營店' : '加盟店'}
-                                  </span>
-                                </div>
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                  store.store_type === 'direct'
+                                    ? 'bg-blue-50 text-blue-700'
+                                    : 'bg-green-50 text-green-700'
+                                }`}>
+                                  {store.store_type === 'direct' ? '直營店' : '加盟店'}
+                                </span>
                               )}
-                              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                                <span className="font-medium">店舖 ID:</span>
-                                <code className="bg-stone-100 px-2 py-0.5 rounded text-xs break-all">
-                                  {store.id}
-                                </code>
-                              </div>
-                              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                                <span className="font-medium">品牌 ID:</span>
-                                <code className="bg-stone-100 px-2 py-0.5 rounded text-xs break-all">
-                                  {store.brand_id}
-                                </code>
-                              </div>
                               {store.opening_date && (
-                                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                                  <span className="font-medium">開店日期:</span>
-                                  <span className="text-stone-700">{store.opening_date}</span>
-                                </div>
+                                <span className="text-xs text-stone-500">
+                                  開店: {store.opening_date}
+                                </span>
                               )}
-                              {store.closing_date && (
-                                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                                  <span className="font-medium">關店日期:</span>
-                                  <span className="text-red-600">{store.closing_date}</span>
-                                </div>
-                              )}
-                              {store.labor_insurance_number && (
-                                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                                  <span className="font-medium">勞保證號:</span>
-                                  <code className="bg-blue-50 px-2 py-0.5 rounded text-xs text-blue-700">
-                                    {store.labor_insurance_number}
-                                  </code>
-                                </div>
-                              )}
-                              {store.health_insurance_number && (
-                                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                                  <span className="font-medium">健保證號:</span>
-                                  <code className="bg-green-50 px-2 py-0.5 rounded text-xs text-green-700">
-                                    {store.health_insurance_number}
-                                  </code>
-                                </div>
-                              )}
-                              {store.food_safety_certificate_number && (
-                                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                                  <span className="font-medium">食品安全證號:</span>
-                                  <code className="bg-purple-50 px-2 py-0.5 rounded text-xs text-purple-700">
-                                    {store.food_safety_certificate_number}
-                                  </code>
-                                </div>
-                              )}
+                              <span className="text-xs text-blue-600 font-medium">點擊查看詳細資訊 →</span>
                             </div>
                           </div>
 
@@ -567,7 +534,10 @@ export default function Dashboard() {
                             <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                               {canEditStore && (
                                 <button
-                                  onClick={() => handleEditStore(store)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEditStore(store);
+                                  }}
                                   className="p-1.5 sm:p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors touch-manipulation active:scale-95"
                                 >
                                   <Edit2 className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -575,7 +545,10 @@ export default function Dashboard() {
                               )}
                               {canDeleteStore && (
                                 <button
-                                  onClick={() => handleDeleteStore(store)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteStore(store);
+                                  }}
                                   className="p-1.5 sm:p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors touch-manipulation active:scale-95"
                                 >
                                   <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -632,6 +605,14 @@ export default function Dashboard() {
           }}
         />
       )}
+
+      {/* 店舖詳細資訊 Modal */}
+      {showStoreDetail && (
+        <StoreDetailModal
+          store={showStoreDetail}
+          onClose={() => setShowStoreDetail(null)}
+        />
+      )}
     </div>
   );
 }
@@ -639,6 +620,7 @@ export default function Dashboard() {
 // 品牌 Modal 組件
 function BrandModal({ brand, onClose, onSave }) {
   const [name, setName] = useState(brand?.name || '');
+  const [brandType, setBrandType] = useState(brand?.brand_type || 'brand');
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -649,7 +631,10 @@ function BrandModal({ brand, onClose, onSave }) {
     }
 
     setSaving(true);
-    await onSave({ name: name.trim() });
+    await onSave({
+      name: name.trim(),
+      brand_type: brandType
+    });
     setSaving(false);
   };
 
@@ -662,7 +647,7 @@ function BrandModal({ brand, onClose, onSave }) {
           </h3>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-2">
               品牌名稱 *
@@ -675,6 +660,24 @@ function BrandModal({ brand, onClose, onSave }) {
               placeholder="請輸入品牌名稱"
               required
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-2">
+              類型 *
+            </label>
+            <select
+              value={brandType}
+              onChange={(e) => setBrandType(e.target.value)}
+              className="w-full px-3 sm:px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-sm sm:text-base"
+              required
+            >
+              <option value="brand">品牌（編碼 01-89）</option>
+              <option value="supplier">供應商（編碼 90-99）</option>
+            </select>
+            <p className="text-xs text-stone-500 mt-1">
+              品牌編碼將自動生成，不可修改
+            </p>
           </div>
 
           <div className="flex gap-2 sm:gap-3 mt-5 sm:mt-6">
@@ -874,6 +877,143 @@ function StoreModal({ store, brandId, onClose, onSave }) {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+// 店舖詳細資訊 Modal 組件
+function StoreDetailModal({ store, onClose }) {
+  if (!store) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4">
+      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 p-4 sm:p-6 border-b border-stone-200 bg-gradient-to-r from-amber-500 to-red-500 flex items-center justify-between">
+          <div>
+            <h3 className="text-lg sm:text-xl font-bold text-white">
+              {store.name}
+            </h3>
+            <p className="text-sm text-white/90 mt-1">店舖詳細資訊</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-4 sm:p-6 space-y-6">
+          {/* 基本資訊 */}
+          <div className="bg-stone-50 rounded-lg p-4">
+            <h4 className="font-bold text-stone-800 mb-3 flex items-center gap-2">
+              <Store className="w-5 h-5 text-amber-600" />
+              基本資訊
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <div className="text-xs text-stone-500 mb-1">店舖名稱</div>
+                <div className="font-medium text-stone-900">{store.name}</div>
+              </div>
+              {store.code && (
+                <div>
+                  <div className="text-xs text-stone-500 mb-1">店舖代碼</div>
+                  <code className="bg-amber-50 px-3 py-1 rounded text-sm text-amber-700 font-bold">
+                    {store.code}
+                  </code>
+                </div>
+              )}
+              {store.store_type && (
+                <div>
+                  <div className="text-xs text-stone-500 mb-1">店家類型</div>
+                  <span className={`inline-block px-3 py-1 rounded text-sm font-medium ${
+                    store.store_type === 'direct'
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'bg-green-50 text-green-700'
+                  }`}>
+                    {store.store_type === 'direct' ? '直營店' : '加盟店'}
+                  </span>
+                </div>
+              )}
+              <div>
+                <div className="text-xs text-stone-500 mb-1">狀態</div>
+                <span className={`inline-block px-3 py-1 rounded text-sm font-medium ${
+                  store.is_active
+                    ? 'bg-green-50 text-green-700'
+                    : 'bg-stone-100 text-stone-600'
+                }`}>
+                  {store.is_active ? '✓ 啟用中' : '✗ 已停用'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 日期資訊 */}
+          {(store.opening_date || store.closing_date) && (
+            <div className="bg-blue-50 rounded-lg p-4">
+              <h4 className="font-bold text-stone-800 mb-3">營業日期</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {store.opening_date && (
+                  <div>
+                    <div className="text-xs text-stone-500 mb-1">開店日期</div>
+                    <div className="font-medium text-stone-900">{store.opening_date}</div>
+                  </div>
+                )}
+                {store.closing_date && (
+                  <div>
+                    <div className="text-xs text-stone-500 mb-1">關店日期</div>
+                    <div className="font-medium text-red-600">{store.closing_date}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 證號資訊 */}
+          {(store.labor_insurance_number || store.health_insurance_number || store.food_safety_certificate_number) && (
+            <div className="bg-green-50 rounded-lg p-4">
+              <h4 className="font-bold text-stone-800 mb-3">證照資訊</h4>
+              <div className="space-y-3">
+                {store.labor_insurance_number && (
+                  <div>
+                    <div className="text-xs text-stone-500 mb-1">勞保證號</div>
+                    <code className="bg-white border border-blue-200 px-3 py-2 rounded text-sm text-blue-700 font-mono block">
+                      {store.labor_insurance_number}
+                    </code>
+                  </div>
+                )}
+                {store.health_insurance_number && (
+                  <div>
+                    <div className="text-xs text-stone-500 mb-1">健保證號</div>
+                    <code className="bg-white border border-green-200 px-3 py-2 rounded text-sm text-green-700 font-mono block">
+                      {store.health_insurance_number}
+                    </code>
+                  </div>
+                )}
+                {store.food_safety_certificate_number && (
+                  <div>
+                    <div className="text-xs text-stone-500 mb-1">食品安全證號</div>
+                    <code className="bg-white border border-purple-200 px-3 py-2 rounded text-sm text-purple-700 font-mono block">
+                      {store.food_safety_certificate_number}
+                    </code>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="sticky bottom-0 p-4 sm:p-6 border-t border-stone-200 bg-white">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2 bg-stone-600 text-white rounded-lg hover:bg-stone-700 transition-colors font-medium"
+          >
+            關閉
+          </button>
+        </div>
       </div>
     </div>
   );
