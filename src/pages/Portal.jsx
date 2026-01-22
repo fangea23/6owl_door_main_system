@@ -1,15 +1,38 @@
 import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import WelcomeBanner from '../components/WelcomeBanner';
 import QuickAccess from '../components/QuickAccess';
 import CategorySection from '../components/CategorySection';
 import SearchResults from '../components/SearchResults';
+import PermissionDebugger from '../components/PermissionDebugger';
 import { categories } from '../data/systems';
 import useSearch from '../hooks/useSearch';
 import logoSrc from '../assets/logo.png';
+
 export default function Portal() {
   const { searchQuery, setSearchQuery, searchResults, isSearching } = useSearch();
   const navigate = useNavigate();
+
+  // 權限調試器開關（按 Ctrl+Shift+D 切換）
+  const [showDebugger, setShowDebugger] = useState(() => {
+    return localStorage.getItem('showPermissionDebugger') === 'true';
+  });
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        e.preventDefault();
+        setShowDebugger(prev => {
+          const newValue = !prev;
+          localStorage.setItem('showPermissionDebugger', String(newValue));
+          return newValue;
+        });
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleSystemClick = (system) => {
     if (system.isExternal) {
@@ -74,6 +97,9 @@ export default function Portal() {
           </div>
         </div>
       </footer>
+
+      {/* 權限調試器 (按 Ctrl+Shift+D 切換) */}
+      {showDebugger && <PermissionDebugger />}
     </div>
   );
 }
