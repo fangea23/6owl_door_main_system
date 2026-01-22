@@ -42,7 +42,6 @@ export default function AccountantBrandsManagement() {
 
       // 3. 獲取所有分配關係
       const { data: assignmentsData, error: assignmentsError } = await supabase
-        .schema('payment_approval')
         .from('accountant_brands')
         .select(`
           id,
@@ -125,7 +124,6 @@ export default function AccountantBrandsManagement() {
       }));
 
       const { error } = await supabase
-        .schema('payment_approval')
         .from('accountant_brands')
         .insert(insertData);
 
@@ -158,7 +156,6 @@ export default function AccountantBrandsManagement() {
     setProcessing(true);
     try {
       const { error } = await supabase
-        .schema('payment_approval')
         .from('accountant_brands')
         .insert({
           employee_id: accountantId,
@@ -184,7 +181,6 @@ export default function AccountantBrandsManagement() {
     setProcessing(true);
     try {
       const { error } = await supabase
-        .schema('payment_approval')
         .from('accountant_brands')
         .delete()
         .eq('employee_id', accountantId)
