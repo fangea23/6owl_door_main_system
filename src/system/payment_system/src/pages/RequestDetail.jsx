@@ -137,7 +137,7 @@ const handleSaveInvoice = async () => {
 
         // 更新本地顯示資料
         setRequest(prev => ({ ...prev, ...updates }));
-        setIsEditingInvoice(false);R
+        setIsEditingInvoice(false);
         alert('✅ 發票資料已更新！');
     } catch (err) {
         console.error(err);
