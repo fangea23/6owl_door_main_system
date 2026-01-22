@@ -236,24 +236,24 @@ export default function RequestDetail() {
       const config = WORKFLOW_CONFIG[request.status];
       if (!config) throw new Error("無效的簽核狀態");
 
+      // 🔒 防止重複簽核：檢查當前用戶是否已經簽核過這個申請
+      const existingApproval = approvals.find(
+        approval => approval.approver_id === user.id && approval.status === 'approved'
+      );
+
+      if (existingApproval) {
+        alert('⚠️ 您已經簽核過此申請，不能重複簽核。');
+        setProcessing(false);
+        return;
+      }
+
       const comment = prompt(`${config.label}簽核\n\n請輸入簽核意見（選填）：`);
       if (comment === null) {
         setProcessing(false);
         return; // 使用者取消
       }
 
-      // 更新申請狀態
-      const { error: updateError } = await supabase
-        .from('expense_reimbursement_requests')
-        .update({
-          status: config.nextStatus,
-          current_approver_id: null
-        })
-        .eq('id', id);
-
-      if (updateError) throw updateError;
-
-      // 記錄簽核
+      // 記錄簽核（先記錄，確保有簽核紀錄）
       const { error: approvalError } = await supabase
         .from('expense_approvals')
         .insert({
@@ -268,6 +268,24 @@ export default function RequestDetail() {
 
       if (approvalError) throw approvalError;
 
+      // 更新申請狀態
+      const updatePayload = {
+        status: config.nextStatus,
+        current_approver_id: null
+      };
+
+      // 如果已完成所有簽核，設定 completed_at
+      if (config.nextStatus === 'approved') {
+        updatePayload.completed_at = new Date().toISOString();
+      }
+
+      const { error: updateError } = await supabase
+        .from('expense_reimbursement_requests')
+        .update(updatePayload)
+        .eq('id', id);
+
+      if (updateError) throw updateError;
+
       alert(`✅ ${config.label}簽核成功！`);
       await fetchRequestDetail(); // 重新載入資料
     } catch (err) {
@@ -279,23 +297,22 @@ export default function RequestDetail() {
   };
 
   const handleReject = async () => {
+    // 🔒 防止重複簽核：檢查當前用戶是否已經簽核過這個申請
+    const existingApproval = approvals.find(
+      approval => approval.approver_id === user.id
+    );
+
+    if (existingApproval) {
+      alert('⚠️ 您已經處理過此申請，不能重複簽核。');
+      return;
+    }
+
     const reason = prompt("請輸入駁回原因：");
     if (!reason?.trim()) return;
 
     setProcessing(true);
     try {
       const config = WORKFLOW_CONFIG[request.status];
-
-      // 更新申請狀態為駁回
-      const { error: updateError } = await supabase
-        .from('expense_reimbursement_requests')
-        .update({
-          status: 'rejected',
-          current_approver_id: null
-        })
-        .eq('id', id);
-
-      if (updateError) throw updateError;
 
       // 記錄駁回
       const { error: approvalError } = await supabase
@@ -311,6 +328,18 @@ export default function RequestDetail() {
         });
 
       if (approvalError) throw approvalError;
+
+      // 更新申請狀態為駁回
+      const { error: updateError } = await supabase
+        .from('expense_reimbursement_requests')
+        .update({
+          status: 'rejected',
+          current_approver_id: null,
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', id);
+
+      if (updateError) throw updateError;
 
       alert("✅ 申請已駁回。");
       await fetchRequestDetail();
