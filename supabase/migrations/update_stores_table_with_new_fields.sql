@@ -17,7 +17,7 @@ COMMENT ON COLUMN public.stores.labor_insurance_number IS '勞保證號';
 COMMENT ON COLUMN public.stores.health_insurance_number IS '健保證號';
 COMMENT ON COLUMN public.stores.food_safety_certificate_number IS '食品安全證號';
 COMMENT ON COLUMN public.stores.store_type IS '店家類型：direct(直營) 或 franchise(加盟)';
-COMMENT ON COLUMN public.stores.code IS '店家代碼：格式為 BBSSS (BB=品牌ID兩位數, SSS=流水號001-899，900為總部保留)';
+COMMENT ON COLUMN public.stores.code IS '店家代碼：格式為 BBSSS (BB=品牌ID兩位數, SSS=流水號001-899，900-999為總部保留)';
 
 -- 2. 創建函數：自動生成店家代碼
 CREATE OR REPLACE FUNCTION public.generate_store_code(p_brand_id BIGINT)
@@ -28,33 +28,32 @@ DECLARE
   brand_prefix TEXT;
   next_seq INTEGER;
   new_code TEXT;
+  seq_num INTEGER;
 BEGIN
   -- 生成品牌前綴（兩位數，例如 01, 02, 03...）
   brand_prefix := LPAD(p_brand_id::TEXT, 2, '0');
 
-  -- 查找該品牌下最大的流水號（排除 900，因為 900 是總部保留）
+  -- 查找該品牌下最大的流水號（排除 900-999，因為是總部保留範圍）
   SELECT COALESCE(
     MAX(
       CASE
         WHEN code ~ ('^' || brand_prefix || '[0-9]{3}$')
-        THEN SUBSTRING(code FROM 3 FOR 3)::INTEGER
+        THEN (SUBSTRING(code FROM 3 FOR 3)::INTEGER)
         ELSE 0
       END
-    ), 0
+    ) FILTER (WHERE SUBSTRING(code FROM 3 FOR 3)::INTEGER < 900),
+    0
   ) INTO next_seq
   FROM public.stores
   WHERE brand_id = p_brand_id
-    AND (
-      code !~ ('^' || brand_prefix || '900$')  -- 排除總部代碼 XX900
-      OR code IS NULL
-    );
+    AND code ~ ('^' || brand_prefix || '[0-9]{3}$');
 
   -- 流水號 +1
   next_seq := next_seq + 1;
 
-  -- 檢查是否達到 900（總部保留號）
+  -- 檢查是否達到 900（總部保留範圍 900-999 的起點）
   IF next_seq >= 900 THEN
-    RAISE EXCEPTION '該品牌的店家代碼已達上限（流水號 001-899 已用完，900 為總部保留）';
+    RAISE EXCEPTION '該品牌的店家代碼已達上限（流水號 001-899 已用完，900-999 為總部保留）';
   END IF;
 
   -- 生成完整代碼（例如：01001, 01002, ...）
@@ -64,7 +63,7 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION public.generate_store_code IS '自動生成店家代碼：格式為 BBSSS，BB 為品牌 ID，SSS 為流水號（001-899）';
+COMMENT ON FUNCTION public.generate_store_code IS '自動生成店家代碼：格式為 BBSSS，BB 為品牌 ID，SSS 為流水號（001-899，900-999 為總部保留）';
 
 -- 3. 創建觸發器函數：在插入新店家時自動生成 code
 CREATE OR REPLACE FUNCTION public.trigger_generate_store_code()
