@@ -33,10 +33,15 @@ const SectionTitle = ({ icon: Icon, title }) => (
 
 export default function ApplyForm() {
   const navigate = useNavigate();
+  const { id: editId } = useParams(); // 編輯模式的 ID
   const { user } = useAuth();
 
   // RBAC 權限檢查
   const { hasPermission: canCreate, loading: permissionLoading } = usePermission('expense.create');
+
+  // 編輯模式狀態
+  const isEditMode = !!editId;
+  const [loadingEdit, setLoadingEdit] = useState(false);
 
   // 狀態管理
   const [submitting, setSubmitting] = useState(false);
@@ -171,7 +176,91 @@ export default function ApplyForm() {
     }
   }, [formData.bank_code]);
 
-  // 移除編輯模式相關代碼
+  // 編輯模式：載入現有資料
+  useEffect(() => {
+    if (!editId) return;
+
+    const loadExistingRequest = async () => {
+      setLoadingEdit(true);
+      try {
+        // 載入申請主表
+        const { data: requestData, error: requestError } = await supabase
+          .from('expense_reimbursement_requests')
+          .select('*')
+          .eq('id', editId)
+          .single();
+
+        if (requestError) throw requestError;
+
+        // 檢查是否可以編輯（只有被駁回的申請才能編輯）
+        if (requestData.status !== 'rejected' && requestData.status !== 'draft') {
+          alert('此申請無法編輯');
+          navigate(`${BASE_PATH}/request/${editId}`);
+          return;
+        }
+
+        // 檢查是否為申請人本人
+        if (requestData.applicant_id !== user?.id) {
+          alert('您沒有權限編輯此申請');
+          navigate(`${BASE_PATH}/dashboard`);
+          return;
+        }
+
+        // 設定表單資料
+        setFormData({
+          application_date: requestData.application_date,
+          department_id: requestData.department_id,
+          payment_method: requestData.payment_method || 'transfer',
+          bank_name: requestData.bank_name || '',
+          bank_code: requestData.bank_code || '',
+          branch_name: requestData.branch_name || '',
+          branch_code: requestData.branch_code || '',
+          account_number: requestData.account_number || '',
+        });
+
+        // 載入明細
+        const { data: itemsData, error: itemsError } = await supabase
+          .from('expense_reimbursement_items')
+          .select('*')
+          .eq('request_id', editId)
+          .order('line_number', { ascending: true });
+
+        if (itemsError) throw itemsError;
+
+        // 建立 15 行的明細陣列
+        const newItems = Array.from({ length: 15 }, (_, i) => {
+          const existingItem = itemsData?.find(item => item.line_number === i + 1);
+          return existingItem ? {
+            line_number: existingItem.line_number,
+            category: existingItem.category || '',
+            description: existingItem.description || '',
+            amount: existingItem.amount?.toString() || '',
+            receipt_count: existingItem.receipt_count?.toString() || '',
+            usage_note: existingItem.usage_note || '',
+            cost_allocation: existingItem.cost_allocation || '六扇門',
+          } : {
+            line_number: i + 1,
+            category: '',
+            description: '',
+            amount: '',
+            receipt_count: '',
+            usage_note: '',
+            cost_allocation: '六扇門',
+          };
+        });
+
+        setItems(newItems);
+      } catch (err) {
+        console.error('Error loading request:', err);
+        alert('載入失敗：' + err.message);
+        navigate(`${BASE_PATH}/dashboard`);
+      } finally {
+        setLoadingEdit(false);
+      }
+    };
+
+    loadExistingRequest();
+  }, [editId, user]);
 
   // 計算總金額和各品牌分別合計
   const calculateTotals = () => {
@@ -288,20 +377,52 @@ export default function ApplyForm() {
         submitted_at: new Date().toISOString(),
       };
 
-      // 建立新申請
-      const { data: newRequest, error: insertError } = await supabase
-        .from('expense_reimbursement_requests')
-        .insert([requestData])
-        .select()
-        .single();
+      let requestId;
 
-      if (insertError) throw insertError;
+      if (isEditMode) {
+        // 編輯模式：更新現有申請
+        const { error: updateError } = await supabase
+          .from('expense_reimbursement_requests')
+          .update(requestData)
+          .eq('id', editId);
+
+        if (updateError) throw updateError;
+
+        requestId = editId;
+
+        // 刪除舊的明細
+        const { error: deleteError } = await supabase
+          .from('expense_reimbursement_items')
+          .delete()
+          .eq('request_id', editId);
+
+        if (deleteError) throw deleteError;
+
+        // 刪除舊的簽核紀錄（重新送出時清空）
+        const { error: deleteApprovalsError } = await supabase
+          .from('expense_approvals')
+          .delete()
+          .eq('request_id', editId);
+
+        if (deleteApprovalsError) throw deleteApprovalsError;
+
+      } else {
+        // 新建模式：建立新申請
+        const { data: newRequest, error: insertError } = await supabase
+          .from('expense_reimbursement_requests')
+          .insert([requestData])
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+        requestId = newRequest.id;
+      }
 
       // 插入明細
       const itemsToInsert = items
         .filter(item => parseInt(item.amount) > 0)
         .map(item => ({
-          request_id: newRequest.id,
+          request_id: requestId,
           line_number: item.line_number,
           category: item.category || null,
           description: item.description || null,
@@ -319,7 +440,8 @@ export default function ApplyForm() {
         if (itemsError) throw itemsError;
       }
 
-      alert(`✅ 申請已送出！\n\n總金額：NT$ ${totals.total.toLocaleString()}\n簽核流程：${totals.total >= 30000 ? '總經理 → 審核主管' : '放行主管 → 審核主管'}`);
+      const actionText = isEditMode ? '重新送出' : '送出';
+      alert(`✅ 申請已${actionText}！\n\n總金額：NT$ ${totals.total.toLocaleString()}`);
       navigate(`${BASE_PATH}/dashboard`);
     } catch (err) {
       console.error('Error submitting request:', err);
@@ -338,8 +460,8 @@ export default function ApplyForm() {
     return amount > 0 && !category;
   });
 
-  // 權限檢查
-  if (permissionLoading) {
+  // 權限檢查 & 載入中
+  if (permissionLoading || loadingEdit) {
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
@@ -379,7 +501,7 @@ export default function ApplyForm() {
             </button>
             <div>
               <h1 className="text-2xl font-bold text-stone-800">
-                新增代墊款申請
+                {isEditMode ? '修改代墊款申請' : '新增代墊款申請'}
               </h1>
               <p className="text-sm text-stone-500 mt-1">Employee Reimbursement Request</p>
             </div>
@@ -579,27 +701,6 @@ export default function ApplyForm() {
                 </div>
               </div>
 
-              {/* 簽核流程提示 */}
-              <div className={`rounded-lg p-3 border ${
-                totals.total >= 30000
-                  ? 'bg-red-50 border-red-200'
-                  : 'bg-green-50 border-green-200'
-              }`}>
-                <div className="flex items-center gap-2 text-xs">
-                  <AlertCircle className={`w-4 h-4 ${
-                    totals.total >= 30000 ? 'text-red-600' : 'text-green-600'
-                  }`} />
-                  <span className={`font-medium ${
-                    totals.total >= 30000 ? 'text-red-800' : 'text-green-800'
-                  }`}>
-                    簽核流程：
-                    {totals.total >= 30000
-                      ? '總經理 → 審核主管'
-                      : '放行主管 → 審核主管'
-                    }
-                  </span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -726,12 +827,12 @@ export default function ApplyForm() {
             {submitting ? (
               <>
                 <Loader2 className="w-6 h-6 animate-spin" />
-                送出中...
+                {isEditMode ? '重新送出中...' : '送出中...'}
               </>
             ) : (
               <>
                 <Send className="w-6 h-6" />
-                送出申請
+                {isEditMode ? '修改並重新送出' : '送出申請'}
               </>
             )}
           </button>

@@ -22,7 +22,9 @@ import {
   Banknote,
   AlertCircle,
   ThumbsUp,
-  ThumbsDown
+  ThumbsDown,
+  Edit2,
+  SkipForward
 } from 'lucide-react';
 
 const BASE_PATH = '/systems/expense-reimbursement';
@@ -103,6 +105,8 @@ export default function RequestDetail() {
   const { hasPermission: canEdit } = usePermission('expense.edit.own');
   const { hasPermission: canDelete } = usePermission('expense.delete.own');
   const { hasPermission: canCancel } = usePermission('expense.cancel');
+  const { hasPermission: canPrint } = usePermission('expense.print');
+  const { hasPermission: canCreate } = usePermission('expense.create');
 
   const [employeeName, setEmployeeName] = useState('');
 
@@ -380,6 +384,11 @@ export default function RequestDetail() {
     window.print();
   };
 
+  // 駁回後編輯
+  const handleEdit = () => {
+    navigate(`${BASE_PATH}/apply/${id}`);
+  };
+
   if (loading) {
     return (
       <div className="p-10 text-center">
@@ -411,6 +420,9 @@ export default function RequestDetail() {
 
   // 是否可以取消（草稿狀態 + 本人）
   const canCancelRequest = request.status === 'draft' && isOwner;
+
+  // 是否可以重新編輯駁回的申請（駁回 + 本人 + 有建立權限）
+  const canEditRejected = request.status === 'rejected' && isOwner && canCreate;
 
   // 解析品牌總計
   const brandTotals = request.brand_totals ? JSON.parse(request.brand_totals) : {};
@@ -465,16 +477,21 @@ export default function RequestDetail() {
             </div>
           </div>
 
-          <button
-            onClick={handlePrint}
-            className="no-print bg-white border border-stone-200 hover:bg-stone-50 text-stone-600 hover:text-gray-800 px-3 py-1.5 rounded flex items-center gap-2 text-sm font-bold"
-          >
-            <Printer size={16} /> 列印 / PDF
-          </button>
+          {canPrint && (
+            <button
+              onClick={handlePrint}
+              className="no-print bg-white border border-stone-200 hover:bg-stone-50 text-stone-600 hover:text-gray-800 px-3 py-1.5 rounded flex items-center gap-2 text-sm font-bold"
+            >
+              <Printer size={16} /> 列印 / PDF
+            </button>
+          )}
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden print-container">
-          <div className="p-6 md:p-8 space-y-8 print:block print:p-0 print:space-y-4">
+          <div className="p-6 md:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8 print:block print:p-0">
+
+            {/* 左側：詳細資訊 */}
+            <div className="lg:col-span-2 space-y-8 print-full-width print:space-y-4">
 
             {/* 一、基本資訊 */}
             <section className="print-section">
@@ -555,26 +572,6 @@ export default function RequestDetail() {
                 </div>
               </div>
 
-              {/* 簽核流程說明 */}
-              <div className={`mt-4 p-3 rounded-lg border ${
-                parseFloat(request.total_amount) >= 30000
-                  ? 'bg-purple-50 border-purple-200'
-                  : 'bg-blue-50 border-blue-200'
-              }`}>
-                <div className="flex items-center gap-2 text-sm">
-                  <AlertCircle className={`w-4 h-4 ${
-                    parseFloat(request.total_amount) >= 30000 ? 'text-purple-600' : 'text-blue-600'
-                  }`} />
-                  <span className={`font-medium ${
-                    parseFloat(request.total_amount) >= 30000 ? 'text-purple-800' : 'text-blue-800'
-                  }`}>
-                    簽核流程：
-                    {parseFloat(request.total_amount) >= 30000
-                      ? '總經理 → 審核主管'
-                      : '放行主管 → 審核主管'}
-                  </span>
-                </div>
-              </div>
             </section>
 
             {/* 四、撥款資訊 */}
@@ -603,128 +600,221 @@ export default function RequestDetail() {
               </div>
             </section>
 
-            {/* 五、簽核紀錄 */}
-            {approvals.length > 0 && (
-              <section className="print-section">
-                <SectionHeader icon={MessageSquare} title="五、簽核紀錄" />
-                <div className="space-y-3">
-                  {approvals.map((approval, index) => (
-                    <div
-                      key={approval.id}
-                      className={`border rounded-lg p-4 ${
-                        approval.status === 'approved'
-                          ? 'bg-green-50 border-green-200'
-                          : approval.status === 'rejected'
-                          ? 'bg-red-50 border-red-200'
-                          : 'bg-stone-50 border-stone-200'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                            approval.status === 'approved' ? 'bg-green-500 text-white' :
-                            approval.status === 'rejected' ? 'bg-red-500 text-white' :
-                            'bg-stone-300 text-white'
-                          }`}>
-                            {index + 1}
+            </div>
+
+            {/* 右側：簽核操作區 */}
+            <div className="lg:col-span-1 no-print">
+              <div className="sticky top-24 space-y-6">
+
+                {/* 簽核進度 */}
+                <div className="bg-white border-2 border-gray-100 rounded-xl p-4 shadow-sm">
+                  <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <Shield size={18} className="text-amber-600" /> 簽核進度
+                  </h3>
+                  <div className="space-y-4">
+                    {(() => {
+                      // 判斷流程類型：高金額走 CEO，低金額走 Boss
+                      const isHighAmount = parseFloat(request.total_amount) >= 30000;
+                      const steps = isHighAmount
+                        ? [
+                            { key: 'ceo', label: '總經理', statusKey: 'pending_ceo' },
+                            { key: 'audit_manager', label: '審核主管', statusKey: 'pending_audit_manager' }
+                          ]
+                        : [
+                            { key: 'boss', label: '放行主管', statusKey: 'pending_boss' },
+                            { key: 'audit_manager', label: '審核主管', statusKey: 'pending_audit_manager' }
+                          ];
+
+                      return steps.map((step, idx) => {
+                        // 從 approvals 找該關卡的簽核紀錄
+                        const approval = approvals.find(a => a.approval_type === step.key);
+                        const isCompleted = approval?.status === 'approved';
+                        const isRejected = approval?.status === 'rejected';
+                        const isCurrent = request.status === step.statusKey && !isRejected;
+
+                        return (
+                          <div
+                            key={step.key}
+                            className={`relative pl-6 pb-4 border-l-2 ${
+                              isCompleted ? 'border-amber-500' :
+                              isRejected ? 'border-red-500' :
+                              'border-stone-200'
+                            } last:border-0`}
+                          >
+                            <div className={`absolute -left-[9px] top-0 w-4 h-4 rounded-full border-2 ${
+                              isCompleted ? 'bg-amber-500 border-amber-500' :
+                              isRejected ? 'bg-red-500 border-red-500' :
+                              isCurrent ? 'bg-amber-500 border-amber-500 animate-pulse' :
+                              'bg-white border-gray-300'
+                            }`}></div>
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <div className={`text-sm font-bold ${
+                                  isCurrent ? 'text-amber-600' :
+                                  isRejected ? 'text-red-600' :
+                                  'text-gray-700'
+                                }`}>
+                                  {step.label}
+                                </div>
+                                {approval?.approved_at && (
+                                  <div className="text-[10px] text-stone-400">
+                                    {new Date(approval.approved_at).toLocaleString()}
+                                  </div>
+                                )}
+                                {approval?.approver?.name && (
+                                  <div className="text-[10px] text-stone-500">
+                                    {approval.approver.name}
+                                  </div>
+                                )}
+                              </div>
+                              {isCompleted && <CheckCircle size={16} className="text-amber-500" />}
+                              {isRejected && <XCircle size={16} className="text-red-500" />}
+                            </div>
                           </div>
-                          <span className="font-semibold text-stone-800">
-                            {approval.approval_type === 'ceo' ? '總經理' :
-                             approval.approval_type === 'boss' ? '放行主管' :
-                             approval.approval_type === 'audit_manager' ? '審核主管' :
-                             approval.approval_type}
-                          </span>
-                          <span className="text-sm text-stone-600">- {approval.approver?.name}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {approval.status === 'approved' ? (
-                            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full flex items-center gap-1">
-                              <CheckCircle size={12} /> 已核准
-                            </span>
-                          ) : approval.status === 'rejected' ? (
-                            <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full flex items-center gap-1">
-                              <XCircle size={12} /> 已駁回
-                            </span>
-                          ) : (
-                            <span className="text-xs bg-stone-100 text-stone-600 px-2 py-1 rounded-full flex items-center gap-1">
-                              <Clock size={12} /> 待簽核
-                            </span>
-                          )}
-                          <span className="text-xs text-stone-400">
-                            {approval.approved_at ? new Date(approval.approved_at).toLocaleString() : '--'}
-                          </span>
-                        </div>
+                        );
+                      });
+                    })()}
+
+                    {/* 完成狀態 */}
+                    {request.status === 'approved' && (
+                      <div className="relative pl-6 pb-0">
+                        <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-emerald-500 border-2 border-emerald-500"></div>
+                        <div className="text-sm font-bold text-emerald-600">已核准完成</div>
+                        {request.completed_at && (
+                          <div className="text-[10px] text-stone-400">
+                            {new Date(request.completed_at).toLocaleString()}
+                          </div>
+                        )}
                       </div>
-                      {approval.comment && (
-                        <div className="mt-2 text-sm text-stone-600 bg-white rounded p-2">
-                          {approval.comment}
+                    )}
+                  </div>
+                </div>
+
+                {/* 簽核按鈕區 */}
+                {request.status === 'rejected' ? (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+                    <h4 className="text-red-800 font-bold mb-1">案件已駁回</h4>
+                    {approvals.find(a => a.status === 'rejected') && (
+                      <p className="text-red-600 text-sm mb-3">
+                        {approvals.find(a => a.status === 'rejected')?.comment}
+                      </p>
+                    )}
+                    {canEditRejected && (
+                      <button
+                        onClick={handleEdit}
+                        className="w-full py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-bold flex items-center justify-center gap-2"
+                      >
+                        <Edit2 size={16} /> 修改並重新送出
+                      </button>
+                    )}
+                  </div>
+                ) : request.status === 'cancelled' ? (
+                  <div className="bg-gray-100 border border-gray-300 rounded-lg p-4 text-center">
+                    <h4 className="text-gray-600 font-bold mb-1">案件已取消</h4>
+                  </div>
+                ) : request.status === 'approved' ? (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                    <h4 className="text-green-800 font-bold">已核准</h4>
+                    <p className="text-green-600 text-sm">申請已完成簽核流程</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* 草稿操作 */}
+                    {canEditRequest && (
+                      <div className="p-4 bg-white border border-stone-200 rounded-lg shadow-sm">
+                        <h4 className="font-bold text-gray-700 mb-2">草稿操作</h4>
+                        <button
+                          onClick={() => navigate(`${BASE_PATH}/apply/${id}`)}
+                          className="w-full py-2.5 px-4 bg-amber-600 text-white hover:bg-amber-700 rounded-md text-sm font-bold transition-colors flex items-center justify-center gap-2 shadow-sm mb-2"
+                        >
+                          <Edit2 size={18} /> 繼續編輯
+                        </button>
+                        {canCancelRequest && (
+                          <button
+                            onClick={handleCancel}
+                            disabled={processing}
+                            className="w-full py-2 px-4 bg-white border border-stone-300 text-stone-600 hover:bg-stone-50 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                          >
+                            {processing ? <Loader2 className="animate-spin" size={16} /> : <XCircle size={16} />}
+                            取消申請
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 簽核操作 */}
+                    {canApprove ? (
+                      <div className="bg-white border-2 border-amber-100 rounded-xl p-5 shadow-xl shadow-amber-500/5">
+                        <div className="mb-4 text-center">
+                          <div className="text-amber-800 font-bold text-lg">等待您的簽核</div>
+                          <div className="text-sm text-amber-600">({currentConfig?.label})</div>
                         </div>
-                      )}
-                    </div>
+                        <button
+                          onClick={handleApprove}
+                          disabled={processing}
+                          className="w-full py-3 bg-gradient-to-r from-amber-500 to-red-500 text-white rounded-lg hover:from-amber-600 hover:to-red-600 font-bold flex items-center justify-center gap-2 shadow-md mb-3"
+                        >
+                          {processing ? <Loader2 className="animate-spin" size={18} /> : <ThumbsUp size={18} />}
+                          確認核准
+                        </button>
+                        <button
+                          onClick={handleReject}
+                          disabled={processing}
+                          className="w-full py-2 text-red-500 hover:bg-red-50 border border-red-200 rounded text-sm font-medium"
+                        >
+                          駁回此案件
+                        </button>
+                      </div>
+                    ) : !canEditRequest && currentConfig && (
+                      <div className="p-4 bg-stone-50 border border-stone-200 text-stone-400 rounded text-center text-sm flex flex-col items-center">
+                        <Loader2 className="animate-spin mb-1" size={16} />
+                        等待 <span className="font-bold">{currentConfig.label}</span> 簽核...
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 列印專用簽核表格 */}
+            <div className="hidden print:block print-full-width mt-4 lg:col-span-3">
+              <div className="text-[12pt] font-bold mb-1 border-t border-black pt-2">簽核紀錄</div>
+              <table className="w-full border-collapse border border-black">
+                <thead>
+                  <tr>
+                    <th className="border border-black p-2 text-[10pt] bg-gray-100">關卡</th>
+                    <th className="border border-black p-2 text-[10pt] bg-gray-100">簽核人</th>
+                    <th className="border border-black p-2 text-[10pt] bg-gray-100">狀態</th>
+                    <th className="border border-black p-2 text-[10pt] bg-gray-100">時間</th>
+                    <th className="border border-black p-2 text-[10pt] bg-gray-100">意見</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {approvals.map((approval) => (
+                    <tr key={approval.id}>
+                      <td className="border border-black p-2 text-[10pt] text-center">
+                        {approval.approval_type === 'ceo' ? '總經理' :
+                         approval.approval_type === 'boss' ? '放行主管' :
+                         approval.approval_type === 'audit_manager' ? '審核主管' :
+                         approval.approval_type}
+                      </td>
+                      <td className="border border-black p-2 text-[10pt] text-center">
+                        {approval.approver?.name || '--'}
+                      </td>
+                      <td className="border border-black p-2 text-[10pt] text-center">
+                        {approval.status === 'approved' ? '已核准' : '已駁回'}
+                      </td>
+                      <td className="border border-black p-2 text-[10pt] text-center">
+                        {approval.approved_at ? new Date(approval.approved_at).toLocaleString() : '--'}
+                      </td>
+                      <td className="border border-black p-2 text-[10pt]">
+                        {approval.comment || '--'}
+                      </td>
+                    </tr>
                   ))}
-                </div>
-              </section>
-            )}
-
-            {/* 駁回原因顯示 */}
-            {request.status === 'rejected' && approvals.find(a => a.status === 'rejected') && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 no-print">
-                <div className="flex items-center gap-2 text-red-700 font-semibold mb-2">
-                  <XCircle size={18} />
-                  駁回原因
-                </div>
-                <div className="text-sm text-red-600">
-                  {approvals.find(a => a.status === 'rejected')?.comment}
-                </div>
-              </div>
-            )}
-
-            {/* 操作按鈕區 */}
-            {canApprove && (
-              <div className="flex gap-3 pt-6 border-t border-stone-200 no-print">
-                <button
-                  onClick={handleReject}
-                  disabled={processing}
-                  className="flex-1 bg-white border-2 border-red-300 text-red-600 hover:bg-red-50 px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-                >
-                  {processing ? <Loader2 className="animate-spin" size={20} /> : <ThumbsDown size={20} />}
-                  駁回
-                </button>
-                <button
-                  onClick={handleApprove}
-                  disabled={processing}
-                  className="flex-1 bg-gradient-to-r from-amber-500 to-red-500 text-white hover:from-amber-600 hover:to-red-600 px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50"
-                >
-                  {processing ? <Loader2 className="animate-spin" size={20} /> : <ThumbsUp size={20} />}
-                  核准
-                </button>
-              </div>
-            )}
-
-            {/* 草稿狀態的操作按鈕 */}
-            {canEditRequest && (
-              <div className="flex gap-3 pt-6 border-t border-stone-200 no-print">
-                <button
-                  onClick={() => navigate(`${BASE_PATH}/apply/${id}`)}
-                  className="flex-1 bg-amber-600 text-white hover:bg-amber-700 px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all"
-                >
-                  繼續編輯
-                </button>
-              </div>
-            )}
-
-            {canCancelRequest && (
-              <div className="flex gap-3 no-print">
-                <button
-                  onClick={handleCancel}
-                  disabled={processing}
-                  className="flex-1 bg-white border border-stone-300 text-stone-600 hover:bg-stone-50 px-6 py-2 rounded-lg font-medium flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-                >
-                  {processing ? <Loader2 className="animate-spin" size={18} /> : <XCircle size={18} />}
-                  取消申請
-                </button>
-              </div>
-            )}
+                </tbody>
+              </table>
+            </div>
 
           </div>
         </div>

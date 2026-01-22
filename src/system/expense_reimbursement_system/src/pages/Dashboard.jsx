@@ -17,7 +17,10 @@ import {
   AlertCircle,
   CheckCircle2,
   XCircle,
-  Clock
+  Clock,
+  Check,
+  ThumbsUp,
+  ThumbsDown
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../AuthContext';
@@ -77,6 +80,10 @@ export default function Dashboard() {
   }, [user]);
 
   const displayName = employeeName || user?.user_metadata?.full_name || user?.email;
+
+  // 批量操作 State
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [batchProcessing, setBatchProcessing] = useState(false);
 
   // 視圖模式
   const [viewMode, setViewMode] = useState('all');
@@ -195,6 +202,179 @@ export default function Dashboard() {
     return myResponsibilities.includes(req.status);
   }).length;
 
+  // 批量選取邏輯
+  const handleSelect = (id) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setSelectedIds(newSet);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === filteredRequests.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredRequests.map(r => r.id)));
+    }
+  };
+
+  // 批量核准
+  const handleBatchApprove = async () => {
+    if (selectedIds.size === 0) return;
+
+    const selectedRequests = requests.filter(r => selectedIds.has(r.id));
+    const statuses = [...new Set(selectedRequests.map(r => r.status))];
+
+    // 檢查是否所有選取的單據狀態一致
+    if (statuses.length > 1) {
+      alert('⚠️ 批量操作失敗\n\n選取的單據處於不同審核階段，無法一次核准。\n請分別選取相同狀態的單據進行批量操作。');
+      return;
+    }
+
+    const currentStatus = statuses[0];
+
+    // 根據狀態檢查對應權限
+    const statusPermissionMap = {
+      'pending_ceo': { hasPermission: canApproveCEO, name: '總經理', nextStatus: 'pending_audit_manager' },
+      'pending_boss': { hasPermission: canApproveBoss, name: '放行主管', nextStatus: 'pending_audit_manager' },
+      'pending_audit_manager': { hasPermission: canApproveAudit, name: '審核主管', nextStatus: 'approved' },
+    };
+
+    const permissionCheck = statusPermissionMap[currentStatus];
+
+    if (!permissionCheck) {
+      alert('⚠️ 無法批量核准\n\n選取的單據狀態無法進行批量核准操作。');
+      return;
+    }
+
+    if (!permissionCheck.hasPermission) {
+      alert(`⚠️ 權限不足\n\n您沒有「${permissionCheck.name}」簽核權限，無法批量核准這些單據。`);
+      return;
+    }
+
+    if (!window.confirm(`確定要一次核准選取的 ${selectedIds.size} 筆單據嗎？`)) return;
+
+    setBatchProcessing(true);
+
+    try {
+      const updates = Array.from(selectedIds).map(async (id) => {
+        // 更新申請狀態
+        const { error: updateError } = await supabase
+          .from('expense_reimbursement_requests')
+          .update({ status: permissionCheck.nextStatus })
+          .eq('id', id);
+
+        if (updateError) throw updateError;
+
+        // 插入簽核紀錄
+        const approvalType = currentStatus === 'pending_ceo' ? 'ceo' :
+                            currentStatus === 'pending_boss' ? 'boss' : 'audit_manager';
+
+        const { error: approvalError } = await supabase
+          .from('expense_approvals')
+          .insert({
+            request_id: id,
+            approver_id: user.id,
+            approval_type: approvalType,
+            status: 'approved',
+            approved_at: new Date().toISOString(),
+            comment: '批量核准'
+          });
+
+        if (approvalError) throw approvalError;
+      });
+
+      await Promise.all(updates);
+      alert('✅ 批量簽核完成！');
+      setSelectedIds(new Set());
+      fetchRequests();
+    } catch (e) {
+      console.error(e);
+      alert('部分更新失敗，請重試');
+    } finally {
+      setBatchProcessing(false);
+    }
+  };
+
+  // 批量駁回
+  const handleBatchReject = async () => {
+    if (selectedIds.size === 0) return;
+
+    const selectedRequests = requests.filter(r => selectedIds.has(r.id));
+    const statuses = [...new Set(selectedRequests.map(r => r.status))];
+
+    // 檢查是否所有選取的單據狀態一致
+    if (statuses.length > 1) {
+      alert('⚠️ 批量操作失敗\n\n選取的單據處於不同審核階段，無法一次駁回。');
+      return;
+    }
+
+    const currentStatus = statuses[0];
+
+    // 根據狀態檢查對應權限
+    const statusPermissionMap = {
+      'pending_ceo': { hasPermission: canApproveCEO, name: '總經理' },
+      'pending_boss': { hasPermission: canApproveBoss, name: '放行主管' },
+      'pending_audit_manager': { hasPermission: canApproveAudit, name: '審核主管' },
+    };
+
+    const permissionCheck = statusPermissionMap[currentStatus];
+
+    if (!permissionCheck) {
+      alert('⚠️ 無法批量駁回\n\n選取的單據狀態無法進行批量駁回操作。');
+      return;
+    }
+
+    if (!permissionCheck.hasPermission) {
+      alert(`⚠️ 權限不足\n\n您沒有「${permissionCheck.name}」簽核權限，無法批量駁回這些單據。`);
+      return;
+    }
+
+    const reason = prompt(`⚠️ 您即將駁回選取的 ${selectedIds.size} 筆單據。\n\n請輸入駁回原因（將套用至所有選取案件）：`);
+    if (!reason?.trim()) return;
+
+    setBatchProcessing(true);
+
+    try {
+      const updates = Array.from(selectedIds).map(async (id) => {
+        // 更新申請狀態
+        const { error: updateError } = await supabase
+          .from('expense_reimbursement_requests')
+          .update({ status: 'rejected' })
+          .eq('id', id);
+
+        if (updateError) throw updateError;
+
+        // 插入駁回紀錄
+        const approvalType = currentStatus === 'pending_ceo' ? 'ceo' :
+                            currentStatus === 'pending_boss' ? 'boss' : 'audit_manager';
+
+        const { error: approvalError } = await supabase
+          .from('expense_approvals')
+          .insert({
+            request_id: id,
+            approver_id: user.id,
+            approval_type: approvalType,
+            status: 'rejected',
+            approved_at: new Date().toISOString(),
+            comment: reason
+          });
+
+        if (approvalError) throw approvalError;
+      });
+
+      await Promise.all(updates);
+      alert('✅ 批量駁回完成！');
+      setSelectedIds(new Set());
+      fetchRequests();
+    } catch (e) {
+      console.error(e);
+      alert('處理失敗，請稍後再試');
+    } finally {
+      setBatchProcessing(false);
+    }
+  };
+
   // 權限檢查
   if (!canViewAll && !canViewOwn) {
     return (
@@ -251,7 +431,7 @@ export default function Dashboard() {
       {/* ================= Tabs (分頁籤) ================= */}
       <div className="flex gap-6 border-b border-stone-200 mb-6 overflow-x-auto">
         <button
-          onClick={() => setViewMode('todo')}
+          onClick={() => { setViewMode('todo'); setSelectedIds(new Set()); }}
           className={`pb-3 px-1 text-sm font-bold transition-all flex items-center gap-2 relative whitespace-nowrap ${
             viewMode === 'todo'
               ? 'text-amber-600 border-b-2 border-amber-600'
@@ -268,7 +448,7 @@ export default function Dashboard() {
         </button>
 
         <button
-          onClick={() => setViewMode('all')}
+          onClick={() => { setViewMode('all'); setSelectedIds(new Set()); }}
           className={`pb-3 px-1 text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
             viewMode === 'all'
               ? 'text-stone-800 border-b-2 border-stone-800'
@@ -279,6 +459,33 @@ export default function Dashboard() {
           歷史紀錄
         </button>
       </div>
+
+      {/* 批量操作工具列 */}
+      {selectedIds.size > 0 && viewMode === 'todo' && (
+        <div className="sticky top-20 z-30 bg-white border border-amber-100 p-3 rounded-xl mb-6 flex justify-between items-center animate-in slide-in-from-top-2 shadow-lg shadow-amber-500/5">
+          <span className="font-bold text-stone-700 flex items-center gap-2 px-2">
+            <CheckSquare className="text-amber-500" /> 已選取 {selectedIds.size} 筆
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={handleBatchReject}
+              disabled={batchProcessing}
+              className="bg-white text-stone-600 border border-stone-200 px-4 py-2 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-200 text-sm font-bold flex items-center gap-2 transition-all disabled:opacity-50"
+            >
+              {batchProcessing ? <Loader2 className="animate-spin" size={16} /> : <ThumbsDown size={16} />}
+              批量駁回
+            </button>
+            <button
+              onClick={handleBatchApprove}
+              disabled={batchProcessing}
+              className="bg-gradient-to-r from-amber-500 to-red-500 text-white px-4 py-2 rounded-lg shadow-md shadow-amber-500/20 hover:from-amber-600 hover:to-red-600 text-sm font-bold flex items-center gap-2 transition-all disabled:opacity-50"
+            >
+              {batchProcessing ? <Loader2 className="animate-spin" size={16} /> : <ThumbsUp size={16} />}
+              批量核准
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ================= 列表區域 ================= */}
       {loading ? (
@@ -305,7 +512,18 @@ export default function Dashboard() {
 
               return (
                 <div key={req.id} className="bg-white border border-stone-200 rounded-2xl p-4 shadow-sm relative overflow-hidden group">
-                  <Link to={`${BASE_PATH}/request/${req.id}`} className="block">
+                  {/* 手機版勾選框 */}
+                  {viewMode === 'todo' && (
+                    <div className="absolute top-4 left-4 z-10">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(req.id)}
+                        onChange={() => handleSelect(req.id)}
+                        className="w-5 h-5 rounded border-stone-300 text-amber-600 focus:ring-amber-500"
+                      />
+                    </div>
+                  )}
+                  <Link to={`${BASE_PATH}/request/${req.id}`} className={`block ${viewMode === 'todo' ? 'pl-8' : ''}`}>
                       {/* 卡片頂部 */}
                       <div className="flex justify-between items-start mb-3">
                         <div>
@@ -377,6 +595,17 @@ export default function Dashboard() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-stone-50/50 text-stone-500 text-xs font-bold uppercase tracking-wider border-b border-stone-200">
+                  {/* 全選 Checkbox */}
+                  {viewMode === 'todo' && (
+                    <th className="p-4 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        onChange={handleSelectAll}
+                        checked={selectedIds.size > 0 && selectedIds.size === filteredRequests.length}
+                        className="w-4 h-4 rounded border-stone-300 text-amber-600 focus:ring-amber-500"
+                      />
+                    </th>
+                  )}
                   <th className="p-4 w-40">申請單號</th>
                   <th className="p-4 w-32">申請日期</th>
                   <th className="p-4 w-32">申請人</th>
@@ -395,6 +624,17 @@ export default function Dashboard() {
 
                   return (
                     <tr key={req.id} className="hover:bg-stone-50 transition-colors group">
+                      {/* 單選 Checkbox */}
+                      {viewMode === 'todo' && (
+                        <td className="p-4 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(req.id)}
+                            onChange={() => handleSelect(req.id)}
+                            className="w-4 h-4 rounded border-stone-300 text-amber-600 focus:ring-amber-500"
+                          />
+                        </td>
+                      )}
                       <td className="p-4">
                         <span className="font-mono font-bold text-stone-600 text-sm">{req.request_number}</span>
                       </td>
