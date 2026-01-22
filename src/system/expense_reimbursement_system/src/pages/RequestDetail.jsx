@@ -152,15 +152,33 @@ export default function RequestDetail() {
       // 載入主申請資料
       const { data: requestData, error: requestError } = await supabase
         .from('expense_reimbursement_requests')
-        .select(`
-          *,
-          applicant:employees!applicant_id(id, name, employee_id),
-          department:departments(id, name)
-        `)
+        .select('*')
         .eq('id', id)
         .single();
 
       if (requestError) throw requestError;
+
+      // 載入申請人資訊
+      let applicantData = null;
+      if (requestData.applicant_id) {
+        const { data } = await supabase
+          .from('employees')
+          .select('user_id, name, employee_id')
+          .eq('user_id', requestData.applicant_id)
+          .single();
+        applicantData = data;
+      }
+
+      // 載入部門資訊
+      let departmentData = null;
+      if (requestData.department_id) {
+        const { data } = await supabase
+          .from('departments')
+          .select('id, name')
+          .eq('id', requestData.department_id)
+          .single();
+        departmentData = data;
+      }
 
       // 載入明細
       const { data: itemsData, error: itemsError } = await supabase
@@ -174,18 +192,34 @@ export default function RequestDetail() {
       // 載入簽核紀錄
       const { data: approvalsData, error: approvalsError } = await supabase
         .from('expense_approvals')
-        .select(`
-          *,
-          approver:employees!approver_id(name)
-        `)
+        .select('*')
         .eq('request_id', id)
         .order('approval_order', { ascending: true });
 
       if (approvalsError) throw approvalsError;
 
-      setRequest(requestData);
+      // 如果有簽核紀錄，載入簽核人資訊
+      let enrichedApprovals = approvalsData || [];
+      if (approvalsData && approvalsData.length > 0) {
+        const approverIds = [...new Set(approvalsData.map(a => a.approver_id))];
+        const { data: approversData } = await supabase
+          .from('employees')
+          .select('user_id, name')
+          .in('user_id', approverIds);
+
+        enrichedApprovals = approvalsData.map(approval => ({
+          ...approval,
+          approver: approversData?.find(e => e.user_id === approval.approver_id) || null,
+        }));
+      }
+
+      setRequest({
+        ...requestData,
+        applicant: applicantData,
+        department: departmentData,
+      });
       setItems(itemsData || []);
-      setApprovals(approvalsData || []);
+      setApprovals(enrichedApprovals);
     } catch (err) {
       console.error(err);
       alert('載入失敗: ' + err.message);

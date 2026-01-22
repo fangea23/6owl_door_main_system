@@ -119,11 +119,7 @@ export default function Dashboard() {
     try {
       let query = supabase
         .from('expense_reimbursement_requests')
-        .select(`
-          *,
-          applicant:employees!applicant_id(id, name, employee_id),
-          department:departments(id, name)
-        `)
+        .select('*')
         .is('deleted_at', null);
 
       // 權限過濾
@@ -140,9 +136,37 @@ export default function Dashboard() {
         query = query.order('created_at', { ascending: false });
       }
 
-      const { data, error } = await query;
+      const { data: requestsData, error } = await query;
       if (error) throw error;
-      setRequests(data || []);
+
+      // 如果有資料，批次獲取申請人和部門資訊
+      if (requestsData && requestsData.length > 0) {
+        const userIds = [...new Set(requestsData.map(r => r.applicant_id))];
+        const deptIds = [...new Set(requestsData.map(r => r.department_id).filter(Boolean))];
+
+        // 獲取員工資訊
+        const { data: employeesData } = await supabase
+          .from('employees')
+          .select('user_id, name, employee_id')
+          .in('user_id', userIds);
+
+        // 獲取部門資訊
+        const { data: departmentsData } = await supabase
+          .from('departments')
+          .select('id, name')
+          .in('id', deptIds);
+
+        // 組合資料
+        const enrichedRequests = requestsData.map(request => ({
+          ...request,
+          applicant: employeesData?.find(e => e.user_id === request.applicant_id) || null,
+          department: departmentsData?.find(d => d.id === request.department_id) || null,
+        }));
+
+        setRequests(enrichedRequests);
+      } else {
+        setRequests([]);
+      }
     } catch (error) {
       console.error('Error fetching requests:', error);
     } finally {

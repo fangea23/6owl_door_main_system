@@ -84,7 +84,7 @@ export default function ApplyForm() {
       try {
         const { data, error } = await supabase
           .from('employees')
-          .select('name, department_id, departments(id, name)')
+          .select('name, department_id, departments!employees_department_id_fkey(id, name)')
           .eq('user_id', user.id)
           .single();
 
@@ -134,6 +134,7 @@ export default function ApplyForm() {
       setFetchingBanks(true);
       try {
         const { data, error } = await supabase
+          .schema('payment_approval')
           .from('banks')
           .select('bank_code, bank_name')
           .order('bank_code', { ascending: true });
@@ -155,6 +156,7 @@ export default function ApplyForm() {
         setFetchingBranches(true);
         try {
           const { data, error } = await supabase
+            .schema('payment_approval')
             .from('branches')
             .select('branch_code, branch_name')
             .eq('bank_code', formData.bank_code)
