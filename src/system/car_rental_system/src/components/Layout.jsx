@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'; // 1. 引入 useEffect, useRef
 import { Link, Outlet, useNavigate, NavLink } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import {
   Car,
@@ -318,6 +319,34 @@ export const Layout = () => {
           </div>
         </div>
       </footer>
+
+      {/* 全域通知 Toast */}
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#363636',
+            color: '#fff',
+            maxWidth: '500px',
+            whiteSpace: 'pre-line', // 支持多行顯示
+          },
+          success: {
+            duration: 3000,
+            iconTheme: { primary: '#10b981', secondary: '#fff' },
+          },
+          error: {
+            duration: 6000, // 錯誤訊息顯示更久
+            iconTheme: { primary: '#ef4444', secondary: '#fff' },
+            style: {
+              background: '#363636',
+              color: '#fff',
+              maxWidth: '500px',
+              whiteSpace: 'pre-line', // 支持多行錯誤訊息
+            },
+          },
+        }}
+      />
     </div>
   );
 };
