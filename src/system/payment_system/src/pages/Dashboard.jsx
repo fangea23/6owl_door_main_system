@@ -56,6 +56,7 @@ export default function Dashboard() {
   const { hasPermission: canCreate } = usePermission('payment.create');
   const { hasPermission: canViewAll } = usePermission('payment.view.all');
   const { hasPermission: canViewOwn } = usePermission('payment.view.own');
+  const { hasPermission: canReject } = usePermission('payment.reject');
   const { hasPermission: canApproveAccountant } = usePermission('payment.approve.accountant');
   const { hasPermission: canApproveManager } = usePermission('payment.approve.manager');
   const { hasPermission: canApproveAudit } = usePermission('payment.approve.audit');
@@ -358,6 +359,12 @@ export default function Dashboard() {
   const handleBatchReject = async () => {
     if (selectedIds.size === 0) return;
 
+    // 🔒 首先檢查 payment.reject 權限
+    if (!canReject) {
+      alert('⚠️ 權限不足\n\n您沒有駁回付款申請的權限（payment.reject）。\n請聯絡系統管理員申請相應權限。');
+      return;
+    }
+
     // RBAC 權限檢查：驗證用戶是否有權限批量駁回
     const selectedRequests = requests.filter(r => selectedIds.has(r.id));
     const statuses = [...new Set(selectedRequests.map(r => r.status))];
@@ -479,23 +486,25 @@ export default function Dashboard() {
               <CheckSquare className="text-red-500"/> 已選取 {selectedIds.size} 筆
           </span>
           <div className="flex gap-2">
-             {/* 🔴 批量駁回按鈕 */}
-             <button 
-               onClick={handleBatchReject} 
-               disabled={batchProcessing} 
-               className="bg-white text-stone-600 border border-stone-200 px-4 py-2 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-200 text-sm font-bold flex items-center gap-2 transition-all disabled:opacity-50"
-             >
-               {batchProcessing ? <Loader2 className="animate-spin" size={16}/> : <XCircle size={16}/>} 
-               批量駁回
-             </button>
+             {/* 🔴 批量駁回按鈕 - 需要 payment.reject 權限 */}
+             {canReject && (
+               <button
+                 onClick={handleBatchReject}
+                 disabled={batchProcessing}
+                 className="bg-white text-stone-600 border border-stone-200 px-4 py-2 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-200 text-sm font-bold flex items-center gap-2 transition-all disabled:opacity-50"
+               >
+                 {batchProcessing ? <Loader2 className="animate-spin" size={16}/> : <XCircle size={16}/>}
+                 批量駁回
+               </button>
+             )}
 
              {/* 🟢 批量核准按鈕 */}
-             <button 
-               onClick={handleBatchApprove} 
-               disabled={batchProcessing} 
+             <button
+               onClick={handleBatchApprove}
+               disabled={batchProcessing}
                className="bg-red-600 text-white px-4 py-2 rounded-lg shadow-md shadow-red-500/20 hover:bg-red-700 text-sm font-bold flex items-center gap-2 transition-all disabled:opacity-50"
              >
-               {batchProcessing ? <Loader2 className="animate-spin" size={16}/> : <Check size={16}/>} 
+               {batchProcessing ? <Loader2 className="animate-spin" size={16}/> : <Check size={16}/>}
                批量核准
              </button>
           </div>
