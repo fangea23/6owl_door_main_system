@@ -10,6 +10,9 @@ import Header from '../../system/training_system/src/components/Header.jsx';
 // 引入子系統的頁面
 import Dashboard from '../../system/training_system/src/pages/Dashboard.jsx';
 import CourseDetail from '../../system/training_system/src/pages/CourseDetail.jsx';
+import AdminDashboard from '../../system/training_system/src/pages/AdminDashboard.jsx';
+import CourseEditor from '../../system/training_system/src/pages/CourseEditor.jsx';
+import Reports from '../../system/training_system/src/pages/Reports.jsx';
 
 // 受保護路由組件 - 使用主系統認證
 const TrainingProtectedRoute = () => {
@@ -53,13 +56,12 @@ export default function TrainingSystemLayout() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="course/:id" element={<CourseDetail />} />
 
-          {/* TODO: 管理端頁面 */}
-          {/* <Route path="admin" element={<AdminDashboard />} /> */}
-          {/* <Route path="admin/courses" element={<CourseManagement />} /> */}
-          {/* <Route path="admin/courses/:id" element={<CourseEditor />} /> */}
+          {/* 管理端頁面 */}
+          <Route path="admin" element={<AdminDashboard />} />
+          <Route path="admin/course/:id" element={<CourseEditor />} />
 
-          {/* TODO: 報表頁面 */}
-          {/* <Route path="reports" element={<Reports />} /> */}
+          {/* 報表頁面 */}
+          <Route path="reports" element={<Reports />} />
         </Route>
       </Route>
 
