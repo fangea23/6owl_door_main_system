@@ -14,6 +14,7 @@
  * url: '/path-to-system',    // 系統連結
  * status: 'active',          // active | coming-soon | maintenance
  * isExternal: false,         // 是否為外部連結
+ * permissionCode: 'system.xxx', // 系統訪問權限代碼（可選，沒有則所有人可見）
  * }
  */
 
@@ -34,6 +35,7 @@ export const categories = [
         status: 'active',
         isExternal: false,
         requiresRole: ['admin', 'hr'], // 需要特定角色才能看到
+        permissionCode: 'system.management', // 需要系統訪問權限
       },
     ],
   },
@@ -52,6 +54,7 @@ export const categories = [
         url: '/systems/payment-approval',
         status: 'active',
         isExternal: false,
+        permissionCode: 'system.payment', // 需要系統訪問權限
       },
     ],
   },
@@ -70,6 +73,7 @@ export const categories = [
         url: '/systems/software-license',
         status: 'active',
         isExternal: false,
+        permissionCode: 'system.license', // 需要系統訪問權限
       },
     ],
   },
@@ -88,6 +92,7 @@ export const categories = [
         url: '/systems/meeting-room',
         status: 'active',
         isExternal: false,
+        permissionCode: 'system.meeting_room', // 需要系統訪問權限
       },
       {
         id: 'car-rental',
@@ -97,6 +102,7 @@ export const categories = [
         url: '/systems/car-rental',
         status: 'active',
         isExternal: false,
+        permissionCode: 'system.car_rental', // 需要系統訪問權限
       },
       {
         id: 'store-management',
@@ -106,6 +112,7 @@ export const categories = [
         url: '/systems/store-management',
         status: 'active',
         isExternal: false,
+        permissionCode: 'system.store_management', // 需要系統訪問權限
       },
       {
         id: 'eip-km',
@@ -115,6 +122,7 @@ export const categories = [
         url: '/systems/eip-km',
         status: 'active',
         isExternal: false,
+        permissionCode: 'system.eip_km', // 需要系統訪問權限
       },
       {
         id: 'ticketing',
@@ -124,6 +132,7 @@ export const categories = [
         url: '/systems/ticketing',
         status: 'active',
         isExternal: false,
+        permissionCode: 'system.ticketing', // 需要系統訪問權限
       },
     ],
   },

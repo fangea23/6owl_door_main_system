@@ -100,6 +100,24 @@ export default function PermissionManagement() {
     });
   };
 
+  // 批量切換模組的所有權限
+  const toggleModulePermissions = (modulePerms) => {
+    const modulePermIds = modulePerms.map(p => p.id);
+    const allSelected = modulePermIds.every(id => editingPermissions.has(id));
+
+    setEditingPermissions(prev => {
+      const newSet = new Set(prev);
+      if (allSelected) {
+        // 全部已選，則全部取消
+        modulePermIds.forEach(id => newSet.delete(id));
+      } else {
+        // 部分或全部未選，則全部選中
+        modulePermIds.forEach(id => newSet.add(id));
+      }
+      return newSet;
+    });
+  };
+
   // 開始編輯角色權限
   const startEditRole = (role) => {
     setSelectedRole(role);
@@ -324,14 +342,32 @@ export default function PermissionManagement() {
 
                 {/* 按模組分類的權限 */}
                 <div className="space-y-6">
-                  {Object.entries(permissionsByModule).map(([module, modulePerms]) => (
-                    <div key={module} className="border border-gray-200 rounded-lg p-4">
-                      <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
-                        {moduleNames[module] || module}
-                        <span className="text-xs text-gray-500">
-                          ({modulePerms.filter(p => editingPermissions.has(p.id)).length}/{modulePerms.length})
-                        </span>
-                      </h4>
+                  {Object.entries(permissionsByModule).map(([module, modulePerms]) => {
+                    const selectedCount = modulePerms.filter(p => editingPermissions.has(p.id)).length;
+                    const totalCount = modulePerms.length;
+                    const allSelected = selectedCount === totalCount;
+
+                    return (
+                      <div key={module} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-bold text-gray-800 flex items-center gap-2">
+                            {moduleNames[module] || module}
+                            <span className="text-xs text-gray-500">
+                              ({selectedCount}/{totalCount})
+                            </span>
+                          </h4>
+                          <button
+                            type="button"
+                            onClick={() => toggleModulePermissions(modulePerms)}
+                            className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
+                              allSelected
+                                ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                                : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                            }`}
+                          >
+                            {allSelected ? '全部取消' : '全部勾選'}
+                          </button>
+                        </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {modulePerms.map(permission => {
                           const isSelected = editingPermissions.has(permission.id);
@@ -370,7 +406,8 @@ export default function PermissionManagement() {
                         })}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : (

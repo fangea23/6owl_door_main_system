@@ -1,7 +1,30 @@
 import { getAllSystems } from '../data/systems';
+import { useUserPermissions } from '../hooks/useUserPermissions';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function QuickAccess({ onSystemClick }) {
-  const systems = getAllSystems().filter(s => s.status === 'active');
+  const { role } = useAuth();
+  const { hasPermission, loading: permissionsLoading } = useUserPermissions();
+
+  // 過濾系統：需要是 active 且用戶有權限訪問
+  const systems = getAllSystems().filter(system => {
+    if (system.status !== 'active') return false;
+
+    // 權限檢查還在載入中，暫時隱藏
+    if (permissionsLoading) return false;
+
+    // 檢查系統訪問權限
+    if (system.permissionCode && !hasPermission(system.permissionCode)) {
+      return false;
+    }
+
+    // 檢查角色（向後兼容）
+    if (system.requiresRole && system.requiresRole.length > 0) {
+      return system.requiresRole.includes(role);
+    }
+
+    return true;
+  });
 
   if (systems.length === 0) return null;
 

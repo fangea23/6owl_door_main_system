@@ -1,5 +1,6 @@
 import SystemCard from './SystemCard';
 import { useAuth } from '../contexts/AuthContext';
+import { useUserPermissions } from '../hooks/useUserPermissions';
 
 // 統一使用紅色系品牌色
 const colorVariants = {
@@ -11,16 +12,30 @@ const colorVariants = {
 
 export default function CategorySection({ category, onSystemClick }) {
   const { role } = useAuth();
+  const { hasPermission, loading: permissionsLoading } = useUserPermissions();
   const gradientColor = colorVariants[category.color] || colorVariants.stone;
 
-  // 根據用戶角色過濾系統
+  // 根據用戶角色和權限過濾系統
   const visibleSystems = category.systems.filter(system => {
-    // 如果系統沒有 requiresRole，所有人都可以看到
-    if (!system.requiresRole || system.requiresRole.length === 0) {
-      return true;
+    // 1. 檢查權限（優先）
+    if (system.permissionCode) {
+      // 權限檢查還在載入中，暫時隱藏（避免閃爍，等載入完成後再顯示）
+      if (permissionsLoading) {
+        return false;
+      }
+      // 檢查用戶是否有系統訪問權限
+      if (!hasPermission(system.permissionCode)) {
+        return false;
+      }
     }
-    // 如果有 requiresRole，檢查用戶角色是否匹配
-    return system.requiresRole.includes(role);
+
+    // 2. 檢查角色（向後兼容）
+    if (system.requiresRole && system.requiresRole.length > 0) {
+      return system.requiresRole.includes(role);
+    }
+
+    // 沒有任何限制，所有人都可以看到
+    return true;
   });
 
   if (visibleSystems.length === 0) {
