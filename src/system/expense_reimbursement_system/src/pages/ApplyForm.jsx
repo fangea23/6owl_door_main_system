@@ -240,6 +240,19 @@ export default function ApplyForm() {
         return;
       }
 
+      // 🔒 驗證：有金額的行必須填寫品項
+      const invalidItems = items.filter(item => {
+        const amount = parseInt(item.amount) || 0;
+        const category = (item.category || '').trim();
+        return amount > 0 && !category;
+      });
+
+      if (invalidItems.length > 0) {
+        const lineNumbers = invalidItems.map(item => item.line_number).join('、');
+        alert(`❌ 驗證失敗\n\n第 ${lineNumbers} 行有填寫金額但未填寫品項。\n請填寫品項後再送出。`);
+        return;
+      }
+
       if (!formData.department_id) {
         alert('請選擇申請部門');
         return;
@@ -317,6 +330,13 @@ export default function ApplyForm() {
   };
 
   const totals = calculateTotals();
+
+  // 檢查是否有金額但沒有品項的行
+  const hasInvalidItems = items.some(item => {
+    const amount = parseInt(item.amount) || 0;
+    const category = (item.category || '').trim();
+    return amount > 0 && !category;
+  });
 
   // 權限檢查
   if (permissionLoading) {
@@ -433,7 +453,11 @@ export default function ApplyForm() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((item, index) => (
+                {items.map((item, index) => {
+                  // 檢查是否有金額但沒有品項（用於視覺提示）
+                  const hasAmountNoCategory = (parseInt(item.amount) || 0) > 0 && !(item.category || '').trim();
+
+                  return (
                   <tr key={item.line_number} className="hover:bg-stone-50">
                     <td className="border border-stone-300 px-2 py-2 text-center text-sm text-stone-600">
                       {item.line_number}
@@ -443,8 +467,12 @@ export default function ApplyForm() {
                         type="text"
                         value={item.category}
                         onChange={(e) => updateItem(index, 'category', e.target.value)}
-                        className="w-full px-2 py-1 text-sm border-0 focus:ring-1 focus:ring-amber-500 rounded"
-                        placeholder="品項"
+                        className={`w-full px-2 py-1 text-sm border-0 focus:ring-1 rounded ${
+                          hasAmountNoCategory
+                            ? 'ring-2 ring-red-500 focus:ring-red-500 bg-red-50'
+                            : 'focus:ring-amber-500'
+                        }`}
+                        placeholder={hasAmountNoCategory ? "⚠️ 必填" : "品項"}
                       />
                     </td>
                     <td className="border border-stone-300 px-2 py-1">
@@ -497,7 +525,8 @@ export default function ApplyForm() {
                       />
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -684,11 +713,11 @@ export default function ApplyForm() {
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
           <button
             onClick={handleSubmit}
-            disabled={submitting || totals.total === 0}
+            disabled={submitting || totals.total === 0 || hasInvalidItems}
             className={`
               w-full py-4 rounded-lg font-semibold text-lg flex items-center justify-center gap-3
               transition-all duration-200 shadow-lg
-              ${submitting || totals.total === 0
+              ${submitting || totals.total === 0 || hasInvalidItems
                 ? 'bg-stone-300 text-stone-500 cursor-not-allowed'
                 : 'bg-amber-600 text-white hover:bg-amber-700 hover:shadow-xl active:scale-[0.98]'
               }
@@ -709,6 +738,11 @@ export default function ApplyForm() {
           {totals.total === 0 && (
             <p className="text-sm text-stone-500 text-center mt-3">
               請至少填寫一筆費用明細後才能送出申請
+            </p>
+          )}
+          {hasInvalidItems && totals.total > 0 && (
+            <p className="text-sm text-red-600 text-center mt-3 font-semibold">
+              ⚠️ 有金額的項目必須填寫品項
             </p>
           )}
         </div>
