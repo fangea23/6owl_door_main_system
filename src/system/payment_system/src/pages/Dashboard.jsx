@@ -52,19 +52,22 @@ export default function Dashboard() {
   const { user, role } = useAuth();
   const currentRole = role || 'staff';
 
-  // RBAC 權限檢查
+  // RBAC 權限檢查 - 獲取 loading 狀態
   const { hasPermission: canCreate } = usePermission('payment.create');
-  const { hasPermission: canViewAll } = usePermission('payment.view.all');
-  const { hasPermission: canViewOwn } = usePermission('payment.view.own');
+  const { hasPermission: canViewAll, loading: loadingViewAll } = usePermission('payment.view.all');
+  const { hasPermission: canViewOwn, loading: loadingViewOwn } = usePermission('payment.view.own');
   const { hasPermission: canReject } = usePermission('payment.reject');
-  const { hasPermission: canApproveAccountant } = usePermission('payment.approve.accountant');
-  const { hasPermission: canApproveManager } = usePermission('payment.approve.manager');
-  const { hasPermission: canApproveAudit } = usePermission('payment.approve.audit');
-  const { hasPermission: canApproveCashier } = usePermission('payment.approve.cashier');
-  const { hasPermission: canApproveBoss } = usePermission('payment.approve.boss');
+  const { hasPermission: canApproveAccountant, loading: loadingAccountant } = usePermission('payment.approve.accountant');
+  const { hasPermission: canApproveManager, loading: loadingManager } = usePermission('payment.approve.manager');
+  const { hasPermission: canApproveAudit, loading: loadingAudit } = usePermission('payment.approve.audit');
+  const { hasPermission: canApproveCashier, loading: loadingCashier } = usePermission('payment.approve.cashier');
+  const { hasPermission: canApproveBoss, loading: loadingBoss } = usePermission('payment.approve.boss');
 
   // 操作權限（細粒度）
-  const { hasPermission: canManagePaper } = usePermission('payment.paper.manage'); 
+  const { hasPermission: canManagePaper } = usePermission('payment.paper.manage');
+
+  // 檢查權限是否都載入完成
+  const permissionsLoading = loadingViewAll || loadingViewOwn || loadingAccountant || loadingManager || loadingAudit || loadingCashier || loadingBoss; 
 
   // --- 1. 新增：員工姓名狀態與抓取邏輯 ---
   const [employeeName, setEmployeeName] = useState('');
@@ -94,7 +97,8 @@ export default function Dashboard() {
   // -------------------------------------
 
   // --- 視圖狀態 (基於權限) ---
-  const [viewMode, setViewMode] = useState('all');
+  const [viewMode, setViewMode] = useState(null);
+  const [viewModeInitialized, setViewModeInitialized] = useState(false);
 
   // 檢查用戶是否有任何審核權限
   const hasAnyApprovalPermission =
@@ -104,14 +108,13 @@ export default function Dashboard() {
     canApproveCashier ||
     canApproveBoss;
 
+  // 等權限載入完成後，設定初始視圖模式（只執行一次）
   useEffect(() => {
-    // 有審核權限的用戶預設顯示待辦事項
-    if (hasAnyApprovalPermission) {
-      setViewMode('todo');
-    } else {
-      setViewMode('all');
+    if (!permissionsLoading && !viewModeInitialized) {
+      setViewMode(hasAnyApprovalPermission ? 'todo' : 'all');
+      setViewModeInitialized(true);
     }
-  }, [hasAnyApprovalPermission]);
+  }, [permissionsLoading, hasAnyApprovalPermission, viewModeInitialized]);
 
   // ✅ Task 1: 批量操作 State
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -119,18 +122,18 @@ export default function Dashboard() {
 
   // --- Supabase 資料載入 & Realtime ---
   useEffect(() => {
-    if (user) {
+    if (user && viewMode) {
       fetchRequests();
     }
 
     const subscription = supabase
       .channel('dashboard-updates')
-      .on('postgres_changes', { event: '*', schema: 'payment_approval', table: 'payment_requests' }, 
-        () => { if(user) fetchRequests(); }
+      .on('postgres_changes', { event: '*', schema: 'payment_approval', table: 'payment_requests' },
+        () => { if(user && viewMode) fetchRequests(); }
       )
       .subscribe();
     return () => { supabase.removeChannel(subscription); };
-  }, [user]); 
+  }, [user, viewMode]); 
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -424,6 +427,16 @@ export default function Dashboard() {
     }
   };
 
+  // 🔒 權限載入中 - 顯示 loading 而不是無權限頁面
+  if (permissionsLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <Loader2 className="animate-spin mb-3 text-red-500" size={32} />
+        <p className="text-stone-400">載入中...</p>
+      </div>
+    );
+  }
+
   // 🔒 權限檢查：必須有查看權限才能進入 Dashboard
   if (!canViewAll && !canViewOwn) {
     return (
@@ -512,39 +525,41 @@ export default function Dashboard() {
       )}
 
       {/* ================= Tabs (分頁籤) ================= */}
-      <div className="flex gap-6 border-b border-stone-200 mb-6 overflow-x-auto">
-        <button
-          onClick={() => { setViewMode('todo'); setSelectedIds(new Set()); }}
-          className={`pb-3 px-1 text-sm font-bold transition-all flex items-center gap-2 relative whitespace-nowrap ${
-            viewMode === 'todo' 
-              ? 'text-red-600 border-b-2 border-red-600' 
-              : 'text-stone-400 hover:text-stone-600'
-          }`}
-        >
-          <CheckSquare size={18} />
-          待我簽核
-          {todoCount > 0 && (
-            <span className="ml-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full shadow-sm">
-              {todoCount}
-            </span>
-          )}
-        </button>
+      {viewMode && (
+        <div className="flex gap-6 border-b border-stone-200 mb-6 overflow-x-auto">
+          <button
+            onClick={() => { setViewMode('todo'); setSelectedIds(new Set()); }}
+            className={`pb-3 px-1 text-sm font-bold transition-all flex items-center gap-2 relative whitespace-nowrap ${
+              viewMode === 'todo'
+                ? 'text-red-600 border-b-2 border-red-600'
+                : 'text-stone-400 hover:text-stone-600'
+            }`}
+          >
+            <CheckSquare size={18} />
+            待我簽核
+            {todoCount > 0 && (
+              <span className="ml-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full shadow-sm">
+                {todoCount}
+              </span>
+            )}
+          </button>
 
-        <button
-          onClick={() => { setViewMode('all'); setSelectedIds(new Set()); }}
-          className={`pb-3 px-1 text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
-            viewMode === 'all' 
-              ? 'text-stone-800 border-b-2 border-stone-800' 
-              : 'text-stone-400 hover:text-stone-600'
-          }`}
-        >
-          <ListFilter size={18} />
-          歷史紀錄
-        </button>
-      </div>
+          <button
+            onClick={() => { setViewMode('all'); setSelectedIds(new Set()); }}
+            className={`pb-3 px-1 text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+              viewMode === 'all'
+                ? 'text-stone-800 border-b-2 border-stone-800'
+                : 'text-stone-400 hover:text-stone-600'
+            }`}
+          >
+            <ListFilter size={18} />
+            歷史紀錄
+          </button>
+        </div>
+      )}
 
       {/* ================= 列表區域 (卡片 vs 表格) ================= */}
-      {loading ? (
+      {(loading || !viewMode) ? (
         <div className="bg-white/50 backdrop-blur rounded-2xl border border-stone-200 p-12 text-center text-stone-400 flex flex-col items-center min-h-[400px] justify-center">
           <Loader2 className="animate-spin mb-3 text-red-500" size={32} />
           <p>資料載入中...</p>

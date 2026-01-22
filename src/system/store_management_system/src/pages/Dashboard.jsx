@@ -38,15 +38,18 @@ export default function Dashboard() {
   const { stores, loading: storesLoading, addStore, updateStore, deleteStore, toggleStoreStatus } = useStores(selectedBrand?.id);
   const { user, profile, logout } = useAuth();
 
-  // 權限檢查
-  const { hasPermission: canViewStores } = usePermission('store.view');
+  // 權限檢查 - 獲取 loading 狀態
+  const { hasPermission: canViewStores, loading: loadingViewStores } = usePermission('store.view');
   const { hasPermission: canCreateStore } = usePermission('store.create');
   const { hasPermission: canEditStore } = usePermission('store.edit');
   const { hasPermission: canDeleteStore } = usePermission('store.delete');
-  const { hasPermission: canViewBrands } = usePermission('brand.view');
+  const { hasPermission: canViewBrands, loading: loadingViewBrands } = usePermission('brand.view');
   const { hasPermission: canCreateBrand } = usePermission('brand.create');
   const { hasPermission: canEditBrand } = usePermission('brand.edit');
   const { hasPermission: canDeleteBrand } = usePermission('brand.delete');
+
+  // 檢查權限是否都載入完成
+  const permissionsLoading = loadingViewStores || loadingViewBrands;
 
   // --- 3. 新增：員工姓名狀態與抓取邏輯 ---
   const [employeeName, setEmployeeName] = useState(null);
@@ -86,6 +89,18 @@ export default function Dashboard() {
 
   // 4. 修改：獲取顯示名稱（優先順序：employeeName > profile.name > user_metadata...）
   const displayName = employeeName || profile?.name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email;
+
+  // 🔒 權限載入中 - 顯示 loading 而不是無權限頁面
+  if (permissionsLoading) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+        <div className="flex flex-col items-center">
+          <Store className="animate-pulse text-amber-500 mb-3" size={32} />
+          <p className="text-stone-400">載入中...</p>
+        </div>
+      </div>
+    );
+  }
 
   // 權限檢查：沒有任何查看權限則無法使用此系統
   if (!canViewStores && !canViewBrands) {

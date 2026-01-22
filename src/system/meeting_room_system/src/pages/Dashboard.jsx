@@ -85,12 +85,15 @@ export default function Dashboard() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState('schedule'); // 'list' | 'schedule'
 
-  // RBAC 權限檢查
+  // RBAC 權限檢查 - 獲取 loading 狀態
   const { hasPermission: canCreate } = usePermission('meeting.booking.create');
-  const { hasPermission: canViewAll } = usePermission('meeting.booking.view.all');
-  const { hasPermission: canViewOwn } = usePermission('meeting.booking.view.own');
+  const { hasPermission: canViewAll, loading: loadingViewAll } = usePermission('meeting.booking.view.all');
+  const { hasPermission: canViewOwn, loading: loadingViewOwn } = usePermission('meeting.booking.view.own');
   const { hasPermission: canCancelOwn } = usePermission('meeting.booking.cancel.own');
   const { hasPermission: canCancelAll } = usePermission('meeting.booking.cancel.all');
+
+  // 檢查權限是否都載入完成
+  const permissionsLoading = loadingViewAll || loadingViewOwn;
 
   // 取得本週日期範圍
   const getWeekDates = (date) => {
@@ -228,6 +231,16 @@ export default function Dashboard() {
     };
     return colors[status] || colors.pending;
   };
+
+  // 🔒 權限載入中 - 顯示 loading 而不是無權限頁面
+  if (permissionsLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <Loader2 className="animate-spin mb-3 text-amber-500" size={32} />
+        <p className="text-stone-400">載入中...</p>
+      </div>
+    );
+  }
 
   // 🔒 權限檢查：必須有查看權限才能進入 Dashboard
   if (!canViewAll && !canViewOwn) {
