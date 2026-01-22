@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Search, Edit2, Trash2, Car, Filter } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Car, Filter, Shield } from 'lucide-react';
 import { useVehicles } from '../hooks/useVehicles';
 import { usePermission, PermissionGuard } from '../../../../hooks/usePermission';
 import toast from 'react-hot-toast';
