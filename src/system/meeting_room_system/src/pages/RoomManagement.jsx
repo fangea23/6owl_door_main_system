@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../AuthContext';
-import { usePermission } from '../../../../../hooks/usePermission';
+import { usePermission } from '../../../../../src/hooks/usePermission';
 import {
   Building2,
   Plus,
