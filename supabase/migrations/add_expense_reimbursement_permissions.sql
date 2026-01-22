@@ -13,9 +13,9 @@ INSERT INTO rbac.permissions (code, name, description, module, category) VALUES
   ('expense.cancel', '取消代墊款申請', '可以取消已送出的代墊款申請', 'expense_reimbursement', 'write'),
 
   -- 簽核權限
-  ('expense.approve.boss', '老闆簽核', '可以審核高金額申請（≥30,000）', 'expense_reimbursement', 'approve'),
-  ('expense.approve.release', '放行主管簽核', '可以審核低金額申請（<30,000）', 'expense_reimbursement', 'approve'),
-  ('expense.approve.audit', '審核主管簽核', '可以進行最終審核', 'expense_reimbursement', 'approve'),
+  ('expense.approve.ceo', '總經理簽核', '可以審核高金額申請（≥30,000）', 'expense_reimbursement', 'approve'),
+  ('expense.approve.boss', '放行主管簽核', '可以審核低金額申請（<30,000）', 'expense_reimbursement', 'approve'),
+  ('expense.approve.accountant', '審核主管簽核', '可以進行最終審核', 'expense_reimbursement', 'approve'),
 
   -- 其他權限
   ('expense.print', '列印代墊款申請單', '可以列印代墊款申請單', 'expense_reimbursement', 'read'),
@@ -29,9 +29,9 @@ DECLARE
   manager_role_id UUID;
   hr_role_id UUID;
   admin_role_id UUID;
+  ceo_role_id UUID;
   boss_role_id UUID;
-  release_manager_role_id UUID;
-  audit_manager_role_id UUID;
+  accountant_role_id UUID;
 BEGIN
   -- 獲取角色 ID
   SELECT id INTO staff_role_id FROM rbac.roles WHERE name = 'staff';
@@ -40,16 +40,17 @@ BEGIN
   SELECT id INTO admin_role_id FROM rbac.roles WHERE name = 'admin';
 
   -- 嘗試建立特定角色（如果不存在）
+  -- 注意：boss 和 accountant 已在 payment_approval 系統中建立
   INSERT INTO rbac.roles (name, description) VALUES
-    ('boss', '老闆 - 負責高金額簽核'),
-    ('release_manager', '放行主管 - 負責低金額初審'),
-    ('audit_manager', '審核主管 - 負責最終審核')
+    ('ceo', '總經理 - 負責高金額簽核'),
+    ('boss', '放行主管 - 負責低金額初審'),
+    ('accountant', '審核主管 - 負責最終審核')
   ON CONFLICT (name) DO NOTHING;
 
   -- 重新獲取特定角色 ID
+  SELECT id INTO ceo_role_id FROM rbac.roles WHERE name = 'ceo';
   SELECT id INTO boss_role_id FROM rbac.roles WHERE name = 'boss';
-  SELECT id INTO release_manager_role_id FROM rbac.roles WHERE name = 'release_manager';
-  SELECT id INTO audit_manager_role_id FROM rbac.roles WHERE name = 'audit_manager';
+  SELECT id INTO accountant_role_id FROM rbac.roles WHERE name = 'accountant';
 
   -- 一般員工權限（可以建立和查看自己的申請）
   IF staff_role_id IS NOT NULL THEN
@@ -107,7 +108,19 @@ BEGIN
     ON CONFLICT DO NOTHING;
   END IF;
 
-  -- 老闆權限（高金額簽核）
+  -- 總經理權限（高金額簽核）
+  IF ceo_role_id IS NOT NULL THEN
+    INSERT INTO rbac.role_permissions (role_id, permission_id)
+    SELECT ceo_role_id, id FROM rbac.permissions
+    WHERE code IN (
+      'expense.view.all',
+      'expense.approve.ceo',
+      'expense.print'
+    )
+    ON CONFLICT DO NOTHING;
+  END IF;
+
+  -- 放行主管權限（低金額初審）
   IF boss_role_id IS NOT NULL THEN
     INSERT INTO rbac.role_permissions (role_id, permission_id)
     SELECT boss_role_id, id FROM rbac.permissions
@@ -119,25 +132,13 @@ BEGIN
     ON CONFLICT DO NOTHING;
   END IF;
 
-  -- 放行主管權限（低金額初審）
-  IF release_manager_role_id IS NOT NULL THEN
-    INSERT INTO rbac.role_permissions (role_id, permission_id)
-    SELECT release_manager_role_id, id FROM rbac.permissions
-    WHERE code IN (
-      'expense.view.all',
-      'expense.approve.release',
-      'expense.print'
-    )
-    ON CONFLICT DO NOTHING;
-  END IF;
-
   -- 審核主管權限（最終審核）
-  IF audit_manager_role_id IS NOT NULL THEN
+  IF accountant_role_id IS NOT NULL THEN
     INSERT INTO rbac.role_permissions (role_id, permission_id)
-    SELECT audit_manager_role_id, id FROM rbac.permissions
+    SELECT accountant_role_id, id FROM rbac.permissions
     WHERE code IN (
       'expense.view.all',
-      'expense.approve.audit',
+      'expense.approve.accountant',
       'expense.print',
       'expense.export'
     )

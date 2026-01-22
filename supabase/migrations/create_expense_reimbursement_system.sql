@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS public.expense_reimbursement_requests (
 
   -- 狀態管理
   status TEXT NOT NULL DEFAULT 'draft' CHECK (
-    status IN ('draft', 'pending_boss', 'pending_release_manager', 'pending_audit_manager', 'approved', 'rejected', 'cancelled')
+    status IN ('draft', 'pending_ceo', 'pending_boss', 'pending_accountant', 'approved', 'rejected', 'cancelled')
   ),
   current_approver_id UUID REFERENCES auth.users(id),
 
@@ -52,7 +52,7 @@ CREATE INDEX idx_expense_requests_created_at ON public.expense_reimbursement_req
 COMMENT ON TABLE public.expense_reimbursement_requests IS '員工代墊款申請主表';
 COMMENT ON COLUMN public.expense_reimbursement_requests.request_number IS '申請單號（格式：ER-YYYYMMDD-XXXX）';
 COMMENT ON COLUMN public.expense_reimbursement_requests.brand_totals IS '各品牌分別合計（JSON 格式）';
-COMMENT ON COLUMN public.expense_reimbursement_requests.status IS '狀態：draft(草稿), pending_boss(待老闆簽核), pending_release_manager(待放行主管), pending_audit_manager(待審核主管), approved(已核准), rejected(已駁回), cancelled(已取消)';
+COMMENT ON COLUMN public.expense_reimbursement_requests.status IS '狀態：draft(草稿), pending_ceo(待總經理簽核), pending_boss(待放行主管簽核), pending_accountant(待審核主管簽核), approved(已核准), rejected(已駁回), cancelled(已取消)';
 
 -- =====================================================
 -- 2. 明細表：expense_reimbursement_items
@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS public.expense_approvals (
 
   -- 簽核人資訊
   approver_id UUID NOT NULL REFERENCES auth.users(id),
-  approval_type TEXT NOT NULL CHECK (approval_type IN ('boss', 'release_manager', 'audit_manager')),
+  approval_type TEXT NOT NULL CHECK (approval_type IN ('ceo', 'boss', 'accountant')),
   approval_order INTEGER NOT NULL, -- 簽核順序
 
   -- 簽核狀態
@@ -115,7 +115,7 @@ CREATE INDEX idx_expense_approvals_status ON public.expense_approvals(status);
 
 -- 註釋
 COMMENT ON TABLE public.expense_approvals IS '員工代墊款簽核記錄表';
-COMMENT ON COLUMN public.expense_approvals.approval_type IS '簽核類型：boss(老闆), release_manager(放行主管), audit_manager(審核主管)';
+COMMENT ON COLUMN public.expense_approvals.approval_type IS '簽核類型：ceo(總經理), boss(放行主管), accountant(審核主管)';
 
 -- =====================================================
 -- 4. 自動生成申請單號函數
