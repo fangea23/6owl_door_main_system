@@ -46,15 +46,18 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
-  // RBAC 權限檢查
+  // RBAC 權限檢查 - 獲取 loading 狀態
   const { hasPermission: canCreate } = usePermission('expense.create');
-  const { hasPermission: canViewAll } = usePermission('expense.view.all');
-  const { hasPermission: canViewOwn } = usePermission('expense.view.own');
-  const { hasPermission: canApproveCEO } = usePermission('expense.approve.ceo');
-  const { hasPermission: canApproveBoss } = usePermission('expense.approve.boss');
-  const { hasPermission: canApproveAudit } = usePermission('expense.approve.audit_manager');
+  const { hasPermission: canViewAll, loading: loadingViewAll } = usePermission('expense.view.all');
+  const { hasPermission: canViewOwn, loading: loadingViewOwn } = usePermission('expense.view.own');
+  const { hasPermission: canApproveCEO, loading: loadingCEO } = usePermission('expense.approve.ceo');
+  const { hasPermission: canApproveBoss, loading: loadingBoss } = usePermission('expense.approve.boss');
+  const { hasPermission: canApproveAudit, loading: loadingAudit } = usePermission('expense.approve.audit_manager');
   const { hasPermission: canPrint } = usePermission('expense.print');
   const { hasPermission: canExport } = usePermission('expense.export');
+
+  // 檢查權限是否都載入完成
+  const permissionsLoading = loadingViewAll || loadingViewOwn || loadingCEO || loadingBoss || loadingAudit;
 
   // 員工姓名
   const [employeeName, setEmployeeName] = useState('');
@@ -94,17 +97,12 @@ export default function Dashboard() {
 
   // 等權限載入完成後，設定初始視圖模式（只執行一次）
   useEffect(() => {
-    // 等待權限檢查完成（假設權限 hook 會在載入完成後返回穩定值）
-    // 使用 setTimeout 確保權限已經載入
-    const timer = setTimeout(() => {
-      if (!viewModeInitialized) {
-        setViewMode(hasAnyApprovalPermission ? 'todo' : 'all');
-        setViewModeInitialized(true);
-      }
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, [hasAnyApprovalPermission, viewModeInitialized]);
+    // 等待權限檢查完成後再設定 viewMode
+    if (!permissionsLoading && !viewModeInitialized) {
+      setViewMode(hasAnyApprovalPermission ? 'todo' : 'all');
+      setViewModeInitialized(true);
+    }
+  }, [permissionsLoading, hasAnyApprovalPermission, viewModeInitialized]);
 
   // 載入資料 - 只在 viewMode 初始化完成後才執行
   useEffect(() => {
@@ -381,7 +379,17 @@ export default function Dashboard() {
     }
   };
 
-  // 權限檢查
+  // 權限載入中 - 顯示 loading 而不是無權限頁面
+  if (permissionsLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <Loader2 className="animate-spin mb-3 text-amber-500" size={32} />
+        <p className="text-stone-400">載入中...</p>
+      </div>
+    );
+  }
+
+  // 權限檢查 - 只在權限載入完成後才判斷
   if (!canViewAll && !canViewOwn) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
