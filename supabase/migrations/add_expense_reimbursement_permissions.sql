@@ -15,7 +15,7 @@ INSERT INTO rbac.permissions (code, name, description, module, category) VALUES
   -- 簽核權限
   ('expense.approve.ceo', '總經理簽核', '可以審核高金額申請（≥30,000）', 'expense_reimbursement', 'approve'),
   ('expense.approve.boss', '放行主管簽核', '可以審核低金額申請（<30,000）', 'expense_reimbursement', 'approve'),
-  ('expense.approve.accountant', '審核主管簽核', '可以進行最終審核', 'expense_reimbursement', 'approve'),
+  ('expense.approve.audit_manager', '審核主管簽核', '可以進行最終審核', 'expense_reimbursement', 'approve'),
 
   -- 其他權限
   ('expense.print', '列印代墊款申請單', '可以列印代墊款申請單', 'expense_reimbursement', 'read'),
@@ -31,7 +31,7 @@ DECLARE
   admin_role_id UUID;
   ceo_role_id UUID;
   boss_role_id UUID;
-  accountant_role_id UUID;
+  audit_manager_role_id UUID;
 BEGIN
   -- 獲取角色 ID
   SELECT id INTO staff_role_id FROM rbac.roles WHERE name = 'staff';
@@ -40,17 +40,15 @@ BEGIN
   SELECT id INTO admin_role_id FROM rbac.roles WHERE name = 'admin';
 
   -- 嘗試建立特定角色（如果不存在）
-  -- 注意：boss 和 accountant 已在 payment_approval 系統中建立
-  INSERT INTO rbac.roles (name, description) VALUES
-    ('ceo', '總經理 - 負責高金額簽核'),
-    ('boss', '放行主管 - 負責低金額初審'),
-    ('accountant', '審核主管 - 負責最終審核')
-  ON CONFLICT (name) DO NOTHING;
+  -- 注意：boss 和 audit_manager 已在系統中建立
+  INSERT INTO rbac.roles (code, name, description) VALUES
+    ('ceo', '總經理', '負責高金額簽核（≥30,000）')
+  ON CONFLICT (code) DO NOTHING;
 
   -- 重新獲取特定角色 ID
-  SELECT id INTO ceo_role_id FROM rbac.roles WHERE name = 'ceo';
-  SELECT id INTO boss_role_id FROM rbac.roles WHERE name = 'boss';
-  SELECT id INTO accountant_role_id FROM rbac.roles WHERE name = 'accountant';
+  SELECT id INTO ceo_role_id FROM rbac.roles WHERE code = 'ceo';
+  SELECT id INTO boss_role_id FROM rbac.roles WHERE code = 'boss';
+  SELECT id INTO audit_manager_role_id FROM rbac.roles WHERE code = 'audit_manager';
 
   -- 一般員工權限（可以建立和查看自己的申請）
   IF staff_role_id IS NOT NULL THEN
@@ -133,12 +131,12 @@ BEGIN
   END IF;
 
   -- 審核主管權限（最終審核）
-  IF accountant_role_id IS NOT NULL THEN
+  IF audit_manager_role_id IS NOT NULL THEN
     INSERT INTO rbac.role_permissions (role_id, permission_id)
-    SELECT accountant_role_id, id FROM rbac.permissions
+    SELECT audit_manager_role_id, id FROM rbac.permissions
     WHERE code IN (
       'expense.view.all',
-      'expense.approve.accountant',
+      'expense.approve.audit_manager',
       'expense.print',
       'expense.export'
     )
