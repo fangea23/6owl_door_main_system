@@ -18,6 +18,21 @@ export default function Portal() {
   // 🔒 權限載入狀態 - 用於統一顯示 loading，避免系統逐一出現
   const { loading: permissionsLoading } = useUserPermissions();
 
+  // 內容準備好顯示的狀態（加入最小延遲，避免閃爍）
+  const [contentReady, setContentReady] = useState(false);
+
+  useEffect(() => {
+    if (!permissionsLoading) {
+      // 權限載入完成後，加入小延遲讓過渡更平滑
+      const timer = setTimeout(() => {
+        setContentReady(true);
+      }, 150);
+      return () => clearTimeout(timer);
+    } else {
+      setContentReady(false);
+    }
+  }, [permissionsLoading]);
+
   // 權限調試器開關（按 Ctrl+Shift+D 切換）
   const [showDebugger, setShowDebugger] = useState(() => {
     return localStorage.getItem('showPermissionDebugger') === 'true';
@@ -62,21 +77,21 @@ export default function Portal() {
             searchQuery={searchQuery}
             onSystemClick={handleSystemClick}
           />
-        ) : permissionsLoading ? (
+        ) : !contentReady ? (
           /* 權限載入中 - 顯示骨架畫面 */
-          <div className="space-y-10">
+          <div className="space-y-10 animate-pulse">
             {/* 快捷入口骨架 */}
             <section className="mb-10">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-stone-200 animate-pulse" />
+                <div className="w-10 h-10 rounded-xl bg-stone-200" />
                 <div className="space-y-2">
-                  <div className="h-5 w-24 bg-stone-200 rounded animate-pulse" />
-                  <div className="h-3 w-32 bg-stone-100 rounded animate-pulse" />
+                  <div className="h-5 w-24 bg-stone-200 rounded" />
+                  <div className="h-3 w-32 bg-stone-100 rounded" />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[1, 2, 3, 4].map(i => (
-                  <div key={i} className="h-14 bg-white border border-stone-200 rounded-xl animate-pulse" />
+                  <div key={i} className="h-14 bg-white border border-stone-200 rounded-xl" />
                 ))}
               </div>
             </section>
@@ -85,22 +100,23 @@ export default function Portal() {
             {[1, 2].map(section => (
               <section key={section} className="mb-10">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="w-12 h-12 rounded-xl bg-stone-200 animate-pulse" />
+                  <div className="w-12 h-12 rounded-xl bg-stone-200" />
                   <div className="space-y-2 flex-1">
-                    <div className="h-6 w-32 bg-stone-200 rounded animate-pulse" />
-                    <div className="h-4 w-48 bg-stone-100 rounded animate-pulse" />
+                    <div className="h-6 w-32 bg-stone-200 rounded" />
+                    <div className="h-4 w-48 bg-stone-100 rounded" />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                   {[1, 2, 3, 4].map(i => (
-                    <div key={i} className="h-40 bg-white border border-stone-200 rounded-2xl animate-pulse" />
+                    <div key={i} className="h-40 bg-white border border-stone-200 rounded-2xl" />
                   ))}
                 </div>
               </section>
             ))}
           </div>
         ) : (
-          <>
+          /* 內容區 - 加入淡入動畫 */
+          <div className="animate-fade-in">
             {/* 快捷入口 */}
             <QuickAccess onSystemClick={handleSystemClick} />
 
@@ -112,7 +128,7 @@ export default function Portal() {
                 onSystemClick={handleSystemClick}
               />
             ))}
-          </>
+          </div>
         )}
       </main>
 
