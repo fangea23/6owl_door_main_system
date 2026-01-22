@@ -1,17 +1,13 @@
 import { getAllSystems } from '../data/systems';
-import { useUserPermissions } from '../hooks/useUserPermissions';
 import { useAuth } from '../contexts/AuthContext';
 
-export default function QuickAccess({ onSystemClick }) {
+// hasPermission 由 Portal 傳入，避免重複載入權限造成閃爍
+export default function QuickAccess({ onSystemClick, hasPermission }) {
   const { role } = useAuth();
-  const { hasPermission, loading: permissionsLoading } = useUserPermissions();
 
   // 過濾系統：需要是 active 且用戶有權限訪問
   const systems = getAllSystems().filter(system => {
     if (system.status !== 'active') return false;
-
-    // 權限檢查還在載入中，暫時隱藏
-    if (permissionsLoading) return false;
 
     // 優先檢查系統訪問權限（如果有設定 permissionCode）
     if (system.permissionCode) {

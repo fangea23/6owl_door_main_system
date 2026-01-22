@@ -1,6 +1,5 @@
 import SystemCard from './SystemCard';
 import { useAuth } from '../contexts/AuthContext';
-import { useUserPermissions } from '../hooks/useUserPermissions';
 
 // 統一使用紅色系品牌色
 const colorVariants = {
@@ -10,19 +9,15 @@ const colorVariants = {
   blue: 'from-red-600 to-amber-500',
 };
 
-export default function CategorySection({ category, onSystemClick }) {
+// hasPermission 由 Portal 傳入，避免重複載入權限造成閃爍
+export default function CategorySection({ category, onSystemClick, hasPermission }) {
   const { role } = useAuth();
-  const { hasPermission, loading: permissionsLoading } = useUserPermissions();
   const gradientColor = colorVariants[category.color] || colorVariants.stone;
 
   // 根據用戶角色和權限過濾系統
   const visibleSystems = category.systems.filter(system => {
     // 1. 優先檢查權限（如果有設定 permissionCode）
     if (system.permissionCode) {
-      // 權限檢查還在載入中，暫時隱藏（避免閃爍，等載入完成後再顯示）
-      if (permissionsLoading) {
-        return false;
-      }
       // 只要有系統訪問權限就可以看到，不再檢查角色
       return hasPermission(system.permissionCode);
     }

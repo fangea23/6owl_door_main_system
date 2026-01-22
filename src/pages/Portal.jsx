@@ -15,8 +15,8 @@ export default function Portal() {
   const { searchQuery, setSearchQuery, searchResults, isSearching } = useSearch();
   const navigate = useNavigate();
 
-  // 🔒 權限載入狀態 - 用於統一顯示 loading，避免系統逐一出現
-  const { loading: permissionsLoading } = useUserPermissions();
+  // 🔒 權限載入狀態 - 統一在 Portal 獲取，傳遞給子組件避免重複載入
+  const { loading: permissionsLoading, hasPermission } = useUserPermissions();
 
   // 內容準備好顯示的狀態（加入最小延遲，避免閃爍）
   const [contentReady, setContentReady] = useState(false);
@@ -118,7 +118,7 @@ export default function Portal() {
           /* 內容區 - 加入淡入動畫 */
           <div className="animate-fade-in">
             {/* 快捷入口 */}
-            <QuickAccess onSystemClick={handleSystemClick} />
+            <QuickAccess onSystemClick={handleSystemClick} hasPermission={hasPermission} />
 
             {/* 系統類別區塊 */}
             {categories.map(category => (
@@ -126,6 +126,7 @@ export default function Portal() {
                 key={category.id}
                 category={category}
                 onSystemClick={handleSystemClick}
+                hasPermission={hasPermission}
               />
             ))}
           </div>
