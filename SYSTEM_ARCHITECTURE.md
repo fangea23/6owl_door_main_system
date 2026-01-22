@@ -1,0 +1,1249 @@
+# 六扇門主系統 (6owl_door_main_system) 完整技術文檔
+
+**最後更新**: 2026-01-22
+**文檔版本**: 1.0
+**系統狀態**: 多系統整合運行中
+
+---
+
+## 目錄
+
+1. [系統全景](#系統全景)
+2. [整體架構](#整體架構)
+3. [技術棧](#技術棧)
+4. [數據庫架構](#數據庫架構)
+5. [RBAC 權限系統](#rbac-權限系統)
+6. [子系統詳解](#子系統詳解)
+7. [Portal 主系統](#portal-主系統)
+8. [跨系統共用資源](#跨系統共用資源)
+9. [開發模式與最佳實踐](#開發模式與最佳實踐)
+10. [部署與維護](#部署與維護)
+11. [故障排除指南](#故障排除指南)
+
+---
+
+## 系統全景
+
+### 業務概述
+
+**六扇門** 是一個多品牌餐飲集團管理系統，包含以下品牌：
+- 🍜 **六扇門**: 主要餐飲品牌
+- 🍚 **粥大福**: 粥品品牌
+
+系統整合了財務管理、店舖管理、員工管理等多個業務模組，實現完整的企業資源規劃（ERP）功能。
+
+### 系統模組一覽
+
+```
+六扇門主系統
+├── 🏠 Portal (入口系統)
+│   └── 統一認證、權限控制、系統導航
+│
+├── 💰 財務管理
+│   ├── 付款簽核系統 (Payment Approval System)
+│   └── 員工代墊款系統 (Employee Reimbursement System)
+│
+├── 🏪 運營管理
+│   ├── 店舖管理系統 (Store Management System)
+│   └── [其他運營模組]
+│
+└── 👥 人事管理
+    ├── 員工資料管理
+    └── 部門組織架構
+```
+
+---
+
+## 整體架構
+
+### 架構圖
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        前端層 (React)                         │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
+│  │  Portal  │  │  付款簽核  │  │  代墊款   │  │  店舖管理  │   │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    認證與權限層 (Supabase Auth)               │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  RBAC 權限系統 (roles, permissions, role_permissions)  │  │
+│  └──────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   數據層 (Supabase PostgreSQL)               │
+│  ┌────────────┐  ┌────────────┐  ┌────────────┐           │
+│  │   public   │  │  payment_  │  │   其他      │           │
+│  │   schema   │  │  approval  │  │   schema   │           │
+│  │            │  │   schema   │  │            │           │
+│  │ • users    │  │ • requests │  │            │           │
+│  │ • employees│  │ • banks    │  │            │           │
+│  │ • stores   │  │ • branches │  │            │           │
+│  │ • expense_ │  │            │  │            │           │
+│  │   requests │  │            │  │            │           │
+│  └────────────┘  └────────────┘  └────────────┘           │
+│                                                              │
+│  RLS (Row Level Security) 貫穿所有表格                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 設計原則
+
+#### 1. 微前端架構
+每個子系統都是獨立的 React 應用，通過 Portal 整合：
+- **獨立開發**：各系統可獨立開發、測試、部署
+- **統一認證**：共用 Supabase Auth
+- **統一權限**：共用 RBAC 系統
+- **統一導航**：通過 Portal 入口
+
+#### 2. Schema 隔離
+不同業務模組使用不同的 schema：
+- `public`: 共用資料（員工、部門、店舖等）
+- `payment_approval`: 付款簽核專用
+- 其他 schema 依業務需求建立
+
+**優點**：
+- 資料隔離，降低耦合
+- 權限控制更細緻
+- 遷移和備份更靈活
+
+#### 3. RLS 優先安全模型
+所有資料存取都通過 RLS 控制：
+- 前端 RBAC：功能可見性控制
+- 後端 RLS：資料存取安全保障
+- 雙重防護，確保安全
+
+---
+
+## 技術棧
+
+### 前端技術
+
+```javascript
+{
+  "核心框架": "React 18+",
+  "路由": "React Router v6",
+  "狀態管理": "React Hooks (useState, useContext)",
+  "UI框架": "Tailwind CSS",
+  "圖標": "Lucide React",
+  "表單": "原生 React (無額外庫)",
+  "HTTP客戶端": "Supabase JavaScript Client"
+}
+```
+
+### 後端技術
+
+```javascript
+{
+  "數據庫": "PostgreSQL 15+ (via Supabase)",
+  "認證": "Supabase Auth (JWT)",
+  "即時通訊": "Supabase Realtime",
+  "儲存": "Supabase Storage",
+  "API": "Supabase PostgREST (自動生成 REST API)"
+}
+```
+
+### 開發工具
+
+```javascript
+{
+  "包管理器": "npm",
+  "建置工具": "Vite / Create React App",
+  "版本控制": "Git",
+  "程式碼風格": "ESLint + Prettier (可選)",
+  "數據庫遷移": "Supabase CLI"
+}
+```
+
+---
+
+## 數據庫架構
+
+### Schema 設計策略
+
+#### Public Schema (共用資料)
+存放所有系統共用的基礎資料：
+
+```sql
+-- 認證與用戶
+auth.users                    -- Supabase 內建用戶表
+
+-- 組織架構
+public.employees              -- 員工資料
+public.departments            -- 部門
+public.brands                 -- 品牌 (六扇門、粥大福)
+
+-- 店舖相關
+public.stores                 -- 店舖資料
+public.store_managers         -- 店長關聯
+
+-- 代墊款系統
+public.expense_reimbursement_requests   -- 申請主表
+public.expense_reimbursement_items      -- 明細表
+public.expense_approvals                -- 簽核記錄
+
+-- RBAC 權限系統
+public.rbac.roles             -- 角色
+public.rbac.permissions       -- 權限
+public.rbac.role_permissions  -- 角色權限關聯
+public.rbac.user_roles        -- 用戶角色關聯
+```
+
+#### Payment_Approval Schema (付款簽核)
+付款簽核系統專用資料：
+
+```sql
+payment_approval.payment_requests    -- 付款申請
+payment_approval.banks               -- 銀行列表 (共用)
+payment_approval.branches            -- 分行列表 (共用)
+```
+
+### 跨 Schema 關聯規則
+
+**原則**：避免跨 schema 的外鍵約束，使用應用層關聯
+
+```javascript
+// ❌ 錯誤：跨 schema 外鍵
+CREATE TABLE payment_approval.requests (
+  employee_id UUID REFERENCES public.employees(id)  -- 不建議
+);
+
+// ✅ 正確：應用層關聯
+CREATE TABLE payment_approval.requests (
+  employee_id UUID  -- 無外鍵約束，應用層檢查
+);
+
+// 前端查詢時分別取得再組合
+const { data: requests } = await supabase
+  .from('payment_requests')
+  .select('*');
+
+const { data: employees } = await supabase
+  .from('employees')
+  .select('*')
+  .in('id', requests.map(r => r.employee_id));
+
+// 前端組合資料
+const enriched = requests.map(r => ({
+  ...r,
+  employee: employees.find(e => e.id === r.employee_id)
+}));
+```
+
+### 常用表格結構
+
+#### employees (員工表)
+```sql
+CREATE TABLE public.employees (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID UNIQUE REFERENCES auth.users(id),  -- 關聯認證用戶
+  employee_id TEXT UNIQUE NOT NULL,                -- 員工編號
+  name TEXT NOT NULL,                              -- 姓名
+  department_id UUID REFERENCES public.departments(id),
+  role TEXT,                                       -- 業務角色 (boss, audit_manager, accountant 等)
+  status TEXT DEFAULT 'active',                    -- active, inactive, resigned
+  hire_date DATE,
+  resign_date DATE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+#### departments (部門表)
+```sql
+CREATE TABLE public.departments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code TEXT UNIQUE NOT NULL,                       -- 部門代碼
+  name TEXT NOT NULL,                              -- 部門名稱
+  parent_id UUID REFERENCES public.departments(id), -- 上級部門
+  manager_id UUID REFERENCES public.employees(id),  -- 部門主管
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+#### stores (店舖表)
+```sql
+CREATE TABLE public.stores (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_code TEXT UNIQUE NOT NULL,                 -- 店舖代碼
+  name TEXT NOT NULL,                              -- 店舖名稱
+  brand TEXT NOT NULL,                             -- 六扇門 / 粥大福
+  address TEXT,
+  phone TEXT,
+  status TEXT DEFAULT 'active',                    -- active, closed
+  opening_date DATE,
+  closing_date DATE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+---
+
+## RBAC 權限系統
+
+### 架構設計
+
+RBAC (Role-Based Access Control) 系統是整個平台的權限核心。
+
+```
+用戶 (auth.users)
+    │
+    │ N:M (透過 user_roles)
+    ▼
+角色 (rbac.roles)
+    │
+    │ N:M (透過 role_permissions)
+    ▼
+權限 (rbac.permissions)
+```
+
+### 核心表格
+
+#### rbac.roles (角色表)
+```sql
+CREATE TABLE rbac.roles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code TEXT UNIQUE NOT NULL,                       -- 角色代碼 (ceo, boss, accountant...)
+  name TEXT NOT NULL,                              -- 角色名稱
+  description TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**常見角色**：
+- `ceo`: 總經理
+- `boss`: 放行主管
+- `audit_manager`: 審核主管
+- `accountant`: 會計
+- `cashier`: 出納
+- `unit_manager`: 單位主管
+- `store_manager`: 店長
+- `employee`: 一般員工
+
+#### rbac.permissions (權限表)
+```sql
+CREATE TABLE rbac.permissions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code TEXT UNIQUE NOT NULL,                       -- 權限代碼 (payment.approve.boss)
+  name TEXT NOT NULL,                              -- 權限名稱
+  description TEXT,
+  module TEXT NOT NULL,                            -- 所屬模組 (payment_approval, expense_reimbursement)
+  category TEXT NOT NULL,                          -- 分類 (read, write, approve, delete)
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**權限命名規範**：
+```
+<module>.<action>.<scope>
+
+例如：
+- payment.view.own          # 查看自己的付款申請
+- payment.view.all          # 查看所有付款申請
+- payment.approve.boss      # 放行主管簽核
+- expense.create            # 建立代墊款申請
+- system.payment_approval   # 訪問付款簽核系統
+```
+
+#### rbac.role_permissions (角色權限關聯)
+```sql
+CREATE TABLE rbac.role_permissions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  role_id UUID NOT NULL REFERENCES rbac.roles(id) ON DELETE CASCADE,
+  permission_id UUID NOT NULL REFERENCES rbac.permissions(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(role_id, permission_id)
+);
+```
+
+#### rbac.user_roles (用戶角色關聯)
+```sql
+CREATE TABLE rbac.user_roles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  role_id UUID NOT NULL REFERENCES rbac.roles(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, role_id)
+);
+```
+
+### 前端權限檢查
+
+#### usePermission Hook
+```javascript
+// src/hooks/usePermission.js
+import { useState, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
+
+export const usePermission = (permissionCode) => {
+  const [hasPermission, setHasPermission] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const checkPermission = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setHasPermission(false);
+        setLoading(false);
+        return;
+      }
+
+      // 查詢用戶是否擁有該權限
+      const { data, error } = await supabase.rpc('check_user_permission', {
+        p_user_id: user.id,
+        p_permission_code: permissionCode
+      });
+
+      setHasPermission(data || false);
+      setLoading(false);
+    };
+
+    checkPermission();
+  }, [permissionCode]);
+
+  return { hasPermission, loading };
+};
+```
+
+#### 使用範例
+```javascript
+import { usePermission } from '../hooks/usePermission';
+
+function ApprovalButton() {
+  const { hasPermission, loading } = usePermission('payment.approve.boss');
+
+  if (loading) return <Loader />;
+  if (!hasPermission) return null;  // 無權限則不顯示按鈕
+
+  return (
+    <button onClick={handleApprove}>
+      核准
+    </button>
+  );
+}
+```
+
+### 資料庫權限檢查函數
+
+```sql
+-- 檢查用戶是否有特定權限
+CREATE OR REPLACE FUNCTION public.check_user_permission(
+  p_user_id UUID,
+  p_permission_code TEXT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1
+    FROM rbac.user_roles ur
+    JOIN rbac.role_permissions rp ON ur.role_id = rp.role_id
+    JOIN rbac.permissions p ON rp.permission_id = p.id
+    WHERE ur.user_id = p_user_id
+      AND p.code = p_permission_code
+      AND p.deleted_at IS NULL
+  );
+END;
+$$;
+```
+
+---
+
+## 子系統詳解
+
+### 1. 付款簽核系統 (Payment Approval System)
+
+**路徑**: `src/system/payment_system/`
+**Schema**: `payment_approval`
+**狀態**: ✅ 已上線
+
+#### 核心功能
+- 員工提交付款申請
+- 多關卡簽核流程：單位主管 → 會計 → 審核主管 → 出納 → 放行主管
+- 自動跳過邏輯（申請人是會計時自動跳過會計關卡）
+- 銀行/分行資料管理
+
+#### 簽核流程
+```
+pending_unit_manager (單位主管)
+    ↓
+pending_accountant (會計) [*可跳過]
+    ↓
+pending_audit_manager (審核主管)
+    ↓
+pending_cashier (出納)
+    ↓
+pending_boss (放行主管)
+    ↓
+approved (已核准)
+```
+
+#### 關鍵設計
+- **狀態驅動**：使用 `status` 和 `current_step` 追蹤流程
+- **時間戳記錄**：每個關卡都有 `sign_xxx_at` 記錄簽核時間
+- **URL 記錄**：`sign_xxx_url` 記錄簽核來源（按鈕 or 自動跳過）
+- **手續費管理**：出納可填寫 `handling_fee`
+
+#### 資料表
+```sql
+payment_approval.payment_requests (
+  id, request_number, applicant_id, amount,
+  status, current_step,
+  bank_name, account_number,
+  sign_unit_manager_at, sign_accountant_at, sign_audit_manager_at,
+  sign_cashier_at, sign_boss_at,
+  handling_fee, rejection_reason, ...
+)
+```
+
+### 2. 員工代墊款系統 (Employee Reimbursement System)
+
+**路徑**: `src/system/expense_reimbursement_system/`
+**Schema**: `public`
+**狀態**: ✅ 已開發完成，待測試部署
+
+#### 核心功能
+- 員工填寫代墊款申請（最多 15 行明細）
+- 根據金額自動路由簽核流程
+- 多品牌分帳（六扇門、粥大福）
+- 兩種撥款方式（領現、匯款）
+- 品項必填驗證
+
+#### 簽核流程
+```
+送出申請
+    │
+    ├─ 金額 ≥ NT$30,000 → pending_ceo (總經理)
+    │                         ↓
+    └─ 金額 < NT$30,000 → pending_boss (放行主管)
+                              ↓
+                      pending_audit_manager (審核主管)
+                              ↓
+                          approved (已核准)
+```
+
+#### 關鍵設計
+- **無草稿功能**：直接送出進入簽核（與付款系統一致）
+- **品項必填**：有金額的項目必須填寫品項
+- **防重複簽核**：前端檢查，同一用戶不能重複簽核
+- **先記錄後更新**：先插入簽核記錄，再更新申請狀態
+- **跨 schema 資料**：銀行/分行資料來自 `payment_approval` schema
+
+#### 資料表
+```sql
+public.expense_reimbursement_requests (
+  id, request_number, applicant_id, department_id,
+  total_amount, brand_totals (JSONB),
+  payment_method, bank_name, account_number,
+  status, current_approver_id, ...
+)
+
+public.expense_reimbursement_items (
+  id, request_id, line_number (1-15),
+  category, description, amount, receipt_count,
+  cost_allocation (六扇門/粥大福), usage_note, ...
+)
+
+public.expense_approvals (
+  id, request_id, approver_id, approval_type,
+  approval_order, status, comment, approved_at
+)
+```
+
+#### 已解決的關鍵問題
+1. **簽核人無法更新狀態** → 新增 RLS 政策允許簽核人更新
+2. **簽核記錄插入失敗** → 簡化 RLS 政策，不依賴 `current_approver_id`
+3. **跨 schema 查詢失敗** → 自訂 supabaseClient 進行 schema 路由
+4. **品項顯示問題** → 新增品項必填驗證與視覺提示
+
+**詳細文檔**: `/src/system/expense_reimbursement_system/SYSTEM_DOCUMENTATION.md`
+
+### 3. 店舖管理系統 (Store Management System)
+
+**路徑**: `src/system/store_management_system/`
+**Schema**: `public`
+**狀態**: 🚧 開發中
+
+#### 核心功能
+- 店舖基本資料管理
+- 店長指派
+- 品牌關聯（六扇門、粥大福）
+
+#### 資料表
+```sql
+public.stores (
+  id, store_code, name, brand,
+  address, phone, status,
+  opening_date, closing_date, ...
+)
+
+public.store_managers (
+  id, store_id, employee_id,
+  assigned_at, removed_at
+)
+```
+
+---
+
+## Portal 主系統
+
+**路徑**: `src/`
+**功能**: 統一入口、認證、導航
+
+### 核心組件
+
+#### 1. App.jsx (主路由)
+```javascript
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import Portal from './Portal';
+import PaymentSystem from './system/payment_system';
+import ExpenseSystem from './system/expense_reimbursement_system';
+import StoreSystem from './system/store_management_system';
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Portal />} />
+        <Route path="/systems/payment-approval/*" element={<PaymentSystem />} />
+        <Route path="/systems/expense-reimbursement/*" element={<ExpenseSystem />} />
+        <Route path="/systems/store-management/*" element={<StoreSystem />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+```
+
+#### 2. Portal.jsx (系統入口)
+```javascript
+// 根據 RBAC 權限顯示系統卡片
+const systems = [
+  {
+    id: 'payment-approval',
+    name: '付款簽核系統',
+    permissionCode: 'system.payment_approval',
+    url: '/systems/payment-approval'
+  },
+  {
+    id: 'expense-reimbursement',
+    name: '員工代墊款系統',
+    permissionCode: 'system.expense_reimbursement',
+    url: '/systems/expense-reimbursement'
+  },
+  // ...
+];
+
+// 過濾用戶有權限的系統
+const accessibleSystems = systems.filter(sys =>
+  hasPermission(sys.permissionCode)
+);
+```
+
+#### 3. 系統配置檔 (data/systems.js)
+```javascript
+export const systemsData = [
+  {
+    id: 'finance',
+    name: '財務管理',
+    systems: [
+      {
+        id: 'payment-approval',
+        name: '付款簽核系統',
+        description: '公司付款流程審核與管理',
+        icon: '💰',
+        url: '/systems/payment-approval',
+        status: 'active',
+        permissionCode: 'system.payment_approval'
+      },
+      {
+        id: 'expense-reimbursement',
+        name: '員工代墊款系統',
+        description: '員工費用報銷申請與審核',
+        icon: '💸',
+        url: '/systems/expense-reimbursement',
+        status: 'active',
+        permissionCode: 'system.expense_reimbursement'
+      }
+    ]
+  },
+  {
+    id: 'operations',
+    name: '運營管理',
+    systems: [
+      {
+        id: 'store-management',
+        name: '店舖管理系統',
+        description: '店舖資料與店長管理',
+        icon: '🏪',
+        url: '/systems/store-management',
+        status: 'active',
+        permissionCode: 'system.store_management'
+      }
+    ]
+  }
+];
+```
+
+---
+
+## 跨系統共用資源
+
+### 1. 共用組件
+
+#### SearchableSelect (可搜尋下拉選單)
+**路徑**: `src/system/*/src/components/SearchableSelect.jsx`
+
+**功能**：
+- 輸入搜尋過濾選項
+- 鍵盤導航（上下鍵、Enter、Esc）
+- 自訂樣式主題
+
+**使用範例**：
+```javascript
+<SearchableSelect
+  options={bankList.map(bank => ({
+    value: bank.bank_code,
+    label: bank.bank_name,
+    subLabel: `(${bank.bank_code})`
+  }))}
+  value={selectedBank}
+  onChange={handleBankChange}
+  placeholder="請選擇銀行"
+  loading={loading}
+  loadingText="載入中..."
+/>
+```
+
+### 2. 共用 Hooks
+
+#### usePermission (權限檢查)
+**路徑**: `src/hooks/usePermission.js`
+
+```javascript
+const { hasPermission, loading } = usePermission('payment.approve.boss');
+```
+
+#### useAuth (認證狀態)
+**路徑**: 各系統的 `AuthContext.jsx`
+
+```javascript
+const { user, session, loading } = useAuth();
+```
+
+### 3. 共用資料
+
+#### 銀行/分行資料
+**Schema**: `payment_approval`
+**表格**: `banks`, `branches`
+
+**跨系統存取**：
+```javascript
+// 透過自訂 supabaseClient 路由
+const PAYMENT_APPROVAL_TABLES = ['banks', 'branches'];
+
+export const supabase = {
+  from: (table) => {
+    if (PAYMENT_APPROVAL_TABLES.includes(table)) {
+      return mainClient.schema('payment_approval').from(table);
+    }
+    return mainClient.from(table);
+  }
+};
+```
+
+#### 員工/部門資料
+**Schema**: `public`
+**表格**: `employees`, `departments`
+
+**所有系統共用**，無需特殊處理。
+
+---
+
+## 開發模式與最佳實踐
+
+### 1. 新增子系統流程
+
+#### Step 1: 建立目錄結構
+```bash
+src/system/new_system/
+├── src/
+│   ├── pages/
+│   │   ├── Dashboard.jsx
+│   │   └── Detail.jsx
+│   ├── components/
+│   ├── hooks/
+│   ├── supabaseClient.js
+│   ├── AuthContext.jsx
+│   ├── AuthWrapper.jsx
+│   ├── App.jsx
+│   └── index.jsx
+├── public/
+└── package.json
+```
+
+#### Step 2: 註冊到 Portal
+```javascript
+// src/data/systems.js
+{
+  id: 'new-system',
+  name: '新系統名稱',
+  permissionCode: 'system.new_system',
+  url: '/systems/new-system',
+  status: 'active'
+}
+```
+
+#### Step 3: 新增路由
+```javascript
+// src/App.jsx
+<Route path="/systems/new-system/*" element={<NewSystem />} />
+```
+
+#### Step 4: 建立 RBAC 權限
+```sql
+-- 系統存取權限
+INSERT INTO rbac.permissions (code, name, module, category) VALUES
+  ('system.new_system', '訪問新系統', 'system_access', 'access');
+
+-- 功能權限
+INSERT INTO rbac.permissions (code, name, module, category) VALUES
+  ('new_system.view', '查看資料', 'new_system', 'read'),
+  ('new_system.create', '建立資料', 'new_system', 'write');
+
+-- 分配給角色
+INSERT INTO rbac.role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM rbac.roles r, rbac.permissions p
+WHERE r.code = 'admin' AND p.code IN ('system.new_system', 'new_system.view', 'new_system.create');
+```
+
+### 2. RLS 政策設計模式
+
+#### 模式 1: 用戶只能看自己的資料
+```sql
+CREATE POLICY "Users can view their own records"
+  ON public.table_name
+  FOR SELECT
+  USING (auth.uid() = user_id);
+```
+
+#### 模式 2: 多角色存取
+```sql
+-- 申請人可查看
+CREATE POLICY "Applicants can view"
+  ON public.table_name
+  FOR SELECT
+  USING (auth.uid() = applicant_id);
+
+-- 簽核人可查看
+CREATE POLICY "Approvers can view"
+  ON public.table_name
+  FOR SELECT
+  USING (auth.uid() = approver_id);
+
+-- 兩個政策是 OR 關係，滿足任一即可
+```
+
+#### 模式 3: 狀態驅動的權限
+```sql
+-- 申請人只能更新草稿
+CREATE POLICY "Applicants update draft"
+  ON public.table_name
+  FOR UPDATE
+  USING (auth.uid() = applicant_id AND status = 'draft')
+  WITH CHECK (auth.uid() = applicant_id);
+
+-- 簽核人可更新待簽核
+CREATE POLICY "Approvers update pending"
+  ON public.table_name
+  FOR UPDATE
+  USING (status IN ('pending_xxx', 'pending_yyy'))
+  WITH CHECK (status IN ('approved', 'rejected'));
+```
+
+### 3. 跨 Schema 查詢模式
+
+#### ❌ 錯誤：嵌套跨 schema 查詢
+```javascript
+// 這會失敗
+const { data } = await supabase
+  .from('table_in_schema_a')
+  .select('*, related:table_in_schema_b(name)');
+```
+
+#### ✅ 正確：分別查詢 + 前端組合
+```javascript
+// 1. 查詢主表
+const { data: records } = await supabase
+  .from('table_in_schema_a')
+  .select('*');
+
+// 2. 查詢關聯表
+const relatedIds = records.map(r => r.related_id);
+const { data: related } = await supabase
+  .from('table_in_schema_b')
+  .select('*')
+  .in('id', relatedIds);
+
+// 3. 前端組合
+const enriched = records.map(r => ({
+  ...r,
+  related_data: related.find(rel => rel.id === r.related_id)
+}));
+```
+
+### 4. 防重複操作模式
+
+```javascript
+// 前端檢查
+const hasProcessed = records.find(
+  r => r.user_id === currentUser.id && r.status === 'completed'
+);
+
+if (hasProcessed) {
+  alert('您已經處理過此項目');
+  return;
+}
+
+// 執行操作...
+```
+
+### 5. 簽核流程通用模式
+
+```javascript
+// 1. 防重複檢查
+const existingApproval = approvals.find(
+  a => a.approver_id === user.id
+);
+if (existingApproval) return;
+
+// 2. 取得配置
+const config = WORKFLOW_CONFIG[currentStatus];
+
+// 3. 先插入記錄
+await supabase.from('approvals').insert({
+  request_id: id,
+  approver_id: user.id,
+  status: 'approved'
+});
+
+// 4. 再更新狀態
+await supabase.from('requests').update({
+  status: config.nextStatus
+}).eq('id', id);
+
+// 5. 重新載入
+await fetchData();
+```
+
+---
+
+## 部署與維護
+
+### 數據庫遷移管理
+
+#### 命名規範
+```
+<操作>_<模組>_<描述>.sql
+
+例如：
+- create_expense_reimbursement_system.sql
+- add_expense_reimbursement_permissions.sql
+- fix_expense_approver_update_rls.sql
+- alter_payment_requests_add_column.sql
+```
+
+#### 執行順序
+```bash
+# 1. 建立表格
+supabase migration apply create_*.sql
+
+# 2. 新增權限
+supabase migration apply add_*_permissions.sql
+
+# 3. 修正政策
+supabase migration apply fix_*.sql
+
+# 4. 調整結構
+supabase migration apply alter_*.sql
+```
+
+### 環境配置
+
+#### 開發環境 (.env.development)
+```bash
+VITE_SUPABASE_URL=http://localhost:54321
+VITE_SUPABASE_ANON_KEY=your-local-anon-key
+```
+
+#### 生產環境 (.env.production)
+```bash
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-production-anon-key
+```
+
+### 部署檢查清單
+
+- [ ] 所有 SQL migrations 已執行
+- [ ] RBAC 權限已正確配置
+- [ ] RLS 政策已啟用並測試
+- [ ] 環境變數已設定
+- [ ] 前端已建置（`npm run build`）
+- [ ] 功能測試通過
+- [ ] 權限測試通過
+- [ ] 跨瀏覽器測試通過
+
+---
+
+## 故障排除指南
+
+### 常見問題
+
+#### 1. 權限錯誤："You do not have permission..."
+
+**可能原因**：
+- RBAC 權限未配置
+- RLS 政策阻擋
+- 用戶未分配角色
+
+**排查步驟**：
+```sql
+-- 1. 檢查用戶角色
+SELECT r.code, r.name
+FROM rbac.user_roles ur
+JOIN rbac.roles r ON ur.role_id = r.id
+WHERE ur.user_id = 'user-uuid';
+
+-- 2. 檢查角色權限
+SELECT p.code, p.name
+FROM rbac.role_permissions rp
+JOIN rbac.permissions p ON rp.permission_id = p.id
+WHERE rp.role_id = 'role-uuid';
+
+-- 3. 測試 RLS 政策
+SET ROLE authenticated;
+SET request.jwt.claim.sub = 'user-uuid';
+SELECT * FROM table_name;  -- 看能否查詢
+```
+
+#### 2. 跨 Schema 查詢失敗
+
+**錯誤訊息**：`Could not find the table` 或 `Could not find a relationship`
+
+**解決方案**：
+- 使用自訂 supabaseClient 進行 schema 路由
+- 避免嵌套跨 schema 查詢
+- 改用分別查詢 + 前端組合
+
+#### 3. 簽核流程卡住
+
+**可能原因**：
+- RLS 政策阻止簽核人更新狀態
+- 防重複邏輯誤判
+- 狀態轉換配置錯誤
+
+**排查步驟**：
+```javascript
+// 1. 檢查當前狀態
+console.log('Current status:', request.status);
+
+// 2. 檢查配置
+console.log('Config:', WORKFLOW_CONFIG[request.status]);
+
+// 3. 檢查簽核記錄
+console.log('Approvals:', approvals);
+
+// 4. 檢查 RLS 政策
+// 在資料庫中檢查相關 UPDATE 政策
+```
+
+#### 4. 資料不同步
+
+**可能原因**：
+- 未重新載入資料
+- Realtime 訂閱失效
+- 快取問題
+
+**解決方案**：
+```javascript
+// 手動重新載入
+await fetchData();
+
+// 或使用 Realtime 訂閱
+const subscription = supabase
+  .channel('table-changes')
+  .on('postgres_changes', {
+    event: '*',
+    schema: 'public',
+    table: 'table_name'
+  }, (payload) => {
+    // 更新本地狀態
+    setData(prev => /* ... */);
+  })
+  .subscribe();
+```
+
+---
+
+## 系統維護指南
+
+### 日常維護任務
+
+#### 每日
+- [ ] 檢查系統錯誤日誌
+- [ ] 監控 API 回應時間
+- [ ] 檢查用戶回報問題
+
+#### 每週
+- [ ] 檢查數據庫效能
+- [ ] 檢查 RLS 政策效能
+- [ ] 備份數據庫
+
+#### 每月
+- [ ] 審查權限配置
+- [ ] 清理過期資料
+- [ ] 更新依賴套件
+- [ ] 效能優化
+
+### 數據庫維護
+
+#### 索引優化
+```sql
+-- 檢查缺少索引的查詢
+SELECT * FROM pg_stat_user_tables
+WHERE idx_scan < seq_scan
+  AND seq_scan > 10000;
+
+-- 新增索引
+CREATE INDEX idx_table_column ON table_name(column_name);
+```
+
+#### 清理過期資料
+```sql
+-- 軟刪除資料清理（超過1年）
+DELETE FROM table_name
+WHERE deleted_at < NOW() - INTERVAL '1 year';
+
+-- 歸檔舊資料
+INSERT INTO archive.table_name
+SELECT * FROM public.table_name
+WHERE created_at < NOW() - INTERVAL '2 years';
+
+DELETE FROM public.table_name
+WHERE created_at < NOW() - INTERVAL '2 years';
+```
+
+---
+
+## 附錄
+
+### A. 完整權限清單
+
+#### 系統存取權限
+```sql
+system.payment_approval
+system.expense_reimbursement
+system.store_management
+```
+
+#### 付款簽核權限
+```sql
+payment.view.own
+payment.view.all
+payment.create
+payment.edit.own
+payment.delete.own
+payment.approve.unit_manager
+payment.approve.accountant
+payment.approve.audit_manager
+payment.approve.cashier
+payment.approve.boss
+payment.reject
+payment.manage_fee
+```
+
+#### 代墊款權限
+```sql
+expense.view.own
+expense.view.all
+expense.create
+expense.edit.own
+expense.delete.own
+expense.approve.ceo
+expense.approve.boss
+expense.approve.audit_manager
+expense.cancel
+```
+
+### B. 常用 SQL 函數
+
+#### 檢查用戶權限
+```sql
+CREATE OR REPLACE FUNCTION check_user_permission(
+  p_user_id UUID,
+  p_permission_code TEXT
+)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1
+    FROM rbac.user_roles ur
+    JOIN rbac.role_permissions rp ON ur.role_id = rp.role_id
+    JOIN rbac.permissions p ON rp.permission_id = p.id
+    WHERE ur.user_id = p_user_id
+      AND p.code = p_permission_code
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+#### 取得用戶所有權限
+```sql
+CREATE OR REPLACE FUNCTION get_user_permissions(p_user_id UUID)
+RETURNS TABLE (permission_code TEXT) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT DISTINCT p.code
+  FROM rbac.user_roles ur
+  JOIN rbac.role_permissions rp ON ur.role_id = rp.role_id
+  JOIN rbac.permissions p ON rp.permission_id = p.id
+  WHERE ur.user_id = p_user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+### C. 參考資源
+
+- [Supabase 官方文檔](https://supabase.com/docs)
+- [PostgreSQL RLS 文檔](https://www.postgresql.org/docs/current/ddl-rowsecurity.html)
+- [React Router 文檔](https://reactrouter.com/)
+- [Tailwind CSS 文檔](https://tailwindcss.com/docs)
+
+---
+
+## 版本歷史
+
+| 版本 | 日期 | 變更內容 | 負責人 |
+|------|------|----------|--------|
+| 1.0 | 2026-01-22 | 初版完成，包含三大子系統文檔 | Claude AI |
+
+---
+
+**最後更新**: 2026-01-22
+**文檔維護**: Claude AI Assistant
+**系統狀態**: 生產環境運行中
+
+---
+
+**注意事項**：
+- 本文檔為技術文檔，包含敏感的系統架構資訊，請妥善保管
+- 定期更新文檔以反映最新的系統變更
+- 新功能開發前請先閱讀相關章節
+- 遇到問題請先查閱故障排除指南
