@@ -706,7 +706,7 @@ const handleSaveInvoice = async () => {
                                         <h4 className="text-red-800 font-bold mb-1">案件已駁回</h4>
                                         <p className="text-red-600 text-sm mb-3">{request.rejection_reason}</p>
                                         {/* 只有申請人本人可以修改被駁回的申請 */}
-                                        {request.requester_id === user?.id && canCreate && (
+                                        {request.applicant_id === user?.id && canCreate && (
                                             <button onClick={handleEdit} className="w-full py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-bold flex items-center justify-center gap-2">
                                                 <Edit2 size={16} /> 修改並重新送出
                                             </button>
@@ -716,7 +716,7 @@ const handleSaveInvoice = async () => {
                                     <div className="bg-gray-100 border border-gray-300 rounded-lg p-4 text-center">
                                         <h4 className="text-gray-600 font-bold mb-1">案件已撤銷</h4>
                                         {/* 只有申請人本人可以恢復被撤銷的申請 */}
-                                        {request.requester_id === user?.id && canCreate && (
+                                        {request.applicant_id === user?.id && canCreate && (
                                             <button onClick={handleEdit} className="mt-3 w-full py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm font-bold flex items-center justify-center gap-2">
                                                 <Edit2 size={16} /> 恢復並重新送出
                                             </button>
@@ -730,7 +730,7 @@ const handleSaveInvoice = async () => {
                                 ) : (
                                     <div className="space-y-4">
                                         {/* 只有申請人本人可以撤銷申請 (且申請尚未被簽核過) */}
-                                        {request.requester_id === user?.id && canCancel && !hasAnySignature && (
+                                        {request.applicant_id === user?.id && canCancel && !hasAnySignature && (
                                             <div className="p-4 bg-white border border-stone-200 rounded-lg shadow-sm">
                                                 <h4 className="font-bold text-gray-700 mb-2">管理申請</h4>
                                                 <button onClick={handleRevoke} className="w-full py-2.5 px-4 bg-red-600 text-white hover:bg-red-700 rounded-md text-sm font-bold transition-colors flex items-center justify-center gap-2 shadow-sm">
@@ -741,7 +741,7 @@ const handleSaveInvoice = async () => {
                                         )}
 
                                         {/* 如果已有簽核紀錄，顯示提示 */}
-                                        {request.requester_id === user?.id && hasAnySignature && request.status !== 'rejected' && request.status !== 'revoked' && (
+                                        {request.applicant_id === user?.id && hasAnySignature && request.status !== 'rejected' && request.status !== 'revoked' && (
                                             <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
                                                 <h4 className="font-bold text-amber-800 mb-1 flex items-center gap-2">
                                                     <Shield size={16} /> 申請已進入簽核流程
@@ -823,7 +823,7 @@ const handleSaveInvoice = async () => {
                                             </div>
                                         ) : (
                                             /* 非申請人且無審核權限：顯示等待提示 */
-                                            request.requester_id !== user?.id && (
+                                            request.applicant_id !== user?.id && (
                                                 <div className="p-4 bg-stone-50 border border-stone-200 text-stone-400 rounded text-center text-sm flex flex-col items-center">
                                                     <Loader2 className="animate-spin mb-1" size={16} /> 等待 <span className="font-bold">{currentConfig.label}</span> 簽核...
                                                 </div>

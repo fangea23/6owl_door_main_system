@@ -106,7 +106,7 @@ BEGIN
       v_message := '您的付款申請（' || NEW.payee_name || '）已完成所有審核流程，金額：' || v_amount;
 
       -- 通知申請人
-      v_user_ids := ARRAY[NEW.requester_id];
+      v_user_ids := ARRAY[NEW.applicant_id];
 
     -- === 已拒絕 ===
     WHEN 'rejected' THEN
@@ -114,7 +114,7 @@ BEGIN
       v_message := '您的付款申請（' || NEW.payee_name || '）已被拒絕';
 
       -- 通知申請人
-      v_user_ids := ARRAY[NEW.requester_id];
+      v_user_ids := ARRAY[NEW.applicant_id];
 
     ELSE
       -- 其他狀態不發通知
