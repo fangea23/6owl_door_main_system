@@ -12,6 +12,7 @@ export const Vehicles = () => {
   const [editingVehicle, setEditingVehicle] = useState(null);
 
   // RBAC 權限檢查
+  const { hasPermission: canView, loading: viewLoading } = usePermission('car.vehicle.view');
   const { hasPermission: canCreate } = usePermission('car.vehicle.create');
   const { hasPermission: canEdit } = usePermission('car.vehicle.edit');
   const { hasPermission: canDelete } = usePermission('car.vehicle.delete');
@@ -146,12 +147,37 @@ export const Vehicles = () => {
     }
   };
 
-  if (loading) {
+  if (loading || viewLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">載入中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 權限檢查：必須有 car.vehicle.view 權限才能查看車輛清單
+  if (!canView) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md text-center border border-red-100">
+          <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Shield size={32} />
+          </div>
+          <h2 className="text-2xl font-bold text-stone-800 mb-2">無查看權限</h2>
+          <p className="text-gray-600 mb-4">您沒有查看車輛清單的權限</p>
+          <div className="bg-gray-50 p-4 rounded-lg text-left">
+            <p className="text-sm font-medium text-gray-700 mb-2">需要以下權限：</p>
+            <ul className="text-sm text-gray-600 space-y-1">
+              <li className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-rose-500 rounded-full"></span>
+                查看車輛清單 (car.vehicle.view)
+              </li>
+            </ul>
+          </div>
+          <p className="text-xs text-gray-500 mt-4">請聯絡系統管理員申請權限</p>
         </div>
       </div>
     );

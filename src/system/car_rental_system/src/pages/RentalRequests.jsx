@@ -15,6 +15,7 @@ export const RentalRequests = () => {
   const { hasPermission: canCreate } = usePermission('car.request.create');
   const { hasPermission: canApprove } = usePermission('car.approve');
   const { hasPermission: canViewAll } = usePermission('car.request.view.all');
+  const { hasPermission: canCancelOwn } = usePermission('car.request.cancel.own');
   
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState('all');
@@ -77,8 +78,26 @@ export const RentalRequests = () => {
 
   // 2. 處理取消 (新增邏輯)
   const handleCancel = async (request) => {
+    // RBAC 權限檢查：只能取消自己的申請
+    if (!canCancelOwn) {
+      toast.error('您沒有取消申請的權限');
+      return;
+    }
+
+    // 檢查是否是自己的申請
+    if (!employee) {
+      toast.error('無法確認您的員工身分，請重新登入');
+      return;
+    }
+
+    const isOwnRequest = request.requester?.id === employee.id;
+    if (!isOwnRequest) {
+      toast.error('您只能取消自己的申請');
+      return;
+    }
+
     const isApproved = request.status === 'approved';
-    
+
     // 根據狀態顯示不同的警告訊息
     const message = isApproved
       ? '⚠️ 警告：此申請已核准並預約車輛。\n\n取消後將會：\n1. 釋放該車輛供他人租借\n2. 刪除相關的租借紀錄\n\n確定要繼續嗎？'
@@ -232,8 +251,11 @@ export const RentalRequests = () => {
                   </button>
                 )}
 
-                {/* 取消按鈕：在 pending 或 approved 顯示 */}
-                {(request.status === 'pending' || request.status === 'approved') && (
+                {/* 取消按鈕：在 pending 或 approved 顯示，且只能取消自己的申請 */}
+                {(request.status === 'pending' || request.status === 'approved') &&
+                 canCancelOwn &&
+                 employee &&
+                 request.requester?.id === employee.id && (
                   <button
                     onClick={() => handleCancel(request)}
                     className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors border ${
