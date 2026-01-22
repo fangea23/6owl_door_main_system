@@ -383,15 +383,29 @@ export default function ApplyForm() {
         // 編輯模式：更新現有申請
         // ⚠️ 重要：先刪除舊資料，再更新狀態（避免 RLS 政策阻擋）
 
-        // 1. 先刪除舊的明細（在狀態還是 rejected 時刪除）
-        const { error: deleteError } = await supabase
+        // 1. 先檢查有多少舊的明細
+        const { count: existingCount } = await supabase
+          .from('expense_reimbursement_items')
+          .select('*', { count: 'exact', head: true })
+          .eq('request_id', editId);
+
+        // 2. 刪除舊的明細（使用 .select() 確認實際刪除的筆數）
+        const { data: deletedItems, error: deleteError } = await supabase
           .from('expense_reimbursement_items')
           .delete()
-          .eq('request_id', editId);
+          .eq('request_id', editId)
+          .select();
 
         if (deleteError) throw deleteError;
 
-        // 2. 刪除舊的簽核紀錄
+        // 3. 驗證刪除是否成功（如果有舊資料但沒刪到，可能是 RLS 問題）
+        if (existingCount > 0 && (!deletedItems || deletedItems.length === 0)) {
+          throw new Error('無法刪除舊的明細項目，請確認權限設定或聯繫管理員');
+        }
+
+        console.log(`已刪除 ${deletedItems?.length || 0} 筆舊明細`);
+
+        // 4. 刪除舊的簽核紀錄
         const { error: deleteApprovalsError } = await supabase
           .from('expense_approvals')
           .delete()
@@ -399,7 +413,7 @@ export default function ApplyForm() {
 
         if (deleteApprovalsError) throw deleteApprovalsError;
 
-        // 3. 最後才更新 request 狀態
+        // 5. 最後才更新 request 狀態
         const { error: updateError } = await supabase
           .from('expense_reimbursement_requests')
           .update(requestData)
@@ -436,11 +450,31 @@ export default function ApplyForm() {
         }));
 
       if (itemsToInsert.length > 0) {
+        // 使用 upsert 取代 insert，避免 duplicate key 錯誤
+        // onConflict: 如果 (request_id, line_number) 已存在則更新
         const { error: itemsError } = await supabase
           .from('expense_reimbursement_items')
-          .insert(itemsToInsert);
+          .upsert(itemsToInsert, {
+            onConflict: 'request_id,line_number',
+            ignoreDuplicates: false, // 不忽略，而是更新
+          });
 
         if (itemsError) throw itemsError;
+      }
+
+      // 編輯模式：刪除不再使用的 line_number（金額為 0 的行）
+      if (isEditMode) {
+        const usedLineNumbers = itemsToInsert.map(item => item.line_number);
+        const { error: cleanupError } = await supabase
+          .from('expense_reimbursement_items')
+          .delete()
+          .eq('request_id', requestId)
+          .not('line_number', 'in', `(${usedLineNumbers.join(',')})`);
+
+        if (cleanupError) {
+          console.warn('清理未使用的明細項目失敗:', cleanupError);
+          // 不拋出錯誤，因為主要操作已完成
+        }
       }
 
       const actionText = isEditMode ? '重新送出' : '送出';
