@@ -254,6 +254,8 @@ export default function CourseDetail() {
         .from('training_quiz_attempts')
         .insert({
           enrollment_id: enrollment.id,
+          user_id: user.id,
+          course_id: courseId,
           attempt_number: attemptCount + 1,
           score,
           total_points: totalPoints,

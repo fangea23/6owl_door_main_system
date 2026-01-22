@@ -273,7 +273,19 @@ export default function AdminDashboard() {
 
   // 處理刪除
   const handleDelete = async (course) => {
-    if (!confirm(`確定要刪除「${course.title}」嗎？此操作無法復原。`)) return;
+    // 檢查是否有學習記錄
+    const { count: enrollmentCount } = await supabase
+      .from('training_enrollments')
+      .select('*', { count: 'exact', head: true })
+      .eq('course_id', course.id);
+
+    let confirmMessage = `確定要刪除「${course.title}」嗎？`;
+    if (enrollmentCount > 0) {
+      confirmMessage += `\n\n警告：此課程有 ${enrollmentCount} 筆學習記錄，刪除後將一併移除所有學習進度和測驗記錄。`;
+    }
+    confirmMessage += '\n\n此操作無法復原！';
+
+    if (!confirm(confirmMessage)) return;
 
     try {
       const { error } = await supabase
@@ -285,9 +297,17 @@ export default function AdminDashboard() {
 
       // 更新本地狀態
       setCourses(prev => prev.filter(c => c.id !== course.id));
+
+      // 更新統計
+      setStats(prev => ({
+        ...prev,
+        totalCourses: prev.totalCourses - 1,
+        publishedCourses: course.is_published ? prev.publishedCourses - 1 : prev.publishedCourses,
+        totalEnrollments: prev.totalEnrollments - (enrollmentCount || 0),
+      }));
     } catch (err) {
       console.error('刪除失敗:', err);
-      alert('刪除失敗，請稍後再試');
+      alert('刪除失敗：' + (err.message || '請稍後再試'));
     }
   };
 

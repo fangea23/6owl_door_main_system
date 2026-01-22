@@ -114,6 +114,8 @@ CREATE TABLE IF NOT EXISTS training_lesson_progress (
 CREATE TABLE IF NOT EXISTS training_quiz_attempts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   enrollment_id UUID REFERENCES training_enrollments(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES auth.users(id), -- 直接關聯用戶，方便查詢
+  course_id UUID REFERENCES training_courses(id) ON DELETE CASCADE, -- 直接關聯課程，方便統計
   attempt_number INT DEFAULT 1,
   score INT,                             -- 得分
   total_points INT,                      -- 總分
@@ -225,6 +227,8 @@ CREATE INDEX IF NOT EXISTS idx_training_enrollments_user ON training_enrollments
 CREATE INDEX IF NOT EXISTS idx_training_enrollments_course ON training_enrollments(course_id);
 CREATE INDEX IF NOT EXISTS idx_training_enrollments_status ON training_enrollments(status);
 CREATE INDEX IF NOT EXISTS idx_training_quiz_attempts_enrollment ON training_quiz_attempts(enrollment_id);
+CREATE INDEX IF NOT EXISTS idx_training_quiz_attempts_user ON training_quiz_attempts(user_id);
+CREATE INDEX IF NOT EXISTS idx_training_quiz_attempts_course ON training_quiz_attempts(course_id);
 CREATE INDEX IF NOT EXISTS idx_training_onboarding_templates_brand ON training_onboarding_templates(brand_id);
 
 -- =============================================
@@ -316,6 +320,84 @@ CREATE POLICY "Users can view own onboarding progress" ON training_onboarding_pr
 
 CREATE POLICY "Users can update own onboarding progress" ON training_onboarding_progress
   FOR UPDATE USING (user_id = auth.uid());
+
+-- =============================================
+-- 管理員 RLS 政策（需要有 training.manage.courses 權限）
+-- =============================================
+
+-- 輔助函式：檢查用戶是否有特定權限
+CREATE OR REPLACE FUNCTION public.user_has_permission(permission_code TEXT)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM rbac.role_permissions rp
+    JOIN rbac.user_roles ur ON ur.role_id = rp.role_id
+    JOIN rbac.permissions p ON p.id = rp.permission_id
+    WHERE ur.user_id = auth.uid()
+    AND p.code = permission_code
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 管理員可以查看所有課程（包含未發布的）
+CREATE POLICY "Admins can view all courses" ON training_courses
+  FOR SELECT USING (
+    public.user_has_permission('training.manage.courses')
+  );
+
+-- 管理員可以新增課程
+CREATE POLICY "Admins can insert courses" ON training_courses
+  FOR INSERT WITH CHECK (
+    public.user_has_permission('training.manage.courses')
+  );
+
+-- 管理員可以更新課程
+CREATE POLICY "Admins can update courses" ON training_courses
+  FOR UPDATE USING (
+    public.user_has_permission('training.manage.courses')
+  );
+
+-- 管理員可以刪除課程
+CREATE POLICY "Admins can delete courses" ON training_courses
+  FOR DELETE USING (
+    public.user_has_permission('training.manage.courses')
+  );
+
+-- 管理員可以管理課程章節
+CREATE POLICY "Admins can manage lessons" ON training_lessons
+  FOR ALL USING (
+    public.user_has_permission('training.manage.courses')
+  );
+
+-- 管理員可以管理測驗題目
+CREATE POLICY "Admins can manage questions" ON training_questions
+  FOR ALL USING (
+    public.user_has_permission('training.manage.courses')
+  );
+
+-- 管理員可以管理分類
+CREATE POLICY "Admins can manage categories" ON training_categories
+  FOR ALL USING (
+    public.user_has_permission('training.manage.courses')
+  );
+
+-- 管理員可以查看所有學習進度（報表用）
+CREATE POLICY "Admins can view all enrollments" ON training_enrollments
+  FOR SELECT USING (
+    public.user_has_permission('training.view.reports')
+  );
+
+-- 管理員可以查看所有測驗記錄（報表用）
+CREATE POLICY "Admins can view all quiz attempts" ON training_quiz_attempts
+  FOR SELECT USING (
+    public.user_has_permission('training.view.reports')
+  );
+
+-- 管理員可以查看所有章節進度（報表用）
+CREATE POLICY "Admins can view all lesson progress" ON training_lesson_progress
+  FOR SELECT USING (
+    public.user_has_permission('training.view.reports')
+  );
 
 -- =============================================
 -- RBAC 權限（需加入 rbac.permissions）
