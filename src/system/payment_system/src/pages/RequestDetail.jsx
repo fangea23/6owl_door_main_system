@@ -267,6 +267,12 @@ const handleSaveInvoice = async () => {
     };
 
     const handleReject = async () => {
+        // 🔒 權限檢查
+        if (!canReject) {
+            alert("⚠️ 權限不足\n\n您沒有駁回付款申請的權限（payment.reject）。");
+            return;
+        }
+
         const reason = prompt("請輸入駁回原因：");
         if (!reason) return;
         setProcessing(true);
@@ -819,7 +825,10 @@ const handleSaveInvoice = async () => {
                                                 <button onClick={handleApprove} disabled={processing} className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg hover:bg-emerald-700 font-bold flex items-center justify-center gap-2 shadow-md mb-3">
                                                     {processing ? <Loader2 className="animate-spin" /> : <ThumbsUp size={18} />} 確認核准 / 下一步
                                                 </button>
-                                                <button onClick={handleReject} className="w-full py-2 text-red-500 hover:bg-red-50 border border-red-200 rounded text-sm font-medium">駁回此案件</button>
+                                                {/* 🔒 駁回按鈕：需要同時有審核權限和駁回權限 */}
+                                                {canReject && (
+                                                    <button onClick={handleReject} className="w-full py-2 text-red-500 hover:bg-red-50 border border-red-200 rounded text-sm font-medium">駁回此案件</button>
+                                                )}
                                             </div>
                                         ) : (
                                             /* 非申請人且無審核權限：顯示等待提示 */

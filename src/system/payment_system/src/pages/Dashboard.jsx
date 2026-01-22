@@ -158,8 +158,15 @@ export default function Dashboard() {
           query = query.order('created_at', { ascending: false });
         }
       } else {
-        // 其他角色：查看所有申請
+        // 其他角色：根據權限決定查看範圍
         query = supabase.from('payment_requests').select('*');
+
+        // 🔒 權限過濾：只能查看自己的申請
+        if (canViewOwn && !canViewAll) {
+          query = query.eq('applicant_id', user.id);
+        }
+        // 如果有 canViewAll，則不加過濾（查看所有）
+        // 如果兩個權限都沒有，query 會返回所有資料，但應該在 UI 層阻擋
 
         // 動態排序策略
         if (viewMode === 'todo') {
@@ -409,6 +416,28 @@ export default function Dashboard() {
         setBatchProcessing(false); 
     }
   };
+
+  // 🔒 權限檢查：必須有查看權限才能進入 Dashboard
+  if (!canViewAll && !canViewOwn) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md">
+          <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Shield size={32} />
+          </div>
+          <h2 className="text-2xl font-bold text-center mb-2">無查看權限</h2>
+          <p className="text-gray-600 text-center mb-4">
+            您沒有查看付款申請的權限。
+          </p>
+          <p className="text-sm text-gray-500 text-center">
+            需要以下任一權限：
+            <br />• payment.view.all（查看所有申請）
+            <br />• payment.view.own（查看自己的申請）
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="pb-20">
