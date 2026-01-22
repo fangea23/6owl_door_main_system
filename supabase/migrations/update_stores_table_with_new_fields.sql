@@ -32,7 +32,7 @@ BEGIN
   -- 生成品牌前綴（兩位數，例如 01, 02, 03...）
   brand_prefix := LPAD(p_brand_id::TEXT, 2, '0');
 
-  -- 查找該品牌下最大的流水號
+  -- 查找該品牌下最大的流水號（排除 900，因為 900 是總部保留）
   SELECT COALESCE(
     MAX(
       CASE
@@ -43,14 +43,18 @@ BEGIN
     ), 0
   ) INTO next_seq
   FROM public.stores
-  WHERE brand_id = p_brand_id;
+  WHERE brand_id = p_brand_id
+    AND (
+      code !~ ('^' || brand_prefix || '900$')  -- 排除總部代碼 XX900
+      OR code IS NULL
+    );
 
   -- 流水號 +1
   next_seq := next_seq + 1;
 
   -- 檢查是否達到 900（總部保留號）
   IF next_seq >= 900 THEN
-    RAISE EXCEPTION '該品牌的店家代碼已達上限（900 為總部保留）';
+    RAISE EXCEPTION '該品牌的店家代碼已達上限（流水號 001-899 已用完，900 為總部保留）';
   END IF;
 
   -- 生成完整代碼（例如：01001, 01002, ...）
