@@ -381,6 +381,25 @@ export default function ApplyForm() {
 
       if (isEditMode) {
         // 編輯模式：更新現有申請
+        // ⚠️ 重要：先刪除舊資料，再更新狀態（避免 RLS 政策阻擋）
+
+        // 1. 先刪除舊的明細（在狀態還是 rejected 時刪除）
+        const { error: deleteError } = await supabase
+          .from('expense_reimbursement_items')
+          .delete()
+          .eq('request_id', editId);
+
+        if (deleteError) throw deleteError;
+
+        // 2. 刪除舊的簽核紀錄
+        const { error: deleteApprovalsError } = await supabase
+          .from('expense_approvals')
+          .delete()
+          .eq('request_id', editId);
+
+        if (deleteApprovalsError) throw deleteApprovalsError;
+
+        // 3. 最後才更新 request 狀態
         const { error: updateError } = await supabase
           .from('expense_reimbursement_requests')
           .update(requestData)
@@ -389,22 +408,6 @@ export default function ApplyForm() {
         if (updateError) throw updateError;
 
         requestId = editId;
-
-        // 刪除舊的明細
-        const { error: deleteError } = await supabase
-          .from('expense_reimbursement_items')
-          .delete()
-          .eq('request_id', editId);
-
-        if (deleteError) throw deleteError;
-
-        // 刪除舊的簽核紀錄（重新送出時清空）
-        const { error: deleteApprovalsError } = await supabase
-          .from('expense_approvals')
-          .delete()
-          .eq('request_id', editId);
-
-        if (deleteApprovalsError) throw deleteApprovalsError;
 
       } else {
         // 新建模式：建立新申請
