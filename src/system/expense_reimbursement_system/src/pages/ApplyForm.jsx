@@ -11,13 +11,14 @@ import {
   CreditCard,
   User,
   AlertCircle,
-  Plus,
-  Trash2,
   Calculator,
   Banknote,
   ChevronLeft,
   Loader2,
 } from 'lucide-react';
+
+// 員工代墊款系統的基礎路徑
+const BASE_PATH = '/systems/expense-reimbursement';
 
 // 區塊標題組件
 const SectionTitle = ({ icon: Icon, title }) => (
@@ -43,6 +44,12 @@ export default function ApplyForm() {
   const [submitting, setSubmitting] = useState(false);
   const [userInfo, setUserInfo] = useState({ name: '', department: '', department_id: null });
   const [departments, setDepartments] = useState([]);
+
+  // 銀行與分行列表
+  const [bankList, setBankList] = useState([]);
+  const [branchList, setBranchList] = useState([]);
+  const [fetchingBanks, setFetchingBanks] = useState(false);
+  const [fetchingBranches, setFetchingBranches] = useState(false);
 
   // 表單資料
   const [formData, setFormData] = useState({
@@ -121,6 +128,51 @@ export default function ApplyForm() {
     fetchDepartments();
   }, []);
 
+  // 載入銀行列表
+  useEffect(() => {
+    const fetchBanks = async () => {
+      setFetchingBanks(true);
+      try {
+        const { data, error } = await supabase
+          .from('banks')
+          .select('bank_code, bank_name')
+          .order('bank_code', { ascending: true });
+        if (error) throw error;
+        if (data) setBankList(data);
+      } catch (err) {
+        console.error('抓取銀行列表失敗:', err);
+      } finally {
+        setFetchingBanks(false);
+      }
+    };
+    fetchBanks();
+  }, []);
+
+  // 當銀行代碼改變時，載入對應分行
+  useEffect(() => {
+    if (formData.bank_code) {
+      const fetchBranches = async () => {
+        setFetchingBranches(true);
+        try {
+          const { data, error } = await supabase
+            .from('branches')
+            .select('branch_code, branch_name')
+            .eq('bank_code', formData.bank_code)
+            .order('branch_code', { ascending: true });
+          if (error) throw error;
+          if (data) setBranchList(data);
+        } catch (err) {
+          console.error('抓取分行列表失敗:', err);
+        } finally {
+          setFetchingBranches(false);
+        }
+      };
+      fetchBranches();
+    } else {
+      setBranchList([]);
+    }
+  }, [formData.bank_code]);
+
   // 如果是編輯模式，載入現有資料
   useEffect(() => {
     if (id) {
@@ -146,7 +198,7 @@ export default function ApplyForm() {
       // 只能編輯草稿
       if (request.status !== 'draft') {
         alert('只能編輯草稿狀態的申請');
-        navigate('/expense');
+        navigate(`${BASE_PATH}/dashboard`);
         return;
       }
 
@@ -203,7 +255,7 @@ export default function ApplyForm() {
     };
 
     items.forEach(item => {
-      const amount = parseFloat(item.amount) || 0;
+      const amount = parseInt(item.amount) || 0; // 改為整數
       const receipts = parseInt(item.receipt_count) || 0;
 
       if (amount > 0) {
@@ -223,6 +275,32 @@ export default function ApplyForm() {
     setItems(newItems);
   };
 
+  // 處理銀行選擇
+  const handleBankChange = (e) => {
+    const selectedBankCode = e.target.value;
+    const selectedBank = bankList.find(b => b.bank_code === selectedBankCode);
+
+    setFormData({
+      ...formData,
+      bank_code: selectedBankCode,
+      bank_name: selectedBank?.bank_name || '',
+      branch_code: '', // 清空分行
+      branch_name: '',
+    });
+  };
+
+  // 處理分行選擇
+  const handleBranchChange = (e) => {
+    const selectedBranchCode = e.target.value;
+    const selectedBranch = branchList.find(b => b.branch_code === selectedBranchCode);
+
+    setFormData({
+      ...formData,
+      branch_code: selectedBranchCode,
+      branch_name: selectedBranch?.branch_name || '',
+    });
+  };
+
   // 儲存草稿
   const handleSaveDraft = async () => {
     try {
@@ -232,6 +310,7 @@ export default function ApplyForm() {
 
       const requestData = {
         application_date: formData.application_date,
+        applicant_id: user.id,
         department_id: formData.department_id,
         total_amount: totals.total,
         total_receipt_count: totals.totalReceipts,
@@ -262,10 +341,7 @@ export default function ApplyForm() {
         // 建立新申請
         const { data: newRequest, error: insertError } = await supabase
           .from('expense_reimbursement_requests')
-          .insert([{
-            ...requestData,
-            applicant_id: user.id,
-          }])
+          .insert([requestData])
           .select()
           .single();
 
@@ -283,13 +359,13 @@ export default function ApplyForm() {
 
       // 插入新明細（只插入有金額的行）
       const itemsToInsert = items
-        .filter(item => parseFloat(item.amount) > 0)
+        .filter(item => parseInt(item.amount) > 0)
         .map(item => ({
           request_id: requestId,
           line_number: item.line_number,
           category: item.category || null,
           description: item.description || null,
-          amount: parseFloat(item.amount),
+          amount: parseInt(item.amount),
           receipt_count: parseInt(item.receipt_count) || 0,
           usage_note: item.usage_note || null,
           cost_allocation: item.cost_allocation,
@@ -304,7 +380,7 @@ export default function ApplyForm() {
       }
 
       alert('草稿已儲存');
-      navigate('/expense');
+      navigate(`${BASE_PATH}/dashboard`);
     } catch (err) {
       console.error('Error saving draft:', err);
       alert('儲存失敗：' + err.message);
@@ -336,44 +412,89 @@ export default function ApplyForm() {
         }
       }
 
-      // 先儲存草稿
-      await handleSaveDraft();
+      setSubmitting(true);
 
-      // 決定簽核流程
-      const nextStatus = totals.total >= 30000 ? 'pending_ceo' : 'pending_boss';
+      // 先儲存或更新申請
+      const totalsCalc = calculateTotals();
+      const requestData = {
+        application_date: formData.application_date,
+        applicant_id: user.id,
+        department_id: formData.department_id,
+        total_amount: totalsCalc.total,
+        total_receipt_count: totalsCalc.totalReceipts,
+        brand_totals: JSON.stringify({
+          六扇門: totalsCalc.六扇門,
+          粥大福: totalsCalc.粥大福,
+        }),
+        payment_method: formData.payment_method,
+        bank_name: formData.payment_method === 'transfer' ? formData.bank_name : null,
+        bank_code: formData.payment_method === 'transfer' ? formData.bank_code : null,
+        branch_name: formData.payment_method === 'transfer' ? formData.branch_name : null,
+        branch_code: formData.payment_method === 'transfer' ? formData.branch_code : null,
+        account_number: formData.payment_method === 'transfer' ? formData.account_number : null,
+        status: totalsCalc.total >= 30000 ? 'pending_ceo' : 'pending_boss',
+        submitted_at: new Date().toISOString(),
+      };
 
-      // 更新狀態為送出
-      const requestId = id || (await getCurrentRequestId());
+      let requestId = id;
 
-      const { error } = await supabase
-        .from('expense_reimbursement_requests')
-        .update({
-          status: nextStatus,
-          submitted_at: new Date().toISOString(),
-        })
-        .eq('id', requestId);
+      if (id) {
+        // 更新現有申請
+        const { error: updateError } = await supabase
+          .from('expense_reimbursement_requests')
+          .update(requestData)
+          .eq('id', id);
 
-      if (error) throw error;
+        if (updateError) throw updateError;
+      } else {
+        // 建立新申請
+        const { data: newRequest, error: insertError } = await supabase
+          .from('expense_reimbursement_requests')
+          .insert([requestData])
+          .select()
+          .single();
 
-      alert(`申請已送出！\n總金額：${totals.total.toLocaleString()} 元\n簽核流程：${totals.total >= 30000 ? '總經理 → 審核主管' : '放行主管 → 審核主管'}`);
-      navigate('/expense');
+        if (insertError) throw insertError;
+        requestId = newRequest.id;
+      }
+
+      // 儲存明細
+      if (id) {
+        await supabase
+          .from('expense_reimbursement_items')
+          .delete()
+          .eq('request_id', requestId);
+      }
+
+      const itemsToInsert = items
+        .filter(item => parseInt(item.amount) > 0)
+        .map(item => ({
+          request_id: requestId,
+          line_number: item.line_number,
+          category: item.category || null,
+          description: item.description || null,
+          amount: parseInt(item.amount),
+          receipt_count: parseInt(item.receipt_count) || 0,
+          usage_note: item.usage_note || null,
+          cost_allocation: item.cost_allocation,
+        }));
+
+      if (itemsToInsert.length > 0) {
+        const { error: itemsError } = await supabase
+          .from('expense_reimbursement_items')
+          .insert(itemsToInsert);
+
+        if (itemsError) throw itemsError;
+      }
+
+      alert(`申請已送出！\n總金額：${totalsCalc.total.toLocaleString()} 元\n簽核流程：${totalsCalc.total >= 30000 ? '總經理 → 審核主管' : '放行主管 → 審核主管'}`);
+      navigate(`${BASE_PATH}/dashboard`);
     } catch (err) {
       console.error('Error submitting request:', err);
       alert('送出失敗：' + err.message);
+    } finally {
+      setSubmitting(false);
     }
-  };
-
-  const getCurrentRequestId = async () => {
-    const { data } = await supabase
-      .from('expense_reimbursement_requests')
-      .select('id')
-      .eq('applicant_id', user.id)
-      .eq('status', 'draft')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    return data?.id;
   };
 
   const totals = calculateTotals();
@@ -395,7 +516,7 @@ export default function ApplyForm() {
           <h2 className="text-2xl font-bold text-stone-800 mb-2">權限不足</h2>
           <p className="text-stone-600 mb-6">您沒有建立代墊款申請的權限</p>
           <button
-            onClick={() => navigate('/expense')}
+            onClick={() => navigate(`${BASE_PATH}/dashboard`)}
             className="px-6 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-all"
           >
             返回列表
@@ -413,7 +534,7 @@ export default function ApplyForm() {
           <h2 className="text-2xl font-bold text-stone-800 mb-2">權限不足</h2>
           <p className="text-stone-600 mb-6">您沒有編輯代墊款申請的權限</p>
           <button
-            onClick={() => navigate('/expense')}
+            onClick={() => navigate(`${BASE_PATH}/dashboard`)}
             className="px-6 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-all"
           >
             返回列表
@@ -431,7 +552,7 @@ export default function ApplyForm() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => navigate('/expense')}
+                onClick={() => navigate(`${BASE_PATH}/dashboard`)}
                 className="p-2 hover:bg-stone-100 rounded-lg transition-colors"
               >
                 <ChevronLeft className="w-6 h-6" />
@@ -454,10 +575,10 @@ export default function ApplyForm() {
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={loading}
+                disabled={loading || submitting}
                 className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-red-500 text-white rounded-lg hover:from-amber-600 hover:to-red-600 transition-all disabled:opacity-50 shadow-lg"
               >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 送出申請
               </button>
             </div>
@@ -562,7 +683,7 @@ export default function ApplyForm() {
                         className="w-full px-2 py-1 text-sm border-0 focus:ring-1 focus:ring-amber-500 rounded text-right"
                         placeholder="0"
                         min="0"
-                        step="0.01"
+                        step="1"
                       />
                     </td>
                     <td className="border border-stone-300 px-2 py-1">
@@ -720,55 +841,41 @@ export default function ApplyForm() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-stone-700 mb-2">
-                      銀行名稱 *
+                      銀行 *
                     </label>
-                    <input
-                      type="text"
-                      value={formData.bank_name}
-                      onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })}
-                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                      placeholder="例如：台灣銀行"
-                      required={formData.payment_method === 'transfer'}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-stone-700 mb-2">
-                      銀行代號
-                    </label>
-                    <input
-                      type="text"
+                    <select
                       value={formData.bank_code}
-                      onChange={(e) => setFormData({ ...formData, bank_code: e.target.value })}
-                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                      placeholder="例如：004"
-                    />
+                      onChange={handleBankChange}
+                      disabled={fetchingBanks}
+                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 disabled:bg-stone-100"
+                      required={formData.payment_method === 'transfer'}
+                    >
+                      <option value="">請選擇銀行</option>
+                      {bankList.map(bank => (
+                        <option key={bank.bank_code} value={bank.bank_code}>
+                          ({bank.bank_code}) {bank.bank_name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-stone-700 mb-2">
-                      分行名稱
+                      分行
                     </label>
-                    <input
-                      type="text"
-                      value={formData.branch_name}
-                      onChange={(e) => setFormData({ ...formData, branch_name: e.target.value })}
-                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                      placeholder="例如：台北分行"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-stone-700 mb-2">
-                      分行代號
-                    </label>
-                    <input
-                      type="text"
+                    <select
                       value={formData.branch_code}
-                      onChange={(e) => setFormData({ ...formData, branch_code: e.target.value })}
-                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                      placeholder="例如：0041"
-                    />
+                      onChange={handleBranchChange}
+                      disabled={!formData.bank_code || fetchingBranches}
+                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 disabled:bg-stone-100"
+                    >
+                      <option value="">請選擇分行</option>
+                      {branchList.map(branch => (
+                        <option key={branch.branch_code} value={branch.branch_code}>
+                          ({branch.branch_code}) {branch.branch_name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="md:col-span-2">
