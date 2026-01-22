@@ -55,6 +55,16 @@ export const categories = [
         isExternal: false,
         permissionCode: 'system.payment', // 需要系統訪問權限
       },
+      {
+        id: 'expense-reimbursement',
+        name: '員工代墊款系統',
+        description: '員工費用報銷申請與審核',
+        icon: '💸',
+        url: '/systems/expense-reimbursement',
+        status: 'active',
+        isExternal: false,
+        permissionCode: 'system.expense_reimbursement', // 需要系統訪問權限
+      },
     ],
   },
   {
