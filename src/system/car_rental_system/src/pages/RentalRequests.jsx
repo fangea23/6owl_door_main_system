@@ -65,14 +65,24 @@ export const RentalRequests = () => {
       toast.error('無法確認您的員工身分，請重新登入');
       return;
     }
+
+    const toastId = toast.loading(status === 'approved' ? '核准中...' : '處理中...');
     const result = await reviewRequest(id, status, employee.id, reviewComment);
+    toast.dismiss(toastId);
 
     if (result.success) {
       toast.success(status === 'approved' ? '申請已核准' : '申請已拒絕');
       setReviewingRequest(null);
       setReviewComment('');
     } else {
-      toast.error(result.error || '審核失敗');
+      // 使用更長的顯示時間和更好的格式顯示錯誤
+      toast.error(result.error || '審核失敗', {
+        duration: 6000,
+        style: {
+          maxWidth: '500px',
+          whiteSpace: 'pre-line',
+        },
+      });
     }
   };
 
