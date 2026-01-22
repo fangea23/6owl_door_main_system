@@ -285,6 +285,19 @@ const handleSaveInvoice = async () => {
     };
 
     const handleRevoke = async () => {
+        // 🔒 檢查是否已經有任何簽核紀錄
+        const hasAnySignature =
+            request.sign_unit_manager_at ||
+            request.sign_accountant_at ||
+            request.sign_audit_manager_at ||
+            request.sign_cashier_at ||
+            request.sign_boss_at;
+
+        if (hasAnySignature) {
+            alert("⚠️ 此申請已進入簽核流程，不能直接取消。\n\n如需停止此申請，請聯絡有權限的主管進行駁回。");
+            return;
+        }
+
         if (!window.confirm("確定要撤銷此申請單嗎？")) return;
         setProcessing(true);
         try {
@@ -316,6 +329,14 @@ const handleSaveInvoice = async () => {
         (request.status === 'pending_cashier' && canApproveCashier) ||
         (request.status === 'pending_boss' && canApproveBoss)
     );
+
+    // 🔒 檢查是否已有任何簽核紀錄（已簽核的單子不能取消，只能駁回）
+    const hasAnySignature =
+        request.sign_unit_manager_at ||
+        request.sign_accountant_at ||
+        request.sign_audit_manager_at ||
+        request.sign_cashier_at ||
+        request.sign_boss_at;
 
     return (
         <div className="min-h-screen bg-stone-50 font-sans pb-20 print:bg-white print:pb-0">
@@ -708,13 +729,24 @@ const handleSaveInvoice = async () => {
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
-                                        {/* 只有申請人本人可以撤銷申請 */}
-                                        {request.requester_id === user?.id && canCancel && (
+                                        {/* 只有申請人本人可以撤銷申請 (且申請尚未被簽核過) */}
+                                        {request.requester_id === user?.id && canCancel && !hasAnySignature && (
                                             <div className="p-4 bg-white border border-stone-200 rounded-lg shadow-sm">
                                                 <h4 className="font-bold text-gray-700 mb-2">管理申請</h4>
                                                 <button onClick={handleRevoke} className="w-full py-2.5 px-4 bg-red-600 text-white hover:bg-red-700 rounded-md text-sm font-bold transition-colors flex items-center justify-center gap-2 shadow-sm">
                                                     <XCircle size={18} /> 撤銷此申請
                                                 </button>
+                                                <p className="text-xs text-gray-500 mt-2">💡 提示：申請一旦進入簽核流程後即無法撤銷</p>
+                                            </div>
+                                        )}
+
+                                        {/* 如果已有簽核紀錄，顯示提示 */}
+                                        {request.requester_id === user?.id && hasAnySignature && request.status !== 'rejected' && request.status !== 'revoked' && (
+                                            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                                                <h4 className="font-bold text-amber-800 mb-1 flex items-center gap-2">
+                                                    <Shield size={16} /> 申請已進入簽核流程
+                                                </h4>
+                                                <p className="text-amber-700 text-sm">此申請已有主管簽核紀錄，無法直接撤銷。如需停止申請，請聯絡有權限的主管進行駁回。</p>
                                             </div>
                                         )}
 
