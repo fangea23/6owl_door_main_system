@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../AuthContext';
 import { usePermission } from '../../../../hooks/usePermission';
+import SearchableSelect from '../components/SearchableSelect';
 import {
   Save,
   Send,
@@ -276,8 +277,7 @@ export default function ApplyForm() {
   };
 
   // 處理銀行選擇
-  const handleBankChange = (e) => {
-    const selectedBankCode = e.target.value;
+  const handleBankChange = (selectedBankCode) => {
     const selectedBank = bankList.find(b => b.bank_code === selectedBankCode);
 
     setFormData({
@@ -290,8 +290,7 @@ export default function ApplyForm() {
   };
 
   // 處理分行選擇
-  const handleBranchChange = (e) => {
-    const selectedBranchCode = e.target.value;
+  const handleBranchChange = (selectedBranchCode) => {
     const selectedBranch = branchList.find(b => b.branch_code === selectedBranchCode);
 
     setFormData({
@@ -843,39 +842,41 @@ export default function ApplyForm() {
                     <label className="block text-sm font-medium text-stone-700 mb-2">
                       銀行 *
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={bankList.map(bank => ({
+                        value: bank.bank_code,
+                        label: bank.bank_name,
+                        subLabel: `(${bank.bank_code})`
+                      }))}
                       value={formData.bank_code}
                       onChange={handleBankChange}
+                      placeholder="請選擇銀行"
                       disabled={fetchingBanks}
-                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 disabled:bg-stone-100"
+                      loading={fetchingBanks}
+                      loadingText="載入銀行列表中..."
+                      emptyText="無可用銀行"
                       required={formData.payment_method === 'transfer'}
-                    >
-                      <option value="">請選擇銀行</option>
-                      {bankList.map(bank => (
-                        <option key={bank.bank_code} value={bank.bank_code}>
-                          ({bank.bank_code}) {bank.bank_name}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-stone-700 mb-2">
                       分行
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={branchList.map(branch => ({
+                        value: branch.branch_code,
+                        label: branch.branch_name,
+                        subLabel: `(${branch.branch_code})`
+                      }))}
                       value={formData.branch_code}
                       onChange={handleBranchChange}
+                      placeholder="請選擇分行"
                       disabled={!formData.bank_code || fetchingBranches}
-                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 disabled:bg-stone-100"
-                    >
-                      <option value="">請選擇分行</option>
-                      {branchList.map(branch => (
-                        <option key={branch.branch_code} value={branch.branch_code}>
-                          ({branch.branch_code}) {branch.branch_name}
-                        </option>
-                      ))}
-                    </select>
+                      loading={fetchingBranches}
+                      loadingText="載入分行列表中..."
+                      emptyText={!formData.bank_code ? '請先選擇銀行' : '無可用分行'}
+                    />
                   </div>
 
                   <div className="md:col-span-2">
