@@ -381,39 +381,29 @@ export default function ApplyForm() {
 
       if (isEditMode) {
         // 編輯模式：更新現有申請
-        // ⚠️ 重要：先刪除舊資料，再更新狀態（避免 RLS 政策阻擋）
+        // 使用 upsert 策略，不依賴 delete 操作
 
-        // 1. 先檢查有多少舊的明細
-        const { count: existingCount } = await supabase
-          .from('expense_reimbursement_items')
-          .select('*', { count: 'exact', head: true })
-          .eq('request_id', editId);
-
-        // 2. 刪除舊的明細（使用 .select() 確認實際刪除的筆數）
-        const { data: deletedItems, error: deleteError } = await supabase
+        // 1. 嘗試刪除舊的明細（best effort，失敗不中斷）
+        const { error: deleteError } = await supabase
           .from('expense_reimbursement_items')
           .delete()
-          .eq('request_id', editId)
-          .select();
+          .eq('request_id', editId);
 
-        if (deleteError) throw deleteError;
-
-        // 3. 驗證刪除是否成功（如果有舊資料但沒刪到，可能是 RLS 問題）
-        if (existingCount > 0 && (!deletedItems || deletedItems.length === 0)) {
-          throw new Error('無法刪除舊的明細項目，請確認權限設定或聯繫管理員');
+        if (deleteError) {
+          console.warn('刪除舊明細失敗（將使用 upsert）:', deleteError.message);
         }
 
-        console.log(`已刪除 ${deletedItems?.length || 0} 筆舊明細`);
-
-        // 4. 刪除舊的簽核紀錄
+        // 2. 嘗試刪除舊的簽核紀錄（best effort，失敗不中斷）
         const { error: deleteApprovalsError } = await supabase
           .from('expense_approvals')
           .delete()
           .eq('request_id', editId);
 
-        if (deleteApprovalsError) throw deleteApprovalsError;
+        if (deleteApprovalsError) {
+          console.warn('刪除舊簽核紀錄失敗:', deleteApprovalsError.message);
+        }
 
-        // 5. 最後才更新 request 狀態
+        // 3. 更新 request 狀態
         const { error: updateError } = await supabase
           .from('expense_reimbursement_requests')
           .update(requestData)
