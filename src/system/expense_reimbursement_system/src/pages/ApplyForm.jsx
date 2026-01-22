@@ -377,23 +377,54 @@ export default function ApplyForm() {
         submitted_at: new Date().toISOString(),
       };
 
+      // 準備明細資料
+      const itemsToInsert = items
+        .filter(item => parseInt(item.amount) > 0)
+        .map(item => ({
+          line_number: item.line_number,
+          category: item.category || null,
+          description: item.description || null,
+          amount: parseInt(item.amount),
+          receipt_count: parseInt(item.receipt_count) || 0,
+          usage_note: item.usage_note || null,
+          cost_allocation: item.cost_allocation,
+        }));
+
       let requestId;
 
       if (isEditMode) {
         // 編輯模式：更新現有申請
-        // 使用 upsert 策略，不依賴 delete 操作
+        // ⚠️ 重要順序：先處理明細（狀態還是 rejected），最後才更新狀態
+        requestId = editId;
 
-        // 1. 嘗試刪除舊的明細（best effort，失敗不中斷）
+        // 1. 先刪除舊的明細（在狀態還是 rejected 時，RLS 允許）
         const { error: deleteError } = await supabase
           .from('expense_reimbursement_items')
           .delete()
           .eq('request_id', editId);
 
         if (deleteError) {
-          console.warn('刪除舊明細失敗（將使用 upsert）:', deleteError.message);
+          console.warn('刪除舊明細失敗:', deleteError.message);
         }
 
-        // 2. 嘗試刪除舊的簽核紀錄（best effort，失敗不中斷）
+        // 2. 插入新的明細（在狀態還是 rejected 時，RLS 允許）
+        if (itemsToInsert.length > 0) {
+          const itemsWithRequestId = itemsToInsert.map(item => ({
+            ...item,
+            request_id: requestId,
+          }));
+
+          const { error: itemsError } = await supabase
+            .from('expense_reimbursement_items')
+            .upsert(itemsWithRequestId, {
+              onConflict: 'request_id,line_number',
+              ignoreDuplicates: false,
+            });
+
+          if (itemsError) throw itemsError;
+        }
+
+        // 3. 刪除舊的簽核紀錄
         const { error: deleteApprovalsError } = await supabase
           .from('expense_approvals')
           .delete()
@@ -403,15 +434,13 @@ export default function ApplyForm() {
           console.warn('刪除舊簽核紀錄失敗:', deleteApprovalsError.message);
         }
 
-        // 3. 更新 request 狀態
+        // 4. 最後才更新 request 狀態（從 rejected → pending）
         const { error: updateError } = await supabase
           .from('expense_reimbursement_requests')
           .update(requestData)
           .eq('id', editId);
 
         if (updateError) throw updateError;
-
-        requestId = editId;
 
       } else {
         // 新建模式：建立新申請
@@ -423,47 +452,19 @@ export default function ApplyForm() {
 
         if (insertError) throw insertError;
         requestId = newRequest.id;
-      }
 
-      // 插入明細
-      const itemsToInsert = items
-        .filter(item => parseInt(item.amount) > 0)
-        .map(item => ({
-          request_id: requestId,
-          line_number: item.line_number,
-          category: item.category || null,
-          description: item.description || null,
-          amount: parseInt(item.amount),
-          receipt_count: parseInt(item.receipt_count) || 0,
-          usage_note: item.usage_note || null,
-          cost_allocation: item.cost_allocation,
-        }));
+        // 插入明細
+        if (itemsToInsert.length > 0) {
+          const itemsWithRequestId = itemsToInsert.map(item => ({
+            ...item,
+            request_id: requestId,
+          }));
 
-      if (itemsToInsert.length > 0) {
-        // 使用 upsert 取代 insert，避免 duplicate key 錯誤
-        // onConflict: 如果 (request_id, line_number) 已存在則更新
-        const { error: itemsError } = await supabase
-          .from('expense_reimbursement_items')
-          .upsert(itemsToInsert, {
-            onConflict: 'request_id,line_number',
-            ignoreDuplicates: false, // 不忽略，而是更新
-          });
+          const { error: itemsError } = await supabase
+            .from('expense_reimbursement_items')
+            .insert(itemsWithRequestId);
 
-        if (itemsError) throw itemsError;
-      }
-
-      // 編輯模式：刪除不再使用的 line_number（金額為 0 的行）
-      if (isEditMode) {
-        const usedLineNumbers = itemsToInsert.map(item => item.line_number);
-        const { error: cleanupError } = await supabase
-          .from('expense_reimbursement_items')
-          .delete()
-          .eq('request_id', requestId)
-          .not('line_number', 'in', `(${usedLineNumbers.join(',')})`);
-
-        if (cleanupError) {
-          console.warn('清理未使用的明細項目失敗:', cleanupError);
-          // 不拋出錯誤，因為主要操作已完成
+          if (itemsError) throw itemsError;
         }
       }
 
