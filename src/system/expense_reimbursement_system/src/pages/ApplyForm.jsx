@@ -513,7 +513,282 @@ export default function ApplyForm() {
           </div>
         </div>
 
-        {/* 費用明細 - 將在下一部分繼續 */}
+        {/* 費用明細表格 */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+          <SectionTitle icon={FileText} title="費用明細" />
+
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-stone-50">
+                  <th className="border border-stone-300 px-2 py-2 text-xs font-bold text-stone-700 w-12">編號</th>
+                  <th className="border border-stone-300 px-3 py-2 text-xs font-bold text-stone-700">品項</th>
+                  <th className="border border-stone-300 px-3 py-2 text-xs font-bold text-stone-700">內容</th>
+                  <th className="border border-stone-300 px-3 py-2 text-xs font-bold text-stone-700 w-32">申請金額</th>
+                  <th className="border border-stone-300 px-2 py-2 text-xs font-bold text-stone-700 w-24">收據張數</th>
+                  <th className="border border-stone-300 px-3 py-2 text-xs font-bold text-stone-700 w-32">費用歸屬</th>
+                  <th className="border border-stone-300 px-3 py-2 text-xs font-bold text-stone-700">用途說明</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, index) => (
+                  <tr key={item.line_number} className="hover:bg-stone-50">
+                    <td className="border border-stone-300 px-2 py-2 text-center text-sm text-stone-600">
+                      {item.line_number}
+                    </td>
+                    <td className="border border-stone-300 px-2 py-1">
+                      <input
+                        type="text"
+                        value={item.category}
+                        onChange={(e) => updateItem(index, 'category', e.target.value)}
+                        className="w-full px-2 py-1 text-sm border-0 focus:ring-1 focus:ring-amber-500 rounded"
+                        placeholder="品項"
+                      />
+                    </td>
+                    <td className="border border-stone-300 px-2 py-1">
+                      <input
+                        type="text"
+                        value={item.description}
+                        onChange={(e) => updateItem(index, 'description', e.target.value)}
+                        className="w-full px-2 py-1 text-sm border-0 focus:ring-1 focus:ring-amber-500 rounded"
+                        placeholder="內容"
+                      />
+                    </td>
+                    <td className="border border-stone-300 px-2 py-1">
+                      <input
+                        type="number"
+                        value={item.amount}
+                        onChange={(e) => updateItem(index, 'amount', e.target.value)}
+                        className="w-full px-2 py-1 text-sm border-0 focus:ring-1 focus:ring-amber-500 rounded text-right"
+                        placeholder="0"
+                        min="0"
+                        step="0.01"
+                      />
+                    </td>
+                    <td className="border border-stone-300 px-2 py-1">
+                      <input
+                        type="number"
+                        value={item.receipt_count}
+                        onChange={(e) => updateItem(index, 'receipt_count', e.target.value)}
+                        className="w-full px-2 py-1 text-sm border-0 focus:ring-1 focus:ring-amber-500 rounded text-center"
+                        placeholder="0"
+                        min="0"
+                      />
+                    </td>
+                    <td className="border border-stone-300 px-2 py-1">
+                      <select
+                        value={item.cost_allocation}
+                        onChange={(e) => updateItem(index, 'cost_allocation', e.target.value)}
+                        className="w-full px-2 py-1 text-sm border-0 focus:ring-1 focus:ring-amber-500 rounded"
+                      >
+                        <option value="六扇門">六扇門</option>
+                        <option value="粥大福">粥大福</option>
+                      </select>
+                    </td>
+                    <td className="border border-stone-300 px-2 py-1">
+                      <input
+                        type="text"
+                        value={item.usage_note}
+                        onChange={(e) => updateItem(index, 'usage_note', e.target.value)}
+                        className="w-full px-2 py-1 text-sm border-0 focus:ring-1 focus:ring-amber-500 rounded"
+                        placeholder="用途說明"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* 結算資訊 */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+          <SectionTitle icon={Calculator} title="結算資訊" />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* 品牌分別合計 */}
+            <div className="space-y-4">
+              <h4 className="font-semibold text-stone-700 mb-3">品牌分別合計</h4>
+
+              <div className="bg-blue-50 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-blue-900">六扇門</span>
+                  <span className="text-lg font-bold text-blue-600">
+                    NT$ {totals.六扇門.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-green-50 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-green-900">粥大福</span>
+                  <span className="text-lg font-bold text-green-600">
+                    NT$ {totals.粥大福.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 總計 */}
+            <div className="space-y-4">
+              <h4 className="font-semibold text-stone-700 mb-3">總計</h4>
+
+              <div className="bg-amber-50 rounded-lg p-4 border-2 border-amber-200">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-medium text-amber-900">合計總金額</span>
+                  <span className="text-2xl font-bold text-amber-600">
+                    NT$ {totals.total.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t border-amber-200">
+                  <span className="text-xs text-amber-700">發票/收據總張數</span>
+                  <span className="text-sm font-semibold text-amber-700">
+                    {totals.totalReceipts} 張
+                  </span>
+                </div>
+              </div>
+
+              {/* 簽核流程提示 */}
+              <div className={`rounded-lg p-3 border ${
+                totals.total >= 30000
+                  ? 'bg-red-50 border-red-200'
+                  : 'bg-green-50 border-green-200'
+              }`}>
+                <div className="flex items-center gap-2 text-xs">
+                  <AlertCircle className={`w-4 h-4 ${
+                    totals.total >= 30000 ? 'text-red-600' : 'text-green-600'
+                  }`} />
+                  <span className={`font-medium ${
+                    totals.total >= 30000 ? 'text-red-800' : 'text-green-800'
+                  }`}>
+                    簽核流程：
+                    {totals.total >= 30000
+                      ? '總經理 → 審核主管'
+                      : '放行主管 → 審核主管'
+                    }
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 撥款資訊 */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+          <SectionTitle icon={CreditCard} title="撥款資訊" />
+
+          <div className="space-y-6">
+            {/* 撥款方式選擇 */}
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-3">
+                撥款方式 *
+              </label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="payment_method"
+                    value="cash"
+                    checked={formData.payment_method === 'cash'}
+                    onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
+                    className="w-4 h-4 text-amber-600 focus:ring-amber-500"
+                  />
+                  <span className="text-sm font-medium text-stone-700">領現</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="payment_method"
+                    value="transfer"
+                    checked={formData.payment_method === 'transfer'}
+                    onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
+                    className="w-4 h-4 text-amber-600 focus:ring-amber-500"
+                  />
+                  <span className="text-sm font-medium text-stone-700">匯款（次月12日）</span>
+                </label>
+              </div>
+            </div>
+
+            {/* 匯款資訊（條件顯示） */}
+            {formData.payment_method === 'transfer' && (
+              <div className="bg-stone-50 rounded-lg p-4 space-y-4">
+                <h4 className="font-semibold text-stone-700 mb-3 flex items-center gap-2">
+                  <Banknote className="w-5 h-5 text-amber-600" />
+                  匯款帳戶資訊
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">
+                      銀行名稱 *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.bank_name}
+                      onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })}
+                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                      placeholder="例如：台灣銀行"
+                      required={formData.payment_method === 'transfer'}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">
+                      銀行代號
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.bank_code}
+                      onChange={(e) => setFormData({ ...formData, bank_code: e.target.value })}
+                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                      placeholder="例如：004"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">
+                      分行名稱
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.branch_name}
+                      onChange={(e) => setFormData({ ...formData, branch_name: e.target.value })}
+                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                      placeholder="例如：台北分行"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">
+                      分行代號
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.branch_code}
+                      onChange={(e) => setFormData({ ...formData, branch_code: e.target.value })}
+                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                      placeholder="例如：0041"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">
+                      帳號 *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.account_number}
+                      onChange={(e) => setFormData({ ...formData, account_number: e.target.value })}
+                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                      placeholder="請輸入完整帳號"
+                      required={formData.payment_method === 'transfer'}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
 
       </div>
     </div>
