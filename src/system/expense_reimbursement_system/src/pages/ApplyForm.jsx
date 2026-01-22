@@ -33,15 +33,12 @@ const SectionTitle = ({ icon: Icon, title }) => (
 
 export default function ApplyForm() {
   const navigate = useNavigate();
-  const { id } = useParams(); // 如果是編輯模式，會有 id
   const { user } = useAuth();
 
   // RBAC 權限檢查
   const { hasPermission: canCreate, loading: permissionLoading } = usePermission('expense.create');
-  const { hasPermission: canEdit } = usePermission('expense.edit.own');
 
   // 狀態管理
-  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [userInfo, setUserInfo] = useState({ name: '', department: '', department_id: null });
   const [departments, setDepartments] = useState([]);
@@ -174,77 +171,7 @@ export default function ApplyForm() {
     }
   }, [formData.bank_code]);
 
-  // 如果是編輯模式，載入現有資料
-  useEffect(() => {
-    if (id) {
-      loadExistingRequest();
-    }
-  }, [id]);
-
-  const loadExistingRequest = async () => {
-    try {
-      setLoading(true);
-
-      const { data: request, error } = await supabase
-        .from('expense_reimbursement_requests')
-        .select(`
-          *,
-          items:expense_reimbursement_items(*)
-        `)
-        .eq('id', id)
-        .single();
-
-      if (error) throw error;
-
-      // 只能編輯草稿
-      if (request.status !== 'draft') {
-        alert('只能編輯草稿狀態的申請');
-        navigate(`${BASE_PATH}/dashboard`);
-        return;
-      }
-
-      // 載入表單資料
-      setFormData({
-        application_date: request.application_date,
-        department_id: request.department_id,
-        payment_method: request.payment_method,
-        bank_name: request.bank_name || '',
-        bank_code: request.bank_code || '',
-        branch_name: request.branch_name || '',
-        branch_code: request.branch_code || '',
-        account_number: request.account_number || '',
-      });
-
-      // 載入明細
-      const loadedItems = Array.from({ length: 15 }, (_, i) => {
-        const existingItem = request.items?.find(item => item.line_number === i + 1);
-        return existingItem ? {
-          line_number: i + 1,
-          category: existingItem.category || '',
-          description: existingItem.description || '',
-          amount: existingItem.amount || '',
-          receipt_count: existingItem.receipt_count || '',
-          usage_note: existingItem.usage_note || '',
-          cost_allocation: existingItem.cost_allocation || '六扇門',
-        } : {
-          line_number: i + 1,
-          category: '',
-          description: '',
-          amount: '',
-          receipt_count: '',
-          usage_note: '',
-          cost_allocation: '六扇門',
-        };
-      });
-
-      setItems(loadedItems);
-    } catch (err) {
-      console.error('Error loading request:', err);
-      alert('載入失敗：' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // 移除編輯模式相關代碼
 
   // 計算總金額和各品牌分別合計
   const calculateTotals = () => {
@@ -300,93 +227,7 @@ export default function ApplyForm() {
     });
   };
 
-  // 儲存草稿
-  const handleSaveDraft = async () => {
-    try {
-      setLoading(true);
-
-      const totals = calculateTotals();
-
-      const requestData = {
-        application_date: formData.application_date,
-        applicant_id: user.id,
-        department_id: formData.department_id,
-        total_amount: totals.total,
-        total_receipt_count: totals.totalReceipts,
-        brand_totals: JSON.stringify({
-          六扇門: totals.六扇門,
-          粥大福: totals.粥大福,
-        }),
-        payment_method: formData.payment_method,
-        bank_name: formData.payment_method === 'transfer' ? formData.bank_name : null,
-        bank_code: formData.payment_method === 'transfer' ? formData.bank_code : null,
-        branch_name: formData.payment_method === 'transfer' ? formData.branch_name : null,
-        branch_code: formData.payment_method === 'transfer' ? formData.branch_code : null,
-        account_number: formData.payment_method === 'transfer' ? formData.account_number : null,
-        status: 'draft',
-      };
-
-      let requestId = id;
-
-      if (id) {
-        // 更新現有申請
-        const { error: updateError } = await supabase
-          .from('expense_reimbursement_requests')
-          .update(requestData)
-          .eq('id', id);
-
-        if (updateError) throw updateError;
-      } else {
-        // 建立新申請
-        const { data: newRequest, error: insertError } = await supabase
-          .from('expense_reimbursement_requests')
-          .insert([requestData])
-          .select()
-          .single();
-
-        if (insertError) throw insertError;
-        requestId = newRequest.id;
-      }
-
-      // 儲存明細（先刪除舊的）
-      if (id) {
-        await supabase
-          .from('expense_reimbursement_items')
-          .delete()
-          .eq('request_id', requestId);
-      }
-
-      // 插入新明細（只插入有金額的行）
-      const itemsToInsert = items
-        .filter(item => parseInt(item.amount) > 0)
-        .map(item => ({
-          request_id: requestId,
-          line_number: item.line_number,
-          category: item.category || null,
-          description: item.description || null,
-          amount: parseInt(item.amount),
-          receipt_count: parseInt(item.receipt_count) || 0,
-          usage_note: item.usage_note || null,
-          cost_allocation: item.cost_allocation,
-        }));
-
-      if (itemsToInsert.length > 0) {
-        const { error: itemsError } = await supabase
-          .from('expense_reimbursement_items')
-          .insert(itemsToInsert);
-
-        if (itemsError) throw itemsError;
-      }
-
-      alert('草稿已儲存');
-      navigate(`${BASE_PATH}/dashboard`);
-    } catch (err) {
-      console.error('Error saving draft:', err);
-      alert('儲存失敗：' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // 移除草稿功能
 
   // 送出申請
   const handleSubmit = async () => {
@@ -413,17 +254,16 @@ export default function ApplyForm() {
 
       setSubmitting(true);
 
-      // 先儲存或更新申請
-      const totalsCalc = calculateTotals();
+      // 建立申請單
       const requestData = {
         application_date: formData.application_date,
         applicant_id: user.id,
         department_id: formData.department_id,
-        total_amount: totalsCalc.total,
-        total_receipt_count: totalsCalc.totalReceipts,
+        total_amount: totals.total,
+        total_receipt_count: totals.totalReceipts,
         brand_totals: JSON.stringify({
-          六扇門: totalsCalc.六扇門,
-          粥大福: totalsCalc.粥大福,
+          六扇門: totals.六扇門,
+          粥大福: totals.粥大福,
         }),
         payment_method: formData.payment_method,
         bank_name: formData.payment_method === 'transfer' ? formData.bank_name : null,
@@ -431,44 +271,24 @@ export default function ApplyForm() {
         branch_name: formData.payment_method === 'transfer' ? formData.branch_name : null,
         branch_code: formData.payment_method === 'transfer' ? formData.branch_code : null,
         account_number: formData.payment_method === 'transfer' ? formData.account_number : null,
-        status: totalsCalc.total >= 30000 ? 'pending_ceo' : 'pending_boss',
+        status: totals.total >= 30000 ? 'pending_ceo' : 'pending_boss',
         submitted_at: new Date().toISOString(),
       };
 
-      let requestId = id;
+      // 建立新申請
+      const { data: newRequest, error: insertError } = await supabase
+        .from('expense_reimbursement_requests')
+        .insert([requestData])
+        .select()
+        .single();
 
-      if (id) {
-        // 更新現有申請
-        const { error: updateError } = await supabase
-          .from('expense_reimbursement_requests')
-          .update(requestData)
-          .eq('id', id);
+      if (insertError) throw insertError;
 
-        if (updateError) throw updateError;
-      } else {
-        // 建立新申請
-        const { data: newRequest, error: insertError } = await supabase
-          .from('expense_reimbursement_requests')
-          .insert([requestData])
-          .select()
-          .single();
-
-        if (insertError) throw insertError;
-        requestId = newRequest.id;
-      }
-
-      // 儲存明細
-      if (id) {
-        await supabase
-          .from('expense_reimbursement_items')
-          .delete()
-          .eq('request_id', requestId);
-      }
-
+      // 插入明細
       const itemsToInsert = items
         .filter(item => parseInt(item.amount) > 0)
         .map(item => ({
-          request_id: requestId,
+          request_id: newRequest.id,
           line_number: item.line_number,
           category: item.category || null,
           description: item.description || null,
@@ -486,7 +306,7 @@ export default function ApplyForm() {
         if (itemsError) throw itemsError;
       }
 
-      alert(`申請已送出！\n總金額：${totalsCalc.total.toLocaleString()} 元\n簽核流程：${totalsCalc.total >= 30000 ? '總經理 → 審核主管' : '放行主管 → 審核主管'}`);
+      alert(`✅ 申請已送出！\n\n總金額：NT$ ${totals.total.toLocaleString()}\n簽核流程：${totals.total >= 30000 ? '總經理 → 審核主管' : '放行主管 → 審核主管'}`);
       navigate(`${BASE_PATH}/dashboard`);
     } catch (err) {
       console.error('Error submitting request:', err);
@@ -507,7 +327,7 @@ export default function ApplyForm() {
     );
   }
 
-  if (!canCreate && !id) {
+  if (!canCreate) {
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center">
         <div className="bg-white rounded-xl shadow-lg p-8 max-w-md text-center">
@@ -525,61 +345,23 @@ export default function ApplyForm() {
     );
   }
 
-  if (id && !canEdit) {
-    return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
-        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md text-center">
-          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-stone-800 mb-2">權限不足</h2>
-          <p className="text-stone-600 mb-6">您沒有編輯代墊款申請的權限</p>
-          <button
-            onClick={() => navigate(`${BASE_PATH}/dashboard`)}
-            className="px-6 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-all"
-          >
-            返回列表
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-stone-50 py-6 px-4">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate(`${BASE_PATH}/dashboard`)}
-                className="p-2 hover:bg-stone-100 rounded-lg transition-colors"
-              >
-                <ChevronLeft className="w-6 h-6" />
-              </button>
-              <div>
-                <h1 className="text-2xl font-bold text-stone-800">
-                  {id ? '編輯代墊款申請' : '新增代墊款申請'}
-                </h1>
-                <p className="text-sm text-stone-500 mt-1">Employee Reimbursement Request</p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={handleSaveDraft}
-                disabled={loading}
-                className="flex items-center gap-2 px-4 py-2 bg-stone-600 text-white rounded-lg hover:bg-stone-700 transition-all disabled:opacity-50"
-              >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                儲存草稿
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={loading || submitting}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-red-500 text-white rounded-lg hover:from-amber-600 hover:to-red-600 transition-all disabled:opacity-50 shadow-lg"
-              >
-                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                送出申請
-              </button>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate(`${BASE_PATH}/dashboard`)}
+              className="p-2 hover:bg-stone-100 rounded-lg transition-colors"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-stone-800">
+                新增代墊款申請
+              </h1>
+              <p className="text-sm text-stone-500 mt-1">Employee Reimbursement Request</p>
             </div>
           </div>
         </div>
@@ -896,6 +678,39 @@ export default function ApplyForm() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* 送出按鈕 */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || totals.total === 0}
+            className={`
+              w-full py-4 rounded-lg font-semibold text-lg flex items-center justify-center gap-3
+              transition-all duration-200 shadow-lg
+              ${submitting || totals.total === 0
+                ? 'bg-stone-300 text-stone-500 cursor-not-allowed'
+                : 'bg-amber-600 text-white hover:bg-amber-700 hover:shadow-xl active:scale-[0.98]'
+              }
+            `}
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="w-6 h-6 animate-spin" />
+                送出中...
+              </>
+            ) : (
+              <>
+                <Send className="w-6 h-6" />
+                送出申請
+              </>
+            )}
+          </button>
+          {totals.total === 0 && (
+            <p className="text-sm text-stone-500 text-center mt-3">
+              請至少填寫一筆費用明細後才能送出申請
+            </p>
+          )}
         </div>
 
       </div>
