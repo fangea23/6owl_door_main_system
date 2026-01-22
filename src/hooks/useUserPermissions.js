@@ -41,7 +41,6 @@ export function useUserPermissions() {
           `)
           .eq('user_id', user.id)
           .is('role.deleted_at', null)
-          .is('role.role_permissions.deleted_at', null)
           .is('role.role_permissions.permission.deleted_at', null);
 
         if (queryError) throw queryError;
