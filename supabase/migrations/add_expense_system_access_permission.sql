@@ -104,7 +104,6 @@ BEGIN
       WHERE rp.role_id = v_role.id
         AND p.code = 'system.expense_reimbursement'
         AND p.deleted_at IS NULL
-        AND rp.deleted_at IS NULL
     ) INTO v_has_access;
 
     IF v_has_access THEN
