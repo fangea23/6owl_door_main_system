@@ -134,7 +134,6 @@ export default function ApplyForm() {
       setFetchingBanks(true);
       try {
         const { data, error } = await supabase
-          .schema('payment_approval')
           .from('banks')
           .select('bank_code, bank_name')
           .order('bank_code', { ascending: true });
@@ -156,7 +155,6 @@ export default function ApplyForm() {
         setFetchingBranches(true);
         try {
           const { data, error } = await supabase
-            .schema('payment_approval')
             .from('branches')
             .select('branch_code, branch_name')
             .eq('bank_code', formData.bank_code)
