@@ -85,24 +85,30 @@ export default function Dashboard() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [batchProcessing, setBatchProcessing] = useState(false);
 
-  // 視圖模式
-  const [viewMode, setViewMode] = useState('all');
-
   // 檢查用戶是否有任何審核權限
   const hasAnyApprovalPermission = canApproveCEO || canApproveBoss || canApproveAudit;
 
-  useEffect(() => {
-    // 有審核權限的用戶預設顯示待辦事項
-    if (hasAnyApprovalPermission) {
-      setViewMode('todo');
-    } else {
-      setViewMode('all');
-    }
-  }, [hasAnyApprovalPermission]);
+  // 視圖模式 - 初始設為 null，等權限載入完成後再決定
+  const [viewMode, setViewMode] = useState(null);
+  const [viewModeInitialized, setViewModeInitialized] = useState(false);
 
-  // 載入資料
+  // 等權限載入完成後，設定初始視圖模式（只執行一次）
   useEffect(() => {
-    if (user) {
+    // 等待權限檢查完成（假設權限 hook 會在載入完成後返回穩定值）
+    // 使用 setTimeout 確保權限已經載入
+    const timer = setTimeout(() => {
+      if (!viewModeInitialized) {
+        setViewMode(hasAnyApprovalPermission ? 'todo' : 'all');
+        setViewModeInitialized(true);
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [hasAnyApprovalPermission, viewModeInitialized]);
+
+  // 載入資料 - 只在 viewMode 初始化完成後才執行
+  useEffect(() => {
+    if (user && viewMode) {
       fetchRequests();
     }
 
@@ -114,7 +120,7 @@ export default function Dashboard() {
         schema: 'public',
         table: 'expense_reimbursement_requests'
       }, () => {
-        if(user) fetchRequests();
+        if(user && viewMode) fetchRequests();
       })
       .subscribe();
 
@@ -429,36 +435,38 @@ export default function Dashboard() {
       </div>
 
       {/* ================= Tabs (分頁籤) ================= */}
-      <div className="flex gap-6 border-b border-stone-200 mb-6 overflow-x-auto">
-        <button
-          onClick={() => { setViewMode('todo'); setSelectedIds(new Set()); }}
-          className={`pb-3 px-1 text-sm font-bold transition-all flex items-center gap-2 relative whitespace-nowrap ${
-            viewMode === 'todo'
-              ? 'text-amber-600 border-b-2 border-amber-600'
-              : 'text-stone-400 hover:text-stone-600'
-          }`}
-        >
-          <CheckSquare size={18} />
-          待我簽核
-          {todoCount > 0 && (
-            <span className="ml-1 bg-amber-500 text-white text-[10px] px-1.5 py-0.5 rounded-full shadow-sm">
-              {todoCount}
-            </span>
-          )}
-        </button>
+      {viewMode && (
+        <div className="flex gap-6 border-b border-stone-200 mb-6 overflow-x-auto">
+          <button
+            onClick={() => { setViewMode('todo'); setSelectedIds(new Set()); }}
+            className={`pb-3 px-1 text-sm font-bold transition-all flex items-center gap-2 relative whitespace-nowrap ${
+              viewMode === 'todo'
+                ? 'text-amber-600 border-b-2 border-amber-600'
+                : 'text-stone-400 hover:text-stone-600'
+            }`}
+          >
+            <CheckSquare size={18} />
+            待我簽核
+            {todoCount > 0 && (
+              <span className="ml-1 bg-amber-500 text-white text-[10px] px-1.5 py-0.5 rounded-full shadow-sm">
+                {todoCount}
+              </span>
+            )}
+          </button>
 
-        <button
-          onClick={() => { setViewMode('all'); setSelectedIds(new Set()); }}
-          className={`pb-3 px-1 text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
-            viewMode === 'all'
-              ? 'text-stone-800 border-b-2 border-stone-800'
-              : 'text-stone-400 hover:text-stone-600'
-          }`}
-        >
-          <ListFilter size={18} />
-          歷史紀錄
-        </button>
-      </div>
+          <button
+            onClick={() => { setViewMode('all'); setSelectedIds(new Set()); }}
+            className={`pb-3 px-1 text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+              viewMode === 'all'
+                ? 'text-stone-800 border-b-2 border-stone-800'
+                : 'text-stone-400 hover:text-stone-600'
+            }`}
+          >
+            <ListFilter size={18} />
+            歷史紀錄
+          </button>
+        </div>
+      )}
 
       {/* 批量操作工具列 */}
       {selectedIds.size > 0 && viewMode === 'todo' && (
@@ -488,7 +496,7 @@ export default function Dashboard() {
       )}
 
       {/* ================= 列表區域 ================= */}
-      {loading ? (
+      {(loading || !viewMode) ? (
         <div className="bg-white/50 backdrop-blur rounded-2xl border border-stone-200 p-12 text-center text-stone-400 flex flex-col items-center min-h-[400px] justify-center">
           <Loader2 className="animate-spin mb-3 text-amber-500" size={32} />
           <p>資料載入中...</p>
@@ -606,11 +614,11 @@ export default function Dashboard() {
                       />
                     </th>
                   )}
-                  <th className="p-4 w-40">申請單號</th>
-                  <th className="p-4 w-32">申請日期</th>
-                  <th className="p-4 w-32">申請人</th>
-                  <th className="p-4">部門</th>
-                  <th className="p-4 w-48">品牌分別</th>
+                  <th className="p-4 w-36">申請單號</th>
+                  <th className="p-4 w-28">申請日期</th>
+                  <th className="p-4 w-28">申請人</th>
+                  <th className="p-4 w-32">部門</th>
+                  <th className="p-4 w-44">品牌分別</th>
                   <th className="p-4 text-right w-32">總金額</th>
                   <th className="p-4 text-center w-24">收據</th>
                   <th className="p-4 text-center w-32">狀態</th>
