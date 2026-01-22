@@ -13,12 +13,13 @@ export default function QuickAccess({ onSystemClick }) {
     // 權限檢查還在載入中，暫時隱藏
     if (permissionsLoading) return false;
 
-    // 檢查系統訪問權限
-    if (system.permissionCode && !hasPermission(system.permissionCode)) {
-      return false;
+    // 優先檢查系統訪問權限（如果有設定 permissionCode）
+    if (system.permissionCode) {
+      // 只要有權限就可以看到，不再檢查角色
+      return hasPermission(system.permissionCode);
     }
 
-    // 檢查角色（向後兼容）
+    // 如果沒有 permissionCode，才檢查角色（向後兼容）
     if (system.requiresRole && system.requiresRole.length > 0) {
       return system.requiresRole.includes(role);
     }

@@ -17,19 +17,17 @@ export default function CategorySection({ category, onSystemClick }) {
 
   // 根據用戶角色和權限過濾系統
   const visibleSystems = category.systems.filter(system => {
-    // 1. 檢查權限（優先）
+    // 1. 優先檢查權限（如果有設定 permissionCode）
     if (system.permissionCode) {
       // 權限檢查還在載入中，暫時隱藏（避免閃爍，等載入完成後再顯示）
       if (permissionsLoading) {
         return false;
       }
-      // 檢查用戶是否有系統訪問權限
-      if (!hasPermission(system.permissionCode)) {
-        return false;
-      }
+      // 只要有系統訪問權限就可以看到，不再檢查角色
+      return hasPermission(system.permissionCode);
     }
 
-    // 2. 檢查角色（向後兼容）
+    // 2. 如果沒有 permissionCode，才檢查角色（向後兼容）
     if (system.requiresRole && system.requiresRole.length > 0) {
       return system.requiresRole.includes(role);
     }

@@ -34,8 +34,7 @@ export const categories = [
         url: '/management',
         status: 'active',
         isExternal: false,
-        requiresRole: ['admin', 'hr'], // 需要特定角色才能看到
-        permissionCode: 'system.management', // 需要系統訪問權限
+        permissionCode: 'system.management', // 系統訪問權限（已取代 requiresRole）
       },
     ],
   },
