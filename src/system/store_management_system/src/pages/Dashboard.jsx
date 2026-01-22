@@ -492,18 +492,30 @@ export default function Dashboard() {
                             </div>
 
                             <div className="mt-1.5 sm:mt-2 space-y-0.5 sm:space-y-1 text-xs sm:text-sm text-stone-600">
-                              {store.store_code && (
+                              {store.code && (
                                 <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                                   <span className="font-medium">店舖代碼:</span>
                                   <code className="bg-amber-50 px-2 py-0.5 rounded text-xs text-amber-700 font-semibold">
-                                    {store.store_code}
+                                    {store.code}
                                   </code>
+                                </div>
+                              )}
+                              {store.store_type && (
+                                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                                  <span className="font-medium">店家類型:</span>
+                                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                    store.store_type === 'direct'
+                                      ? 'bg-blue-50 text-blue-700'
+                                      : 'bg-green-50 text-green-700'
+                                  }`}>
+                                    {store.store_type === 'direct' ? '直營店' : '加盟店'}
+                                  </span>
                                 </div>
                               )}
                               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                                 <span className="font-medium">店舖 ID:</span>
                                 <code className="bg-stone-100 px-2 py-0.5 rounded text-xs break-all">
-                                  {store.code}
+                                  {store.id}
                                 </code>
                               </div>
                               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
@@ -690,7 +702,7 @@ function BrandModal({ brand, onClose, onSave }) {
 // 店舖 Modal 組件
 function StoreModal({ store, brandId, onClose, onSave }) {
   const [name, setName] = useState(store?.name || '');
-  const [storeCode, setStoreCode] = useState(store?.store_code || '');
+  const [storeType, setStoreType] = useState(store?.store_type || 'franchise');
   const [isActive, setIsActive] = useState(store?.is_active ?? true);
   const [openingDate, setOpeningDate] = useState(store?.opening_date || '');
   const [closingDate, setClosingDate] = useState(store?.closing_date || '');
@@ -709,14 +721,15 @@ function StoreModal({ store, brandId, onClose, onSave }) {
     setSaving(true);
     await onSave({
       name: name.trim(),
-      store_code: storeCode.trim() || null,
       brand_id: brandId,
+      store_type: storeType,
       is_active: isActive,
       opening_date: openingDate || null,
       closing_date: closingDate || null,
       labor_insurance_number: laborInsuranceNumber.trim() || null,
       health_insurance_number: healthInsuranceNumber.trim() || null,
       food_safety_certificate_number: foodSafetyCertificateNumber.trim() || null,
+      // code 會由後端自動生成，不需要傳送
     });
     setSaving(false);
   };
@@ -747,17 +760,19 @@ function StoreModal({ store, brandId, onClose, onSave }) {
 
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-2">
-              店舖代碼
+              店家類型 *
             </label>
-            <input
-              type="text"
-              value={storeCode}
-              onChange={(e) => setStoreCode(e.target.value)}
+            <select
+              value={storeType}
+              onChange={(e) => setStoreType(e.target.value)}
               className="w-full px-3 sm:px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm sm:text-base"
-              placeholder="選填，例如: ST001"
-            />
+              required
+            >
+              <option value="franchise">加盟店</option>
+              <option value="direct">直營店</option>
+            </select>
             <p className="text-xs text-stone-500 mt-1">
-              用於識別店舖的自訂代碼
+              店家代碼將自動生成（格式：品牌ID + 流水號）
             </p>
           </div>
 
