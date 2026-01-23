@@ -1,7 +1,7 @@
 # 六扇門主系統 (6owl_door_main_system) 完整技術文檔
 
-**最後更新**: 2026-01-22
-**文檔版本**: 1.0
+**最後更新**: 2026-01-23
+**文檔版本**: 1.2
 **系統狀態**: 多系統整合運行中
 
 ---
@@ -47,9 +47,12 @@
 │   ├── 店舖管理系統 (Store Management System)
 │   └── [其他運營模組]
 │
-└── 👥 人事管理
-    ├── 員工資料管理
-    └── 部門組織架構
+├── 👥 人事管理
+│   ├── 員工資料管理
+│   └── 部門組織架構
+│
+└── 📚 教育訓練
+    └── 員工教育訓練系統 (Training System) - Schema: training
 ```
 
 ---
@@ -104,13 +107,48 @@
 #### 2. Schema 隔離
 不同業務模組使用不同的 schema：
 - `public`: 共用資料（員工、部門、店舖等）
+- `rbac`: 權限控制系統（角色、權限、關聯）
 - `payment_approval`: 付款簽核專用
+- `training`: 教育訓練系統專用
 - 其他 schema 依業務需求建立
 
 **優點**：
 - 資料隔離，降低耦合
 - 權限控制更細緻
 - 遷移和備份更靈活
+
+#### 3. Code-Based 連結模式（BIGINT）
+跨表關聯優先使用 `code` 欄位（轉為 BIGINT）而非 UUID：
+
+**適用場景**：
+- `brands.code` → 品牌代碼（2 位數字：01-89 品牌，90-99 供應商）
+- `stores.code` → 門市代碼（5 位數字：BBSSS，BB=品牌，SSS=門市序號）
+- `departments.code` → 部門代碼
+
+**實作方式**：
+```sql
+-- 員工表使用 BIGINT code 連結
+ALTER TABLE public.employees
+ADD COLUMN brand_id BIGINT,  -- 對應 brands.code::BIGINT
+ADD COLUMN store_id BIGINT;  -- 對應 stores.code::BIGINT
+
+-- 訓練系統課程表
+CREATE TABLE training.courses (
+  brand_id BIGINT,           -- 品牌代碼
+  target_departments BIGINT[] -- 部門代碼陣列
+);
+
+-- 視圖中使用 code::BIGINT 進行 JOIN
+CREATE VIEW training.course_stats AS
+SELECT c.*, b.name AS brand_name
+FROM training.courses c
+LEFT JOIN public.brands b ON c.brand_id = b.code::BIGINT;
+```
+
+**優點**：
+- 可讀性高（品牌 01、02 比 UUID 易懂）
+- 跨系統整合更方便
+- 適合匯入/匯出作業
 
 #### 3. RLS 優先安全模型
 所有資料存取都通過 RLS 控制：
@@ -260,11 +298,27 @@ CREATE TABLE public.departments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   code TEXT UNIQUE NOT NULL,                       -- 部門代碼
   name TEXT NOT NULL,                              -- 部門名稱
+  org_type VARCHAR(20) DEFAULT 'headquarters',     -- headquarters/brand/store
   parent_id UUID REFERENCES public.departments(id), -- 上級部門
   manager_id UUID REFERENCES public.employees(id),  -- 部門主管
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
+
+**總部部門清單**：
+
+| 代碼 | 名稱 | 說明 |
+|------|------|------|
+| `FIN` | 財務部 | 會計、出納 |
+| `HR` | 人力資源部 | 人資專員 |
+| `OPS` | 營運部 | 督導管理、門市營運 |
+| `PUR` | 採購部 | 採購作業 |
+| `IT` | 資訊技術部 | IT 維護 |
+| `ADMIN` | 行政管理部 | 一般行政 |
+| `RD` | 研發部 | 產品研發 |
+| `SALES` | 行銷部 | 品牌行銷 |
+| `ART` | 美編部 | 視覺設計 |
+| `MAINT` | 工務部 | 門市設備維護、裝修工程 |
 
 #### stores (店舖表)
 ```sql
@@ -308,22 +362,65 @@ RBAC (Role-Based Access Control) 系統是整個平台的權限核心。
 ```sql
 CREATE TABLE rbac.roles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  code TEXT UNIQUE NOT NULL,                       -- 角色代碼 (ceo, boss, accountant...)
+  code TEXT UNIQUE NOT NULL,                       -- 角色代碼
   name TEXT NOT NULL,                              -- 角色名稱
+  level INT NOT NULL DEFAULT 0,                    -- 角色等級（越高權限越大）
+  scope_type VARCHAR(20) DEFAULT 'self',           -- 資料範圍
+  org_type VARCHAR(20) DEFAULT 'both',             -- 組織類型
   description TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  is_franchise_allowed BOOLEAN DEFAULT true,       -- 加盟店是否可用
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ                           -- 軟刪除
 );
 ```
 
-**常見角色**：
-- `ceo`: 總經理
-- `boss`: 放行主管
-- `audit_manager`: 審核主管
-- `accountant`: 會計
-- `cashier`: 出納
-- `unit_manager`: 單位主管
-- `store_manager`: 店長
-- `employee`: 一般員工
+#### 資料範圍類型 (scope_type)
+
+| 類型 | 說明 | 實現方式 |
+|------|------|----------|
+| `all` | 全集團所有資料 | 無過濾 |
+| `assigned_brands` | 僅負責的品牌 | 透過 `user_brand_assignments` 表 |
+| `assigned_stores` | 僅負責的門市群 | 透過 `user_store_assignments` 表 |
+| `own_store` | 僅所屬門市 | 透過 `employees.store_id` |
+| `self` | 僅自己的資料 | `user_id = auth.uid()` |
+
+#### 組織類型 (org_type)
+
+| 類型 | 說明 |
+|------|------|
+| `headquarters` | 僅限總部人員使用 |
+| `store` | 僅限門市人員使用 |
+| `both` | 總部和門市皆可使用 |
+
+#### 角色清單（有效角色）
+
+| 等級 | 代碼 | 名稱 | 資料範圍 | 組織類型 |
+|------|------|------|----------|----------|
+| 100 | `super_admin` | 超級管理員 | all | both |
+| 95 | `ceo` | 總經理 | all | headquarters |
+| 90 | `boss` | 總經理室主管 | all | headquarters |
+| 90 | `director` | 部門總監 | all | headquarters |
+| 85 | `hq_fin_manager` | 財務經理 | all | headquarters |
+| 85 | `hq_hr_manager` | 人資經理 | all | headquarters |
+| 85 | `hq_ops_manager` | 營運經理 | all | headquarters |
+| 80 | `area_supervisor` | 區域督導 | assigned_stores | headquarters |
+| 75 | `hq_accountant` | 會計 | assigned_brands | headquarters |
+| 75 | `hq_auditor` | 審計 | all | headquarters |
+| 75 | `hq_cashier` | 出納 | assigned_brands | headquarters |
+| 70 | `hq_hr_specialist` | 人資專員 | assigned_brands | headquarters |
+| 70 | `hq_it_admin` | 資訊管理員 | all | headquarters |
+| 70 | `hq_purchaser` | 採購專員 | assigned_brands | headquarters |
+| 70 | `hq_trainer` | 教育訓練專員 | assigned_brands | headquarters |
+| 65 | `store_manager` | 店長 | own_store | store |
+| 60 | `car_admin` | 車輛管理員 | all | headquarters |
+| 55 | `assistant_manager` | 副店長 | own_store | store |
+| 50 | `hq_staff` | 總部一般員工 | self | headquarters |
+| 50 | `meeting_admin` | 會議室管理員 | all | headquarters |
+| 40 | `store_staff` | 正職人員 | own_store | store |
+| 30 | `store_parttime` | 計時人員 | self | store |
+| 10 | `user` | 一般使用者 | self | both |
+
+> **注意**：已停用的角色（`admin`, `accountant`, `cashier`, `hr`, `audit_manager`, `manager`, `staff`, `unit_manager`）透過 `deleted_at` 軟刪除，保留歷史資料但不再使用。
 
 #### rbac.permissions (權限表)
 ```sql
@@ -333,10 +430,12 @@ CREATE TABLE rbac.permissions (
   name TEXT NOT NULL,                              -- 權限名稱
   description TEXT,
   module TEXT NOT NULL,                            -- 所屬模組 (payment_approval, expense_reimbursement)
-  category TEXT NOT NULL,                          -- 分類 (read, write, approve, delete)
+  category TEXT,                                   -- 分類 (read, write, approve, delete, system)
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
+
+> ⚠️ **重要**：`module` 欄位為 **NOT NULL**，新增權限時必須指定！
 
 **權限命名規範**：
 ```
@@ -348,6 +447,22 @@ CREATE TABLE rbac.permissions (
 - payment.approve.boss      # 放行主管簽核
 - expense.create            # 建立代墊款申請
 - system.payment_approval   # 訪問付款簽核系統
+- system.training           # 訪問教育訓練系統
+```
+
+**新增權限的正確範例**：
+```sql
+-- ✅ 正確：包含 module 欄位
+INSERT INTO rbac.permissions (code, name, description, module, category) VALUES
+  ('system.training', '存取教育訓練系統', '可以存取教育訓練系統', 'training', 'system'),
+  ('training.view', '查看訓練課程', '查看已發布的訓練課程', 'training', 'training'),
+  ('training.manage.courses', '管理課程', '建立、編輯、刪除課程', 'training', 'training')
+ON CONFLICT (code) DO NOTHING;
+
+-- ❌ 錯誤：缺少 module 欄位會報錯
+-- ERROR: null value in column "module" violates not-null constraint
+INSERT INTO rbac.permissions (code, name, description, category) VALUES
+  ('system.training', '存取教育訓練系統', '可以存取教育訓練系統', 'system');
 ```
 
 #### rbac.role_permissions (角色權限關聯)
@@ -588,6 +703,254 @@ public.store_managers (
   id, store_id, employee_id,
   assigned_at, removed_at
 )
+```
+
+### 4. 教育訓練系統 (Training System)
+
+**路徑**: `src/system/training_system/`
+**Schema**: `training`（獨立 schema）
+**狀態**: 🚧 開發中
+
+#### 核心功能
+- **總部端**：課程管理、內容編輯、報表查看
+- **門市端**：課程學習、測驗作答
+- **多品牌支援**：六扇門、粥大福有不同訓練內容
+- **新人 Onboarding**：Checklist 模板、主管簽核
+
+#### 架構說明
+```
+training schema（獨立於 public）
+├── courses          # 課程主表
+├── lessons          # 課程章節
+├── questions        # 測驗題目
+├── categories       # 課程分類
+├── enrollments      # 學習進度
+├── quiz_attempts    # 測驗記錄
+├── lesson_progress  # 章節完成記錄
+├── onboarding_templates  # 新人訓練模板
+├── onboarding_items      # 訓練項目
+└── onboarding_progress   # 新人進度
+```
+
+#### 關鍵設計：Code-Based 連結
+使用 BIGINT 儲存 code 值，而非 UUID 外鍵：
+
+```sql
+-- 課程：使用品牌代碼連結
+CREATE TABLE training.courses (
+  brand_id BIGINT,             -- 對應 brands.code::BIGINT (01, 02...)
+  target_departments BIGINT[], -- 部門代碼陣列
+  ...
+);
+
+-- 新人訓練進度：使用門市代碼連結
+CREATE TABLE training.onboarding_progress (
+  store_id BIGINT,             -- 對應 stores.code::BIGINT (01001, 02015...)
+  ...
+);
+
+-- 視圖：使用 code::BIGINT 進行 JOIN
+CREATE VIEW training.course_stats AS
+SELECT c.*, b.name AS brand_name
+FROM training.courses c
+LEFT JOIN public.brands b ON c.brand_id = b.code::BIGINT;
+```
+
+#### Code 格式說明
+| 欄位 | 格式 | 範例 | 說明 |
+|------|------|------|------|
+| `brands.code` | 2 位數字 | `'01'`, `'02'` | 01-89 品牌，90-99 供應商 |
+| `stores.code` | 5 位數字 | `'01001'`, `'02015'` | BB=品牌代碼，SSS=門市序號 |
+| `departments.code` | 自訂格式 | `'HQ01'`, `'OP02'` | 依部門類型設計 |
+
+#### RBAC 權限
+```sql
+-- 系統權限（module = 'training'）
+system.training           -- 存取教育訓練系統
+training.view             -- 查看訓練課程
+training.enroll           -- 參加訓練
+training.manage.courses   -- 管理課程（總部）
+training.manage.content   -- 編輯內容（總部）
+training.view.reports     -- 查看報表（總部）
+training.manage.onboarding -- 管理新人訓練
+training.sign_off         -- 簽核訓練（門市主管）
+```
+
+#### 前端品牌選擇（CourseEditor.jsx）
+```javascript
+// 品牌下拉選單使用 code 作為 value
+<select
+  value={course.brand_id || ''}
+  onChange={(e) => setCourse({
+    ...course,
+    brand_id: e.target.value ? parseInt(e.target.value) : null
+  })}
+>
+  <option value="">全品牌通用</option>
+  {brands.map(brand => (
+    <option key={brand.id} value={parseInt(brand.code)}>
+      {brand.name} ({brand.code})
+    </option>
+  ))}
+</select>
+```
+
+#### useCurrentUser Hook 整合
+```javascript
+// src/hooks/useCurrentUser.js
+const currentUser = {
+  // 基本資訊
+  id: employee?.user_id,
+  name: employee?.name,
+
+  // 品牌與門市資訊（BIGINT code）
+  brandId: employee?.brand_id || null,    // BIGINT
+  brandName: employee?.brand_name || null,
+  storeId: employee?.store_id || null,    // BIGINT
+  storeName: employee?.store_name || null,
+};
+```
+
+### 5. 管理中心 (Management Center)
+
+**路徑**: `src/pages/management/`
+**功能**: 組織架構、員工、督導、權限管理
+**狀態**: ✅ 已上線
+
+#### 核心功能
+
+管理中心整合了所有組織管理功能，包含以下頁籤：
+
+| 頁籤 | 元件 | 功能說明 | 所需權限 |
+|------|------|----------|----------|
+| 組織架構 | `OrganizationManagement` | 品牌與門市管理 | `employee.edit` |
+| 督導管理 | `SupervisorManagement` | 督導-門市指派 | `employee.edit` |
+| 用戶帳號 | `ProfilesManagement` | 系統帳號與角色 | `employee.view` |
+| 員工資料 | `EmployeesManagementV2` | 員工資訊管理 | `employee.edit` |
+| 部門管理 | `DepartmentsManagement` | 部門架構 | `employee.edit` |
+| 會計品牌分配 | `AccountantBrandsManagement` | 會計負責品牌 | `employee.edit` |
+| 權限管理 | `PermissionManagement` | RBAC 角色權限 | `rbac.manage` |
+
+#### 督導管理架構
+
+採用**直接指派模式**（不使用區域分組）：
+
+```sql
+-- 督導-門市指派表
+CREATE TABLE rbac.user_store_assignments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id),
+  store_id BIGINT NOT NULL,                        -- stores.code
+  assignment_type VARCHAR(50) NOT NULL,            -- 'supervisor', 'temp_manager' 等
+  assigned_at TIMESTAMPTZ DEFAULT now(),
+  assigned_by UUID REFERENCES auth.users(id),
+  expires_at TIMESTAMPTZ,
+  UNIQUE(user_id, store_id, assignment_type)
+);
+
+-- 督導摘要視圖
+CREATE VIEW rbac.supervisor_summary AS
+SELECT
+  u.id AS user_id,
+  u.email,
+  e.name AS supervisor_name,
+  COUNT(usa.store_id) AS store_count,
+  ARRAY_AGG(DISTINCT s.brand_id) AS brand_ids
+FROM auth.users u
+JOIN public.employees e ON u.id = e.user_id
+LEFT JOIN rbac.user_store_assignments usa
+  ON u.id = usa.user_id AND usa.assignment_type = 'supervisor'
+LEFT JOIN public.stores s ON usa.store_id = s.code::BIGINT
+WHERE e.role = 'area_supervisor' OR e.position_code = 'area_supervisor'
+GROUP BY u.id, u.email, e.name;
+```
+
+**督導管理函數**：
+```sql
+-- 批次指派門市給督導
+rbac.assign_stores_to_supervisor(
+  p_supervisor_id UUID,
+  p_store_ids BIGINT[],
+  p_assigned_by UUID
+)
+
+-- 移除督導的門市
+rbac.remove_stores_from_supervisor(
+  p_supervisor_id UUID,
+  p_store_ids BIGINT[]
+)
+
+-- 取得督導的門市列表
+rbac.get_supervisor_stores(p_supervisor_id UUID)
+```
+
+#### 員工管理新欄位
+
+`employees` 表新增以下欄位支援更精細的分類：
+
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| `org_type` | VARCHAR(20) | 組織類型：`headquarters` / `store` |
+| `employment_type` | VARCHAR(20) | 僱用類型：`fulltime` / `parttime` / `contract` / `intern` |
+| `position_code` | VARCHAR(50) | 職位代碼，對應 RBAC 角色 |
+| `store_id` | BIGINT | 門市員工所屬門市 (stores.code) |
+
+#### 前端檔案結構
+
+```
+src/pages/management/
+├── ManagementCenter.jsx          # 主頁面（頁籤導航）
+└── components/
+    ├── OrganizationManagement.jsx  # 品牌/門市管理
+    ├── SupervisorManagement.jsx    # 督導管理
+    ├── ProfilesManagement.jsx      # 用戶帳號
+    ├── EmployeesManagementV2.jsx   # 員工資料（新版）
+    ├── DepartmentsManagement.jsx   # 部門管理
+    ├── AccountantBrandsManagement.jsx
+    └── PermissionManagement.jsx    # 權限管理
+
+src/hooks/management/
+├── useBrands.js        # 品牌 CRUD
+├── useStores.js        # 門市 CRUD
+├── useSupervisors.js   # 督導指派管理
+├── useEmployees.js     # 員工 CRUD
+├── useDepartments.js   # 部門 CRUD
+└── useProfiles.js      # 用戶帳號管理（同步更新 profiles + employees + user_roles）
+
+src/components/ui/
+├── Modal.jsx           # 通用彈窗
+├── DataTable.jsx       # 通用資料表格
+└── Badge.jsx           # 通用標籤（狀態顯示）
+```
+
+#### 用戶角色更新流程
+
+當在「用戶帳號」頁面變更角色時，會同步更新三個地方：
+
+```javascript
+// useProfiles.js - updateRoleMutation
+const updateRoleMutation = useMutation({
+  mutationFn: async ({ userId, newRole }) => {
+    // 1. 更新 profiles.role
+    await supabase.from('profiles').update({ role: newRole }).eq('id', userId);
+
+    // 2. 更新 employees.role
+    await supabase.from('employees').update({ role: newRole }).eq('user_id', userId);
+
+    // 3. 取得 RBAC role_id
+    const { data: roleData } = await supabase.schema('rbac')
+      .from('roles').select('id').eq('code', newRole).single();
+
+    // 4. 刪除舊 user_roles
+    await supabase.schema('rbac').from('user_roles').delete().eq('user_id', userId);
+
+    // 5. 新增新 user_roles
+    await supabase.schema('rbac').from('user_roles').insert({
+      user_id: userId,
+      role_id: roleData.id
+    });
+  }
+});
 ```
 
 ---
@@ -1090,6 +1453,45 @@ const subscription = supabase
   .subscribe();
 ```
 
+#### 5. RBAC 權限新增失敗："null value in column 'module'"
+
+**錯誤訊息**：
+```
+ERROR: 23502: null value in column "module" of relation "permissions" violates not-null constraint
+```
+
+**原因**：`rbac.permissions` 表的 `module` 欄位為 NOT NULL，新增權限時必須指定。
+
+**錯誤範例**：
+```sql
+-- ❌ 缺少 module 欄位
+INSERT INTO rbac.permissions (code, name, description, category) VALUES
+  ('system.training', '存取教育訓練系統', '...', 'system');
+```
+
+**正確範例**：
+```sql
+-- ✅ 包含 module 欄位
+INSERT INTO rbac.permissions (code, name, description, module, category) VALUES
+  ('system.training', '存取教育訓練系統', '...', 'training', 'system');
+```
+
+#### 6. 跨 Schema 視圖 JOIN 失敗
+
+**問題**：從 `training` schema 的視圖 JOIN `public` schema 的表時出錯。
+
+**解決方案**：使用完整的 schema.table 名稱：
+```sql
+-- ✅ 正確：明確指定 schema
+CREATE VIEW training.course_stats AS
+SELECT c.*, b.name AS brand_name
+FROM training.courses c
+LEFT JOIN public.brands b ON c.brand_id = b.code::BIGINT;
+
+-- ❌ 錯誤：未指定 schema 可能找不到表
+LEFT JOIN brands b ON ...
+```
+
 ---
 
 ## 系統維護指南
@@ -1151,6 +1553,7 @@ WHERE created_at < NOW() - INTERVAL '2 years';
 system.payment_approval
 system.expense_reimbursement
 system.store_management
+system.training
 ```
 
 #### 付款簽核權限
@@ -1180,6 +1583,17 @@ expense.approve.ceo
 expense.approve.boss
 expense.approve.audit_manager
 expense.cancel
+```
+
+#### 教育訓練權限
+```sql
+training.view                -- 查看訓練課程
+training.enroll              -- 參加訓練
+training.manage.courses      -- 管理課程（總部）
+training.manage.content      -- 編輯內容（總部）
+training.view.reports        -- 查看報表（總部）
+training.manage.onboarding   -- 管理新人訓練
+training.sign_off            -- 簽核訓練（門市主管）
 ```
 
 ### B. 常用 SQL 函數
@@ -1233,10 +1647,12 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 | 版本 | 日期 | 變更內容 | 負責人 |
 |------|------|----------|--------|
 | 1.0 | 2026-01-22 | 初版完成，包含三大子系統文檔 | Claude AI |
+| 1.1 | 2026-01-23 | 新增教育訓練系統、Code-Based 連結模式、RBAC module 必填說明 | Claude AI |
+| 1.2 | 2026-01-23 | 新增管理中心文檔、RBAC 角色架構重整、督導管理、資料範圍控制 | Claude AI |
 
 ---
 
-**最後更新**: 2026-01-22
+**最後更新**: 2026-01-23
 **文檔維護**: Claude AI Assistant
 **系統狀態**: 生產環境運行中
 

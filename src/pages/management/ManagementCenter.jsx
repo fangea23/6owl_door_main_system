@@ -2,12 +2,15 @@ import React, { useState, useEffect, useRef } from 'react'; // 1. 引入 useEffe
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useUserPermissions } from '../../hooks/usePermission'; // RBAC 權限系統
-import { Shield, Users, Building2, Briefcase, ChevronDown, Settings, LogOut, BadgeDollarSign, Key, Loader2 } from 'lucide-react';
+import { Shield, Users, Building2, Briefcase, ChevronDown, Settings, LogOut, BadgeDollarSign, Key, Loader2, Store, UserCheck, Network } from 'lucide-react';
 import ProfilesManagement from './components/ProfilesManagement';
 import EmployeesManagement from './components/EmployeesManagement';
+import EmployeesManagementV2 from './components/EmployeesManagementV2';
 import DepartmentsManagement from './components/DepartmentsManagement';
 import AccountantBrandsManagement from './components/AccountantBrandsManagement';
 import PermissionManagement from './components/PermissionManagement';
+import OrganizationManagement from './components/OrganizationManagement';
+import SupervisorManagement from './components/SupervisorManagement';
 import { supabase } from '../../lib/supabase.js'; // 2. 引入 supabase (請確認路徑是否正確，通常與 contexts 同層級或在 src 根目錄)
 import logoSrc from '../../assets/logo.png';
 
@@ -112,6 +115,22 @@ export default function ManagementCenter() {
   // 定義所有頁籤及其所需權限
   const allTabs = [
     {
+      id: 'organization',
+      name: '組織架構',
+      icon: Network,
+      description: '管理品牌與門市組織架構，設定直營/加盟門市及聯絡資訊',
+      component: OrganizationManagement,
+      requiredPermission: 'employee.edit', // 需要編輯員工權限
+    },
+    {
+      id: 'supervisors',
+      name: '督導管理',
+      icon: UserCheck,
+      description: '管理區域督導與門市指派，設定督導負責的門市範圍',
+      component: SupervisorManagement,
+      requiredPermission: 'employee.edit', // 需要編輯員工權限
+    },
+    {
       id: 'profiles',
       name: '用戶帳號',
       icon: Users,
@@ -123,8 +142,8 @@ export default function ManagementCenter() {
       id: 'employees',
       name: '員工資料',
       icon: Briefcase,
-      description: '管理員工組織架構資訊',
-      component: EmployeesManagement,
+      description: '管理員工組織架構資訊，包含總部與門市人員',
+      component: EmployeesManagementV2,
       requiredPermission: 'employee.edit', // 需要編輯員工權限
     },
     {
