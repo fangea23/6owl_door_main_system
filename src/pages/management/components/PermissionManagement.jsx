@@ -184,11 +184,37 @@ export default function PermissionManagement() {
   const moduleNames = {
     payment: '💰 付款簽核',
     car_rental: '🚗 車輛租借',
-    vehicle: '🚗 車輛租借（舊）',  // 舊的 vehicle 模組
+    vehicle: '🚗 車輛租借（舊）',
     meeting_room: '🏢 會議室',
-    meeting: '🏢 會議室（舊）',  // 舊的 meeting 模組
+    meeting: '🏢 會議室（舊）',
     employee: '👥 員工管理',
-    rbac: '🔐 權限管理'
+    rbac: '🔐 權限管理',
+    scheduling: '📅 排班管理',
+    workflow: '📋 簽核流程',
+    inspection: '🔍 門市稽核',
+    pos_data: '📊 POS 數據',
+    franchise: '🏪 加盟管理',
+    incident: '⚠️ 異常通報',
+    store_ops: '🏬 門市營運',
+    store_hr: '👤 門市人事',
+    store_finance: '💵 門市財務',
+    supervisor: '👔 督導管理'
+  };
+
+  // 角色資料範圍類型
+  const scopeTypeLabels = {
+    all: { label: '全部資料', color: 'bg-red-100 text-red-700' },
+    assigned_brands: { label: '負責品牌', color: 'bg-purple-100 text-purple-700' },
+    assigned_stores: { label: '負責門市', color: 'bg-blue-100 text-blue-700' },
+    own_store: { label: '所屬門市', color: 'bg-green-100 text-green-700' },
+    self: { label: '僅自己', color: 'bg-gray-100 text-gray-700' }
+  };
+
+  // 角色組織類型
+  const orgTypeLabels = {
+    headquarters: { label: '總部', color: 'bg-indigo-100 text-indigo-700' },
+    store: { label: '門市', color: 'bg-teal-100 text-teal-700' },
+    both: { label: '通用', color: 'bg-orange-100 text-orange-700' }
   };
 
   // 權限檢查載入中
@@ -282,30 +308,42 @@ export default function PermissionManagement() {
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h3 className="font-bold text-gray-800 mb-4">角色列表</h3>
               <div className="space-y-2">
-                {roles.map(role => (
-                  <button
-                    key={role.id}
-                    onClick={() => startEditRole(role)}
-                    className={`w-full text-left p-3 rounded-lg transition-colors ${
-                      selectedRole?.id === role.id
-                        ? 'bg-blue-100 border-2 border-blue-500'
-                        : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-semibold text-gray-800">{role.name}</div>
-                        <div className="text-xs text-gray-500">{role.code}</div>
+                {roles.map(role => {
+                  const scopeInfo = scopeTypeLabels[role.scope_type] || scopeTypeLabels.self;
+                  const orgInfo = orgTypeLabels[role.org_type] || orgTypeLabels.both;
+                  return (
+                    <button
+                      key={role.id}
+                      onClick={() => startEditRole(role)}
+                      className={`w-full text-left p-3 rounded-lg transition-colors ${
+                        selectedRole?.id === role.id
+                          ? 'bg-blue-100 border-2 border-blue-500'
+                          : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-semibold text-gray-800">{role.name}</div>
+                          <div className="text-xs text-gray-500">{role.code}</div>
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Lv.{role.level}
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-500">
-                        Lv.{role.level}
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${scopeInfo.color}`}>
+                          {scopeInfo.label}
+                        </span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${orgInfo.color}`}>
+                          {orgInfo.label}
+                        </span>
                       </div>
-                    </div>
-                    <div className="text-xs text-gray-600 mt-1">
-                      {getRolePermissionIds(role.id).length} 個權限
-                    </div>
-                  </button>
-                ))}
+                      <div className="text-xs text-gray-600 mt-1">
+                        {getRolePermissionIds(role.id).length} 個權限
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>

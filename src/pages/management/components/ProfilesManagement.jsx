@@ -1,22 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfiles } from '../../../hooks/management/useProfiles';
+import { supabase } from '../../../lib/supabase';
 import {
   UserPlus, Search, Loader2, Mail, Calendar, User, ChevronRight, Trash2, Shield, Save
 } from 'lucide-react';
 
-const ROLES = [
-  { value: 'user', label: '一般使用者', color: 'bg-gray-100 text-gray-600' },
-  { value: 'staff', label: '一般員工', color: 'bg-gray-100 text-gray-600' },
-  { value: 'manager', label: '主管', color: 'bg-blue-100 text-blue-700' },
-  { value: 'unit_manager', label: '單位主管', color: 'bg-blue-100 text-blue-700' },
-  { value: 'accountant', label: '會計', color: 'bg-indigo-100 text-indigo-700' },
-  { value: 'audit_manager', label: '審核主管', color: 'bg-purple-100 text-purple-700' },
-  { value: 'cashier', label: '出納', color: 'bg-orange-100 text-orange-700' },
-  { value: 'boss', label: '放行主管', color: 'bg-pink-100 text-pink-700' },
-  { value: 'hr', label: '人資', color: 'bg-green-100 text-green-700' },
-  { value: 'admin', label: '系統管理員', color: 'bg-red-100 text-red-700' },
-];
+// 角色顏色映射
+const ROLE_COLORS = {
+  super_admin: 'bg-red-100 text-red-700',
+  ceo: 'bg-red-100 text-red-700',
+  boss: 'bg-pink-100 text-pink-700',
+  director: 'bg-purple-100 text-purple-700',
+  hq_fin_manager: 'bg-indigo-100 text-indigo-700',
+  hq_hr_manager: 'bg-green-100 text-green-700',
+  hq_ops_manager: 'bg-blue-100 text-blue-700',
+  area_supervisor: 'bg-blue-100 text-blue-700',
+  hq_accountant: 'bg-indigo-100 text-indigo-700',
+  hq_auditor: 'bg-purple-100 text-purple-700',
+  hq_cashier: 'bg-orange-100 text-orange-700',
+  hq_hr_specialist: 'bg-green-100 text-green-700',
+  hq_it_admin: 'bg-cyan-100 text-cyan-700',
+  hq_purchaser: 'bg-amber-100 text-amber-700',
+  hq_trainer: 'bg-teal-100 text-teal-700',
+  store_manager: 'bg-blue-100 text-blue-700',
+  car_admin: 'bg-gray-100 text-gray-700',
+  assistant_manager: 'bg-sky-100 text-sky-700',
+  hq_staff: 'bg-gray-100 text-gray-600',
+  meeting_admin: 'bg-gray-100 text-gray-700',
+  store_staff: 'bg-gray-100 text-gray-600',
+  store_parttime: 'bg-gray-100 text-gray-500',
+  user: 'bg-gray-100 text-gray-500',
+};
 
 export default function ProfilesManagement() {
   const { user: currentUser } = useAuth();
@@ -31,6 +46,7 @@ export default function ProfilesManagement() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [roles, setRoles] = useState([]); // 從資料庫讀取的角色列表
 
   const [newUser, setNewUser] = useState({
     email: '',
@@ -38,6 +54,23 @@ export default function ProfilesManagement() {
     full_name: '',
     role: 'user'
   });
+
+  // 從資料庫載入有效角色
+  useEffect(() => {
+    const fetchRoles = async () => {
+      const { data, error } = await supabase
+        .schema('rbac')
+        .from('roles')
+        .select('code, name, level, scope_type, org_type')
+        .is('deleted_at', null)
+        .order('level', { ascending: false });
+
+      if (!error && data) {
+        setRoles(data);
+      }
+    };
+    fetchRoles();
+  }, []);
 
   // 搜尋過濾
   const filteredProfiles = profiles.filter(profile =>
@@ -89,9 +122,9 @@ export default function ProfilesManagement() {
 
   // 處理刪除用戶
   const handleDeleteUser = async (userId, userName, targetRole) => {
-    // 防呆檢查：如果是 Admin，直接禁止刪除
-    if (targetRole === 'admin') {
-      alert('❌ 操作禁止！\n\n「系統管理員 (Admin)」帳號受到最高級別保護，無法刪除。\n若必須刪除，請先將其權限修改為其他角色。');
+    // 防呆檢查：如果是超級管理員，直接禁止刪除
+    if (targetRole === 'super_admin') {
+      alert('❌ 操作禁止！\n\n「超級管理員」帳號受到最高級別保護，無法刪除。\n若必須刪除，請先將其權限修改為其他角色。');
       return;
     }
 
@@ -219,8 +252,10 @@ export default function ProfilesManagement() {
                   onChange={e => setNewUser({ ...newUser, role: e.target.value })}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                 >
-                  {ROLES.map(r => (
-                    <option key={r.value} value={r.value}>{r.label}</option>
+                  {roles.map(r => (
+                    <option key={r.code} value={r.code}>
+                      {r.name} (Lv.{r.level})
+                    </option>
                   ))}
                 </select>
               </div>
@@ -261,9 +296,11 @@ export default function ProfilesManagement() {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {filteredProfiles.map((profile) => {
-              const roleInfo = ROLES.find(r => r.value === profile.role) || { label: profile.role, color: 'bg-gray-100 text-gray-600' };
+              const roleInfo = roles.find(r => r.code === profile.role);
+              const roleLabel = roleInfo?.name || profile.role || '未設定';
+              const roleColor = ROLE_COLORS[profile.role] || 'bg-gray-100 text-gray-600';
               const isSelf = currentUser?.id === profile.id;
-              const isAdmin = profile.role === 'admin';
+              const isAdmin = profile.role === 'super_admin';
 
               return (
                 <tr key={profile.id} className="hover:bg-blue-50/30 transition-colors">
@@ -284,8 +321,8 @@ export default function ProfilesManagement() {
                     </div>
                   </td>
                   <td className="p-5">
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${roleInfo.color}`}>
-                      {roleInfo.label}
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${roleColor}`}>
+                      {roleLabel}
                     </span>
                   </td>
                   <td className="p-5 text-sm text-gray-500">
@@ -293,13 +330,16 @@ export default function ProfilesManagement() {
                   </td>
                   <td className="p-5 text-center">
                     <select
-                      value={profile.role}
+                      value={profile.role || ''}
                       onChange={(e) => handleUpdateRole(profile.id, e.target.value)}
                       disabled={isSelf || processing}
                       className="bg-white border border-gray-300 text-gray-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {ROLES.map(r => (
-                        <option key={r.value} value={r.value}>{r.label}</option>
+                      <option value="">-- 請選擇 --</option>
+                      {roles.map(r => (
+                        <option key={r.code} value={r.code}>
+                          {r.name} (Lv.{r.level})
+                        </option>
                       ))}
                     </select>
                   </td>
@@ -326,9 +366,11 @@ export default function ProfilesManagement() {
       {/* 用戶列表 - 手機版 */}
       <div className="md:hidden space-y-4">
         {filteredProfiles.map((profile) => {
-          const roleInfo = ROLES.find(r => r.value === profile.role) || { label: profile.role, color: 'bg-gray-100 text-gray-600' };
+          const roleInfo = roles.find(r => r.code === profile.role);
+          const roleLabel = roleInfo?.name || profile.role || '未設定';
+          const roleColor = ROLE_COLORS[profile.role] || 'bg-gray-100 text-gray-600';
           const isSelf = currentUser?.id === profile.id;
-          const isAdmin = profile.role === 'admin';
+          const isAdmin = profile.role === 'super_admin';
 
           return (
             <div key={profile.id} className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
@@ -342,8 +384,8 @@ export default function ProfilesManagement() {
                       {profile.full_name || '未設定姓名'}
                       {isSelf && <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">你自己</span>}
                     </h3>
-                    <span className={`inline-flex mt-1 px-2 py-0.5 rounded text-xs font-bold ${roleInfo.color}`}>
-                      {roleInfo.label}
+                    <span className={`inline-flex mt-1 px-2 py-0.5 rounded text-xs font-bold ${roleColor}`}>
+                      {roleLabel}
                     </span>
                   </div>
                 </div>
@@ -359,7 +401,7 @@ export default function ProfilesManagement() {
                 )}
 
                 {isAdmin && !isSelf && (
-                  <div className="p-2 text-gray-300" title="管理員帳號受保護">
+                  <div className="p-2 text-gray-300" title="超級管理員帳號受保護">
                     <Shield size={20} />
                   </div>
                 )}
@@ -379,13 +421,16 @@ export default function ProfilesManagement() {
               <div className="pt-3 border-t border-gray-100">
                 <label className="text-xs font-bold text-gray-500 mb-1 block">變更權限</label>
                 <select
-                  value={profile.role}
+                  value={profile.role || ''}
                   onChange={(e) => handleUpdateRole(profile.id, e.target.value)}
                   disabled={isSelf || processing}
                   className="w-full bg-white border border-gray-300 text-gray-700 py-2.5 px-3 rounded-lg focus:ring-2 focus:ring-blue-500 font-medium disabled:bg-gray-100"
                 >
-                  {ROLES.map(r => (
-                    <option key={r.value} value={r.value}>{r.label}</option>
+                  <option value="">-- 請選擇 --</option>
+                  {roles.map(r => (
+                    <option key={r.code} value={r.code}>
+                      {r.name} (Lv.{r.level})
+                    </option>
                   ))}
                 </select>
               </div>

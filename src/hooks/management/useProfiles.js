@@ -100,13 +100,59 @@ export const useProfiles = () => {
   });
 
   // --- 3. 更新角色 (Mutation) ---
+  // 同時更新 profiles.role、employees.role 和 rbac.user_roles
   const updateRoleMutation = useMutation({
     mutationFn: async ({ userId, newRole }) => {
-      const { error } = await supabase
+      // 1. 更新 profiles 表
+      const { error: profileError } = await supabase
         .from('profiles')
         .update({ role: newRole })
         .eq('id', userId);
-      if (error) throw error;
+      if (profileError) throw profileError;
+
+      // 2. 更新 employees 表（如果有關聯）
+      const { error: employeeError } = await supabase
+        .from('employees')
+        .update({ role: newRole })
+        .eq('user_id', userId);
+      // employees 可能不存在該用戶，忽略錯誤
+      if (employeeError && employeeError.code !== 'PGRST116') {
+        console.warn('Update employee role warning:', employeeError);
+      }
+
+      // 3. 取得新角色的 role_id
+      const { data: roleData, error: roleError } = await supabase
+        .schema('rbac')
+        .from('roles')
+        .select('id')
+        .eq('code', newRole)
+        .is('deleted_at', null)
+        .single();
+
+      if (roleError || !roleData) {
+        console.warn('Role not found in RBAC:', newRole);
+        return; // 角色不存在於 RBAC，跳過
+      }
+
+      // 4. 刪除該用戶的所有舊角色
+      await supabase
+        .schema('rbac')
+        .from('user_roles')
+        .delete()
+        .eq('user_id', userId);
+
+      // 5. 新增新角色
+      const { error: userRoleError } = await supabase
+        .schema('rbac')
+        .from('user_roles')
+        .insert({
+          user_id: userId,
+          role_id: roleData.id
+        });
+
+      if (userRoleError) {
+        console.warn('Insert user_role error:', userRoleError);
+      }
     },
     onSuccess: () => queryClient.invalidateQueries(QUERY_KEY),
   });
