@@ -1,7 +1,7 @@
 # 六扇門主系統 (6owl_door_main_system) 完整技術文檔
 
-**最後更新**: 2026-01-22
-**文檔版本**: 1.0
+**最後更新**: 2026-01-23
+**文檔版本**: 1.1
 **系統狀態**: 多系統整合運行中
 
 ---
@@ -47,9 +47,12 @@
 │   ├── 店舖管理系統 (Store Management System)
 │   └── [其他運營模組]
 │
-└── 👥 人事管理
-    ├── 員工資料管理
-    └── 部門組織架構
+├── 👥 人事管理
+│   ├── 員工資料管理
+│   └── 部門組織架構
+│
+└── 📚 教育訓練
+    └── 員工教育訓練系統 (Training System) - Schema: training
 ```
 
 ---
@@ -104,13 +107,48 @@
 #### 2. Schema 隔離
 不同業務模組使用不同的 schema：
 - `public`: 共用資料（員工、部門、店舖等）
+- `rbac`: 權限控制系統（角色、權限、關聯）
 - `payment_approval`: 付款簽核專用
+- `training`: 教育訓練系統專用
 - 其他 schema 依業務需求建立
 
 **優點**：
 - 資料隔離，降低耦合
 - 權限控制更細緻
 - 遷移和備份更靈活
+
+#### 3. Code-Based 連結模式（BIGINT）
+跨表關聯優先使用 `code` 欄位（轉為 BIGINT）而非 UUID：
+
+**適用場景**：
+- `brands.code` → 品牌代碼（2 位數字：01-89 品牌，90-99 供應商）
+- `stores.code` → 門市代碼（5 位數字：BBSSS，BB=品牌，SSS=門市序號）
+- `departments.code` → 部門代碼
+
+**實作方式**：
+```sql
+-- 員工表使用 BIGINT code 連結
+ALTER TABLE public.employees
+ADD COLUMN brand_id BIGINT,  -- 對應 brands.code::BIGINT
+ADD COLUMN store_id BIGINT;  -- 對應 stores.code::BIGINT
+
+-- 訓練系統課程表
+CREATE TABLE training.courses (
+  brand_id BIGINT,           -- 品牌代碼
+  target_departments BIGINT[] -- 部門代碼陣列
+);
+
+-- 視圖中使用 code::BIGINT 進行 JOIN
+CREATE VIEW training.course_stats AS
+SELECT c.*, b.name AS brand_name
+FROM training.courses c
+LEFT JOIN public.brands b ON c.brand_id = b.code::BIGINT;
+```
+
+**優點**：
+- 可讀性高（品牌 01、02 比 UUID 易懂）
+- 跨系統整合更方便
+- 適合匯入/匯出作業
 
 #### 3. RLS 優先安全模型
 所有資料存取都通過 RLS 控制：
@@ -333,10 +371,12 @@ CREATE TABLE rbac.permissions (
   name TEXT NOT NULL,                              -- 權限名稱
   description TEXT,
   module TEXT NOT NULL,                            -- 所屬模組 (payment_approval, expense_reimbursement)
-  category TEXT NOT NULL,                          -- 分類 (read, write, approve, delete)
+  category TEXT,                                   -- 分類 (read, write, approve, delete, system)
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
+
+> ⚠️ **重要**：`module` 欄位為 **NOT NULL**，新增權限時必須指定！
 
 **權限命名規範**：
 ```
@@ -348,6 +388,22 @@ CREATE TABLE rbac.permissions (
 - payment.approve.boss      # 放行主管簽核
 - expense.create            # 建立代墊款申請
 - system.payment_approval   # 訪問付款簽核系統
+- system.training           # 訪問教育訓練系統
+```
+
+**新增權限的正確範例**：
+```sql
+-- ✅ 正確：包含 module 欄位
+INSERT INTO rbac.permissions (code, name, description, module, category) VALUES
+  ('system.training', '存取教育訓練系統', '可以存取教育訓練系統', 'training', 'system'),
+  ('training.view', '查看訓練課程', '查看已發布的訓練課程', 'training', 'training'),
+  ('training.manage.courses', '管理課程', '建立、編輯、刪除課程', 'training', 'training')
+ON CONFLICT (code) DO NOTHING;
+
+-- ❌ 錯誤：缺少 module 欄位會報錯
+-- ERROR: null value in column "module" violates not-null constraint
+INSERT INTO rbac.permissions (code, name, description, category) VALUES
+  ('system.training', '存取教育訓練系統', '可以存取教育訓練系統', 'system');
 ```
 
 #### rbac.role_permissions (角色權限關聯)
@@ -588,6 +644,112 @@ public.store_managers (
   id, store_id, employee_id,
   assigned_at, removed_at
 )
+```
+
+### 4. 教育訓練系統 (Training System)
+
+**路徑**: `src/system/training_system/`
+**Schema**: `training`（獨立 schema）
+**狀態**: 🚧 開發中
+
+#### 核心功能
+- **總部端**：課程管理、內容編輯、報表查看
+- **門市端**：課程學習、測驗作答
+- **多品牌支援**：六扇門、粥大福有不同訓練內容
+- **新人 Onboarding**：Checklist 模板、主管簽核
+
+#### 架構說明
+```
+training schema（獨立於 public）
+├── courses          # 課程主表
+├── lessons          # 課程章節
+├── questions        # 測驗題目
+├── categories       # 課程分類
+├── enrollments      # 學習進度
+├── quiz_attempts    # 測驗記錄
+├── lesson_progress  # 章節完成記錄
+├── onboarding_templates  # 新人訓練模板
+├── onboarding_items      # 訓練項目
+└── onboarding_progress   # 新人進度
+```
+
+#### 關鍵設計：Code-Based 連結
+使用 BIGINT 儲存 code 值，而非 UUID 外鍵：
+
+```sql
+-- 課程：使用品牌代碼連結
+CREATE TABLE training.courses (
+  brand_id BIGINT,             -- 對應 brands.code::BIGINT (01, 02...)
+  target_departments BIGINT[], -- 部門代碼陣列
+  ...
+);
+
+-- 新人訓練進度：使用門市代碼連結
+CREATE TABLE training.onboarding_progress (
+  store_id BIGINT,             -- 對應 stores.code::BIGINT (01001, 02015...)
+  ...
+);
+
+-- 視圖：使用 code::BIGINT 進行 JOIN
+CREATE VIEW training.course_stats AS
+SELECT c.*, b.name AS brand_name
+FROM training.courses c
+LEFT JOIN public.brands b ON c.brand_id = b.code::BIGINT;
+```
+
+#### Code 格式說明
+| 欄位 | 格式 | 範例 | 說明 |
+|------|------|------|------|
+| `brands.code` | 2 位數字 | `'01'`, `'02'` | 01-89 品牌，90-99 供應商 |
+| `stores.code` | 5 位數字 | `'01001'`, `'02015'` | BB=品牌代碼，SSS=門市序號 |
+| `departments.code` | 自訂格式 | `'HQ01'`, `'OP02'` | 依部門類型設計 |
+
+#### RBAC 權限
+```sql
+-- 系統權限（module = 'training'）
+system.training           -- 存取教育訓練系統
+training.view             -- 查看訓練課程
+training.enroll           -- 參加訓練
+training.manage.courses   -- 管理課程（總部）
+training.manage.content   -- 編輯內容（總部）
+training.view.reports     -- 查看報表（總部）
+training.manage.onboarding -- 管理新人訓練
+training.sign_off         -- 簽核訓練（門市主管）
+```
+
+#### 前端品牌選擇（CourseEditor.jsx）
+```javascript
+// 品牌下拉選單使用 code 作為 value
+<select
+  value={course.brand_id || ''}
+  onChange={(e) => setCourse({
+    ...course,
+    brand_id: e.target.value ? parseInt(e.target.value) : null
+  })}
+>
+  <option value="">全品牌通用</option>
+  {brands.map(brand => (
+    <option key={brand.id} value={parseInt(brand.code)}>
+      {brand.name} ({brand.code})
+    </option>
+  ))}
+</select>
+```
+
+#### useCurrentUser Hook 整合
+```javascript
+// src/hooks/useCurrentUser.js
+const currentUser = {
+  // 基本資訊
+  id: employee?.user_id,
+  name: employee?.name,
+
+  // 品牌與門市資訊（BIGINT code）
+  brandId: employee?.brand_id || null,    // BIGINT
+  brandName: employee?.brand_name || null,
+  storeId: employee?.store_id || null,    // BIGINT
+  storeName: employee?.store_name || null,
+};
 ```
 
 ---
@@ -1090,6 +1252,45 @@ const subscription = supabase
   .subscribe();
 ```
 
+#### 5. RBAC 權限新增失敗："null value in column 'module'"
+
+**錯誤訊息**：
+```
+ERROR: 23502: null value in column "module" of relation "permissions" violates not-null constraint
+```
+
+**原因**：`rbac.permissions` 表的 `module` 欄位為 NOT NULL，新增權限時必須指定。
+
+**錯誤範例**：
+```sql
+-- ❌ 缺少 module 欄位
+INSERT INTO rbac.permissions (code, name, description, category) VALUES
+  ('system.training', '存取教育訓練系統', '...', 'system');
+```
+
+**正確範例**：
+```sql
+-- ✅ 包含 module 欄位
+INSERT INTO rbac.permissions (code, name, description, module, category) VALUES
+  ('system.training', '存取教育訓練系統', '...', 'training', 'system');
+```
+
+#### 6. 跨 Schema 視圖 JOIN 失敗
+
+**問題**：從 `training` schema 的視圖 JOIN `public` schema 的表時出錯。
+
+**解決方案**：使用完整的 schema.table 名稱：
+```sql
+-- ✅ 正確：明確指定 schema
+CREATE VIEW training.course_stats AS
+SELECT c.*, b.name AS brand_name
+FROM training.courses c
+LEFT JOIN public.brands b ON c.brand_id = b.code::BIGINT;
+
+-- ❌ 錯誤：未指定 schema 可能找不到表
+LEFT JOIN brands b ON ...
+```
+
 ---
 
 ## 系統維護指南
@@ -1151,6 +1352,7 @@ WHERE created_at < NOW() - INTERVAL '2 years';
 system.payment_approval
 system.expense_reimbursement
 system.store_management
+system.training
 ```
 
 #### 付款簽核權限
@@ -1180,6 +1382,17 @@ expense.approve.ceo
 expense.approve.boss
 expense.approve.audit_manager
 expense.cancel
+```
+
+#### 教育訓練權限
+```sql
+training.view                -- 查看訓練課程
+training.enroll              -- 參加訓練
+training.manage.courses      -- 管理課程（總部）
+training.manage.content      -- 編輯內容（總部）
+training.view.reports        -- 查看報表（總部）
+training.manage.onboarding   -- 管理新人訓練
+training.sign_off            -- 簽核訓練（門市主管）
 ```
 
 ### B. 常用 SQL 函數
@@ -1233,10 +1446,11 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 | 版本 | 日期 | 變更內容 | 負責人 |
 |------|------|----------|--------|
 | 1.0 | 2026-01-22 | 初版完成，包含三大子系統文檔 | Claude AI |
+| 1.1 | 2026-01-23 | 新增教育訓練系統、Code-Based 連結模式、RBAC module 必填說明 | Claude AI |
 
 ---
 
-**最後更新**: 2026-01-22
+**最後更新**: 2026-01-23
 **文檔維護**: Claude AI Assistant
 **系統狀態**: 生產環境運行中
 
