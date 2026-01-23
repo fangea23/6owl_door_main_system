@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../../../../contexts/AuthContext';
+import { useCurrentUser } from '../../../../hooks/useCurrentUser';
 import {
   BookOpen,
   GraduationCap,
@@ -145,6 +146,7 @@ const CourseCard = ({ course, enrollment, onClick }) => {
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { user: currentUser, loading: userLoading } = useCurrentUser();
 
   // 狀態
   const [loading, setLoading] = useState(true);
@@ -160,10 +162,14 @@ export default function Dashboard() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
 
+  // 判斷用戶是否為總部人員（沒有 store_id 或有 department_id）
+  const isHeadquarters = currentUser?.employee?.department_id && !currentUser?.employee?.store_id;
+  const employeeBrandId = currentUser?.employee?.brand_id;
+
   // 載入資料
   useEffect(() => {
     const fetchData = async () => {
-      if (!user?.id) return;
+      if (!user?.id || userLoading) return;
 
       setLoading(true);
       try {
@@ -176,8 +182,8 @@ export default function Dashboard() {
 
         setCategories(categoriesData || []);
 
-        // 載入課程
-        const { data: coursesData } = await supabase
+        // 載入課程（根據品牌和受眾篩選）
+        let query = supabase
           .from('training_courses')
           .select(`
             *,
@@ -186,7 +192,26 @@ export default function Dashboard() {
           .eq('is_published', true)
           .order('created_at', { ascending: false });
 
-        setCourses(coursesData || []);
+        const { data: coursesData } = await query;
+
+        // 前端篩選：根據品牌和目標受眾
+        const filteredByBrandAndAudience = (coursesData || []).filter(course => {
+          // 品牌篩選：通用課程(brand_id=null) 或 符合員工品牌
+          const brandMatch = !course.brand_id || course.brand_id === employeeBrandId;
+
+          // 目標受眾篩選
+          let audienceMatch = true;
+          if (course.target_audience === 'headquarters' && !isHeadquarters) {
+            audienceMatch = false;
+          }
+          if (course.target_audience === 'store' && isHeadquarters) {
+            audienceMatch = false;
+          }
+
+          return brandMatch && audienceMatch;
+        });
+
+        setCourses(filteredByBrandAndAudience);
 
         // 載入我的學習進度
         const { data: enrollmentsData } = await supabase
@@ -196,12 +221,14 @@ export default function Dashboard() {
 
         setEnrollments(enrollmentsData || []);
 
-        // 計算統計
-        const completed = enrollmentsData?.filter(e => e.status === 'completed').length || 0;
-        const inProgress = enrollmentsData?.filter(e => e.status === 'in_progress').length || 0;
+        // 計算統計（只計算符合條件的課程）
+        const courseIds = filteredByBrandAndAudience.map(c => c.id);
+        const relevantEnrollments = (enrollmentsData || []).filter(e => courseIds.includes(e.course_id));
+        const completed = relevantEnrollments.filter(e => e.status === 'completed').length;
+        const inProgress = relevantEnrollments.filter(e => e.status === 'in_progress').length;
 
         setStats({
-          totalCourses: coursesData?.length || 0,
+          totalCourses: filteredByBrandAndAudience.length,
           completedCourses: completed,
           inProgressCourses: inProgress,
           avgScore: 0, // TODO: 從測驗記錄計算
@@ -215,7 +242,7 @@ export default function Dashboard() {
     };
 
     fetchData();
-  }, [user]);
+  }, [user, userLoading, employeeBrandId, isHeadquarters]);
 
   // 過濾課程
   const filteredCourses = courses.filter(course => {
@@ -232,7 +259,7 @@ export default function Dashboard() {
   };
 
   // 載入中
-  if (loading) {
+  if (loading || userLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="flex flex-col items-center">

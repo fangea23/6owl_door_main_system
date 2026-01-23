@@ -322,81 +322,127 @@ CREATE POLICY "Users can update own onboarding progress" ON training_onboarding_
   FOR UPDATE USING (user_id = auth.uid());
 
 -- =============================================
--- 管理員 RLS 政策（需要有 training.manage.courses 權限）
+-- 管理員 RLS 政策（使用現有 RBAC 系統）
 -- =============================================
-
--- 輔助函式：檢查用戶是否有特定權限
-CREATE OR REPLACE FUNCTION public.user_has_permission(permission_code TEXT)
-RETURNS BOOLEAN AS $$
-BEGIN
-  RETURN EXISTS (
-    SELECT 1 FROM rbac.role_permissions rp
-    JOIN rbac.user_roles ur ON ur.role_id = rp.role_id
-    JOIN rbac.permissions p ON p.id = rp.permission_id
-    WHERE ur.user_id = auth.uid()
-    AND p.code = permission_code
-  );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 管理員可以查看所有課程（包含未發布的）
 CREATE POLICY "Admins can view all courses" ON training_courses
   FOR SELECT USING (
-    public.user_has_permission('training.manage.courses')
+    EXISTS (
+      SELECT 1 FROM rbac.user_roles ur
+      JOIN rbac.role_permissions rp ON rp.role_id = ur.role_id
+      JOIN rbac.permissions p ON p.id = rp.permission_id
+      WHERE ur.user_id = auth.uid()
+      AND p.code = 'training.manage.courses'
+    )
   );
 
 -- 管理員可以新增課程
 CREATE POLICY "Admins can insert courses" ON training_courses
   FOR INSERT WITH CHECK (
-    public.user_has_permission('training.manage.courses')
+    EXISTS (
+      SELECT 1 FROM rbac.user_roles ur
+      JOIN rbac.role_permissions rp ON rp.role_id = ur.role_id
+      JOIN rbac.permissions p ON p.id = rp.permission_id
+      WHERE ur.user_id = auth.uid()
+      AND p.code = 'training.manage.courses'
+    )
   );
 
 -- 管理員可以更新課程
 CREATE POLICY "Admins can update courses" ON training_courses
   FOR UPDATE USING (
-    public.user_has_permission('training.manage.courses')
+    EXISTS (
+      SELECT 1 FROM rbac.user_roles ur
+      JOIN rbac.role_permissions rp ON rp.role_id = ur.role_id
+      JOIN rbac.permissions p ON p.id = rp.permission_id
+      WHERE ur.user_id = auth.uid()
+      AND p.code = 'training.manage.courses'
+    )
   );
 
 -- 管理員可以刪除課程
 CREATE POLICY "Admins can delete courses" ON training_courses
   FOR DELETE USING (
-    public.user_has_permission('training.manage.courses')
+    EXISTS (
+      SELECT 1 FROM rbac.user_roles ur
+      JOIN rbac.role_permissions rp ON rp.role_id = ur.role_id
+      JOIN rbac.permissions p ON p.id = rp.permission_id
+      WHERE ur.user_id = auth.uid()
+      AND p.code = 'training.manage.courses'
+    )
   );
 
 -- 管理員可以管理課程章節
 CREATE POLICY "Admins can manage lessons" ON training_lessons
   FOR ALL USING (
-    public.user_has_permission('training.manage.courses')
+    EXISTS (
+      SELECT 1 FROM rbac.user_roles ur
+      JOIN rbac.role_permissions rp ON rp.role_id = ur.role_id
+      JOIN rbac.permissions p ON p.id = rp.permission_id
+      WHERE ur.user_id = auth.uid()
+      AND p.code = 'training.manage.courses'
+    )
   );
 
 -- 管理員可以管理測驗題目
 CREATE POLICY "Admins can manage questions" ON training_questions
   FOR ALL USING (
-    public.user_has_permission('training.manage.courses')
+    EXISTS (
+      SELECT 1 FROM rbac.user_roles ur
+      JOIN rbac.role_permissions rp ON rp.role_id = ur.role_id
+      JOIN rbac.permissions p ON p.id = rp.permission_id
+      WHERE ur.user_id = auth.uid()
+      AND p.code = 'training.manage.courses'
+    )
   );
 
 -- 管理員可以管理分類
 CREATE POLICY "Admins can manage categories" ON training_categories
   FOR ALL USING (
-    public.user_has_permission('training.manage.courses')
+    EXISTS (
+      SELECT 1 FROM rbac.user_roles ur
+      JOIN rbac.role_permissions rp ON rp.role_id = ur.role_id
+      JOIN rbac.permissions p ON p.id = rp.permission_id
+      WHERE ur.user_id = auth.uid()
+      AND p.code = 'training.manage.courses'
+    )
   );
 
 -- 管理員可以查看所有學習進度（報表用）
 CREATE POLICY "Admins can view all enrollments" ON training_enrollments
   FOR SELECT USING (
-    public.user_has_permission('training.view.reports')
+    EXISTS (
+      SELECT 1 FROM rbac.user_roles ur
+      JOIN rbac.role_permissions rp ON rp.role_id = ur.role_id
+      JOIN rbac.permissions p ON p.id = rp.permission_id
+      WHERE ur.user_id = auth.uid()
+      AND p.code = 'training.view.reports'
+    )
   );
 
 -- 管理員可以查看所有測驗記錄（報表用）
 CREATE POLICY "Admins can view all quiz attempts" ON training_quiz_attempts
   FOR SELECT USING (
-    public.user_has_permission('training.view.reports')
+    EXISTS (
+      SELECT 1 FROM rbac.user_roles ur
+      JOIN rbac.role_permissions rp ON rp.role_id = ur.role_id
+      JOIN rbac.permissions p ON p.id = rp.permission_id
+      WHERE ur.user_id = auth.uid()
+      AND p.code = 'training.view.reports'
+    )
   );
 
 -- 管理員可以查看所有章節進度（報表用）
 CREATE POLICY "Admins can view all lesson progress" ON training_lesson_progress
   FOR SELECT USING (
-    public.user_has_permission('training.view.reports')
+    EXISTS (
+      SELECT 1 FROM rbac.user_roles ur
+      JOIN rbac.role_permissions rp ON rp.role_id = ur.role_id
+      JOIN rbac.permissions p ON p.id = rp.permission_id
+      WHERE ur.user_id = auth.uid()
+      AND p.code = 'training.view.reports'
+    )
   );
 
 -- =============================================

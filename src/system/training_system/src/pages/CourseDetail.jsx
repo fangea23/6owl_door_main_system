@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../../../../contexts/AuthContext';
+import { useNotifications } from '../../../../contexts/NotificationContext';
 import {
   BookOpen,
   ChevronLeft,
@@ -24,6 +25,7 @@ export default function CourseDetail() {
   const navigate = useNavigate();
   const { id: courseId } = useParams();
   const { user } = useAuth();
+  const { createNotification } = useNotifications();
 
   // 狀態
   const [loading, setLoading] = useState(true);
@@ -286,6 +288,21 @@ export default function CourseDetail() {
           .eq('id', enrollment.id);
 
         setEnrollment(prev => ({ ...prev, status: 'failed' }));
+
+        // 發送未通過通知（如果還有重考機會）
+        const remainingAttempts = course.max_attempts > 0
+          ? course.max_attempts - (attemptCount + 1)
+          : '無限';
+
+        try {
+          await createNotification({
+            title: '測驗未通過',
+            message: `課程「${course.title}」測驗未通過，得分 ${percentage}%。${remainingAttempts !== 0 ? `還有 ${remainingAttempts} 次重考機會。` : '已無重考機會。'}`,
+            type: 'training',
+          });
+        } catch (err) {
+          console.error('發送通知失敗:', err);
+        }
       }
 
       setCurrentView('result');
@@ -315,6 +332,17 @@ export default function CourseDetail() {
       progress_percent: 100,
       completed_at: new Date().toISOString(),
     }));
+
+    // 發送完成通知
+    try {
+      await createNotification({
+        title: '課程完成',
+        message: `恭喜！您已成功完成課程「${course.title}」`,
+        type: 'training',
+      });
+    } catch (err) {
+      console.error('發送通知失敗:', err);
+    }
   };
 
   // 重新測驗
