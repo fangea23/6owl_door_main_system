@@ -470,14 +470,15 @@ CREATE POLICY "Admins can view all lesson progress" ON training.lesson_progress
 
 -- =============================================
 -- RBAC 權限（需加入 rbac.permissions）
+-- module 欄位為 NOT NULL，必須指定
 -- =============================================
-INSERT INTO rbac.permissions (code, name, description, category) VALUES
-  ('system.training', '存取教育訓練系統', '可以存取教育訓練系統', 'system'),
-  ('training.view', '查看訓練課程', '查看已發布的訓練課程', 'training'),
-  ('training.enroll', '參加訓練', '報名參加訓練課程', 'training'),
-  ('training.manage.courses', '管理課程', '建立、編輯、刪除課程（總部）', 'training'),
-  ('training.manage.content', '編輯內容', '編輯課程內容和測驗（總部）', 'training'),
-  ('training.view.reports', '查看報表', '查看訓練統計報表（總部）', 'training'),
-  ('training.manage.onboarding', '管理新人訓練', '建立和編輯新人訓練模板', 'training'),
-  ('training.sign_off', '簽核訓練', '簽核員工訓練完成（門市主管）', 'training')
+INSERT INTO rbac.permissions (code, name, description, module, category) VALUES
+  ('system.training', '存取教育訓練系統', '可以存取教育訓練系統', 'training', 'system'),
+  ('training.view', '查看訓練課程', '查看已發布的訓練課程', 'training', 'training'),
+  ('training.enroll', '參加訓練', '報名參加訓練課程', 'training', 'training'),
+  ('training.manage.courses', '管理課程', '建立、編輯、刪除課程（總部）', 'training', 'training'),
+  ('training.manage.content', '編輯內容', '編輯課程內容和測驗（總部）', 'training', 'training'),
+  ('training.view.reports', '查看報表', '查看訓練統計報表（總部）', 'training', 'training'),
+  ('training.manage.onboarding', '管理新人訓練', '建立和編輯新人訓練模板', 'training', 'training'),
+  ('training.sign_off', '簽核訓練', '簽核員工訓練完成（門市主管）', 'training', 'training')
 ON CONFLICT (code) DO NOTHING;
