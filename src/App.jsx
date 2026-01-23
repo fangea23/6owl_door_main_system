@@ -20,7 +20,8 @@ import StoreManagementSystemLayout from './pages/systems/StoreManagementSystemLa
 import ExpenseReimbursementSystemLayout from './pages/systems/ExpenseReimbursementSystemLayout';
 import EIPKMSystemLayout from './pages/systems/EIPKMSystemLayout';
 import TicketingSystemLayout from './pages/systems/TicketingSystemLayout';
-import TrainingSystemLayout from './pages/systems/TrainingSystemLayout'; 
+import TrainingSystemLayout from './pages/systems/TrainingSystemLayout';
+import PayrollSystemLayout from './pages/systems/PayrollSystemLayout';
 import { useAuth } from './contexts/AuthContext'; // 確保路徑正確
 /*
 function DebugSession() {
@@ -75,7 +76,8 @@ function App() {
                <Route path="/systems/expense-reimbursement/*" element={<ExpenseReimbursementSystemLayout />} />
                <Route path="/systems/eip-km/*" element={<EIPKMSystemLayout />} />
                <Route path="/systems/ticketing/*" element={<TicketingSystemLayout />} />
-               <Route path="/systems/training/*" element={<TrainingSystemLayout />} /> 
+               <Route path="/systems/training/*" element={<TrainingSystemLayout />} />
+               <Route path="/systems/payroll/*" element={<PayrollSystemLayout />} />
            </Route>
 
         </Routes>

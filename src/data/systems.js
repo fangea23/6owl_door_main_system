@@ -89,10 +89,20 @@ export const categories = [
   {
     id: 'hr-service',
     name: '人力資源',
-    description: '員工發展與教育訓練',
+    description: '員工發展與薪資管理',
     icon: '👥',
     color: 'amber',
     systems: [
+      {
+        id: 'payroll',
+        name: '薪資管理系統',
+        description: '員工薪資計算與發放',
+        icon: '💰',
+        url: '/systems/payroll',
+        status: 'active',
+        isExternal: false,
+        permissionCode: 'system.payroll', // 需要系統訪問權限
+      },
       {
         id: 'training',
         name: '教育訓練系統',
