@@ -95,6 +95,12 @@ export const useCurrentUser = () => {
         // 主管資訊
         supervisor: employee?.supervisor_name || null,
 
+        // 品牌與門市資訊（BIGINT code）
+        brandId: employee?.brand_id || null,
+        brandName: employee?.brand_name || null,
+        storeId: employee?.store_id || null,
+        storeName: employee?.store_name || null,
+
         // 完整性檢查
         hasEmployeeRecord: !!employee,
         isProfileComplete: !!(profile?.full_name),

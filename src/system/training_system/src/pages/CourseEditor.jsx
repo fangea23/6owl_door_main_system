@@ -95,11 +95,10 @@ export default function CourseEditor() {
 
       setCategories(categoriesData || []);
 
-      // 載入品牌
+      // 載入品牌（使用 code 欄位作為 BIGINT 連結）
       const { data: brandsData } = await supabase
         .from('brands')
-        .select('id, name')
-        .eq('is_active', true)
+        .select('id, name, code')
         .order('name');
 
       setBrands(brandsData || []);
@@ -431,12 +430,12 @@ export default function CourseEditor() {
               </label>
               <select
                 value={course.brand_id || ''}
-                onChange={(e) => setCourse({ ...course, brand_id: e.target.value || null })}
+                onChange={(e) => setCourse({ ...course, brand_id: e.target.value ? parseInt(e.target.value) : null })}
                 className="w-full px-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
               >
                 <option value="">所有品牌</option>
                 {brands.map(brand => (
-                  <option key={brand.id} value={brand.id}>{brand.name}</option>
+                  <option key={brand.id} value={parseInt(brand.code)}>{brand.name} ({brand.code})</option>
                 ))}
               </select>
             </div>

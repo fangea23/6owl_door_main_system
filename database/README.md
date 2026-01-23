@@ -424,14 +424,28 @@ training.onboarding_progress -- 新人訓練進度
 Training Schema 透過以下方式與其他 Schema 關聯：
 
 ```sql
--- 關聯 public schema
-training.courses.brand_id → public.brands(id)
+-- 關聯 public schema（使用 BIGINT code 欄位）
+training.courses.brand_id (BIGINT) → public.brands.code::BIGINT
+training.courses.target_departments (BIGINT[]) → 部門代碼陣列
+training.onboarding_templates.brand_id (BIGINT) → public.brands.code::BIGINT
+training.onboarding_progress.store_id (BIGINT) → public.stores.code::BIGINT
+
+-- 關聯認證系統
 training.courses.created_by → auth.users(id)
 training.enrollments.user_id → auth.users(id)
 
 -- 使用 RBAC schema 做權限檢查
 training.courses RLS policies 使用 rbac.user_has_permission()
 ```
+
+### 品牌與門市 Code 格式
+
+| 欄位 | 格式 | 範例 | 說明 |
+|------|------|------|------|
+| `brands.code` | 2 位數字 | 01, 02, 89, 90 | 01-89 品牌, 90-99 供應商 |
+| `stores.code` | 5 位數字 | 01001, 02015 | BB+SSS (品牌碼+流水號) |
+| `employees.brand_id` | BIGINT | 1, 2, 89 | 對應 brands.code |
+| `employees.store_id` | BIGINT | 1001, 2015 | 對應 stores.code |
 
 ### 前端 Supabase 客戶端配置
 

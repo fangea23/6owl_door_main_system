@@ -49,12 +49,12 @@ CREATE TABLE IF NOT EXISTS training.courses (
   duration_minutes INT,
   difficulty_level VARCHAR(20) DEFAULT 'beginner',
 
-  -- 品牌與對象設定
-  brand_id UUID REFERENCES public.brands(id),
+  -- 品牌與對象設定（使用 BIGINT code 連結）
+  brand_id BIGINT,  -- 品牌代碼，對應 brands.code 的整數值 (1-89 品牌, 90-99 供應商)
   is_mandatory BOOLEAN DEFAULT false,
   target_audience VARCHAR(20) DEFAULT 'all',
   target_roles TEXT[],
-  target_departments UUID[],
+  target_departments BIGINT[],  -- 部門代碼陣列
   target_positions TEXT[],
 
   -- 測驗設定
@@ -154,7 +154,7 @@ CREATE TABLE IF NOT EXISTS training.onboarding_templates (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
   description TEXT,
-  brand_id UUID REFERENCES public.brands(id),
+  brand_id BIGINT,  -- 品牌代碼，對應 brands.code 的整數值
   target_positions TEXT[],
   total_days INT DEFAULT 7,
   is_active BOOLEAN DEFAULT true,
@@ -181,7 +181,7 @@ CREATE TABLE IF NOT EXISTS training.onboarding_progress (
   user_id UUID REFERENCES auth.users(id),
   template_id UUID REFERENCES training.onboarding_templates(id),
   item_id UUID REFERENCES training.onboarding_items(id),
-  store_id UUID REFERENCES public.stores(id),
+  store_id BIGINT,  -- 門市代碼，對應 stores.code 的整數值 (格式 BBSSS)
   is_completed BOOLEAN DEFAULT false,
   completed_at TIMESTAMPTZ,
   signed_off_by UUID REFERENCES auth.users(id),
@@ -198,9 +198,10 @@ CREATE TABLE IF NOT EXISTS training.onboarding_progress (
 -- 各門市訓練完成率
 CREATE OR REPLACE VIEW training.store_stats AS
 SELECT
-  s.id AS store_id,
+  s.code::BIGINT AS store_id,
   s.name AS store_name,
   b.name AS brand_name,
+  b.code::BIGINT AS brand_code,
   COUNT(DISTINCT e.user_id) AS total_employees,
   COUNT(DISTINCT CASE WHEN te.status = 'completed' THEN te.user_id END) AS completed_employees,
   ROUND(
@@ -210,22 +211,22 @@ SELECT
   ) AS completion_rate
 FROM public.stores s
 JOIN public.brands b ON s.brand_id = b.id
-LEFT JOIN public.employees e ON e.store_id = s.id
+LEFT JOIN public.employees e ON e.store_id = s.code::BIGINT
 LEFT JOIN training.enrollments te ON te.user_id = e.user_id
-GROUP BY s.id, s.name, b.name;
+GROUP BY s.code, s.name, b.name, b.code;
 
 -- 課程完成統計
 CREATE OR REPLACE VIEW training.course_stats AS
 SELECT
   c.id AS course_id,
   c.title,
-  c.brand_id,
+  c.brand_id AS brand_code,
   b.name AS brand_name,
   COUNT(DISTINCT te.user_id) AS enrolled_count,
   COUNT(DISTINCT CASE WHEN te.status = 'completed' THEN te.user_id END) AS completed_count,
   AVG(CASE WHEN qa.is_passed THEN qa.percentage END) AS avg_score
 FROM training.courses c
-LEFT JOIN public.brands b ON c.brand_id = b.id
+LEFT JOIN public.brands b ON c.brand_id = b.code::BIGINT
 LEFT JOIN training.enrollments te ON te.course_id = c.id
 LEFT JOIN training.quiz_attempts qa ON qa.enrollment_id = te.id
 WHERE c.is_published = true
@@ -247,6 +248,7 @@ CREATE INDEX IF NOT EXISTS idx_quiz_attempts_enrollment ON training.quiz_attempt
 CREATE INDEX IF NOT EXISTS idx_quiz_attempts_user ON training.quiz_attempts(user_id);
 CREATE INDEX IF NOT EXISTS idx_quiz_attempts_course ON training.quiz_attempts(course_id);
 CREATE INDEX IF NOT EXISTS idx_onboarding_templates_brand ON training.onboarding_templates(brand_id);
+CREATE INDEX IF NOT EXISTS idx_onboarding_progress_store ON training.onboarding_progress(store_id);
 
 -- =============================================
 -- 預設分類資料
