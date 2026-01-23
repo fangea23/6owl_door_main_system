@@ -88,7 +88,7 @@ export default function CourseEditor() {
     const fetchData = async () => {
       // 載入分類
       const { data: categoriesData } = await supabase
-        .from('training_categories')
+        .from('categories')
         .select('*')
         .eq('is_active', true)
         .order('sort_order');
@@ -110,7 +110,7 @@ export default function CourseEditor() {
         try {
           // 載入課程
           const { data: courseData, error: courseError } = await supabase
-            .from('training_courses')
+            .from('courses')
             .select('*')
             .eq('id', courseId)
             .single();
@@ -120,7 +120,7 @@ export default function CourseEditor() {
 
           // 載入課程單元
           const { data: lessonsData } = await supabase
-            .from('training_lessons')
+            .from('lessons')
             .select('*')
             .eq('course_id', courseId)
             .order('sort_order');
@@ -129,7 +129,7 @@ export default function CourseEditor() {
 
           // 載入測驗題目
           const { data: questionsData } = await supabase
-            .from('training_questions')
+            .from('questions')
             .select('*')
             .eq('course_id', courseId)
             .order('sort_order');
@@ -165,7 +165,7 @@ export default function CourseEditor() {
       if (isNew) {
         // 新增課程
         const { data, error } = await supabase
-          .from('training_courses')
+          .from('courses')
           .insert({
             ...course,
             created_by: user.id,
@@ -178,7 +178,7 @@ export default function CourseEditor() {
       } else {
         // 更新課程
         const { error } = await supabase
-          .from('training_courses')
+          .from('courses')
           .update(course)
           .eq('id', courseId);
 
@@ -190,7 +190,7 @@ export default function CourseEditor() {
         // 先刪除舊的單元
         if (!isNew) {
           await supabase
-            .from('training_lessons')
+            .from('lessons')
             .delete()
             .eq('course_id', savedCourseId);
         }
@@ -204,7 +204,7 @@ export default function CourseEditor() {
         }));
 
         const { error: lessonsError } = await supabase
-          .from('training_lessons')
+          .from('lessons')
           .insert(lessonsToInsert);
 
         if (lessonsError) throw lessonsError;
@@ -215,7 +215,7 @@ export default function CourseEditor() {
         // 先刪除舊的題目
         if (!isNew) {
           await supabase
-            .from('training_questions')
+            .from('questions')
             .delete()
             .eq('course_id', savedCourseId);
         }
@@ -229,7 +229,7 @@ export default function CourseEditor() {
         }));
 
         const { error: questionsError } = await supabase
-          .from('training_questions')
+          .from('questions')
           .insert(questionsToInsert);
 
         if (questionsError) throw questionsError;

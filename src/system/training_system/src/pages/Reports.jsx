@@ -144,16 +144,16 @@ export default function Reports() {
       try {
         // 基本統計
         const { count: totalCourses } = await supabase
-          .from('training_courses')
+          .from('courses')
           .select('*', { count: 'exact', head: true })
           .eq('is_published', true);
 
         const { count: totalEnrollments } = await supabase
-          .from('training_enrollments')
+          .from('enrollments')
           .select('*', { count: 'exact', head: true });
 
         const { count: completedEnrollments } = await supabase
-          .from('training_enrollments')
+          .from('enrollments')
           .select('*', { count: 'exact', head: true })
           .eq('status', 'completed');
 
@@ -168,22 +168,22 @@ export default function Reports() {
 
         // 課程排行榜
         const { data: coursesData } = await supabase
-          .from('training_courses')
+          .from('courses')
           .select(`
             id, title,
-            category:training_categories(name)
+            category:categories(name)
           `)
           .eq('is_published', true);
 
         const coursesWithStats = await Promise.all(
           (coursesData || []).map(async (course) => {
             const { count: enrollments } = await supabase
-              .from('training_enrollments')
+              .from('enrollments')
               .select('*', { count: 'exact', head: true })
               .eq('course_id', course.id);
 
             const { count: completions } = await supabase
-              .from('training_enrollments')
+              .from('enrollments')
               .select('*', { count: 'exact', head: true })
               .eq('course_id', course.id)
               .eq('status', 'completed');
@@ -217,19 +217,19 @@ export default function Reports() {
             if (!employee.user_id) return null;
 
             const { count: totalUserCourses } = await supabase
-              .from('training_enrollments')
+              .from('enrollments')
               .select('*', { count: 'exact', head: true })
               .eq('user_id', employee.user_id);
 
             const { count: completedUserCourses } = await supabase
-              .from('training_enrollments')
+              .from('enrollments')
               .select('*', { count: 'exact', head: true })
               .eq('user_id', employee.user_id)
               .eq('status', 'completed');
 
             // 計算平均分數
             const { data: quizData } = await supabase
-              .from('training_quiz_attempts')
+              .from('quiz_attempts')
               .select('score')
               .eq('user_id', employee.user_id);
 

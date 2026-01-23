@@ -54,10 +54,10 @@ export default function CourseDetail() {
       try {
         // 載入課程
         const { data: courseData, error: courseError } = await supabase
-          .from('training_courses')
+          .from('courses')
           .select(`
             *,
-            category:training_categories(name, icon)
+            category:categories(name, icon)
           `)
           .eq('id', courseId)
           .single();
@@ -67,7 +67,7 @@ export default function CourseDetail() {
 
         // 載入章節
         const { data: lessonsData } = await supabase
-          .from('training_lessons')
+          .from('lessons')
           .select('*')
           .eq('course_id', courseId)
           .order('sort_order');
@@ -77,7 +77,7 @@ export default function CourseDetail() {
         // 載入測驗題目
         if (courseData.has_quiz) {
           const { data: questionsData } = await supabase
-            .from('training_questions')
+            .from('questions')
             .select('*')
             .eq('course_id', courseId)
             .order('sort_order');
@@ -87,7 +87,7 @@ export default function CourseDetail() {
 
         // 載入或建立學習進度
         let { data: enrollmentData } = await supabase
-          .from('training_enrollments')
+          .from('enrollments')
           .select('*')
           .eq('user_id', user.id)
           .eq('course_id', courseId)
@@ -96,7 +96,7 @@ export default function CourseDetail() {
         if (!enrollmentData) {
           // 建立新的學習記錄
           const { data: newEnrollment } = await supabase
-            .from('training_enrollments')
+            .from('enrollments')
             .insert({
               user_id: user.id,
               course_id: courseId,
@@ -113,7 +113,7 @@ export default function CourseDetail() {
         // 載入章節進度
         if (enrollmentData) {
           const { data: progressData } = await supabase
-            .from('training_lesson_progress')
+            .from('lesson_progress')
             .select('*')
             .eq('enrollment_id', enrollmentData.id);
 
@@ -121,7 +121,7 @@ export default function CourseDetail() {
 
           // 載入測驗次數
           const { count } = await supabase
-            .from('training_quiz_attempts')
+            .from('quiz_attempts')
             .select('*', { count: 'exact', head: true })
             .eq('enrollment_id', enrollmentData.id);
 
@@ -142,7 +142,7 @@ export default function CourseDetail() {
   const startLearning = async () => {
     if (enrollment?.status === 'not_started') {
       await supabase
-        .from('training_enrollments')
+        .from('enrollments')
         .update({
           status: 'in_progress',
           started_at: new Date().toISOString(),
@@ -162,7 +162,7 @@ export default function CourseDetail() {
 
     if (!existing) {
       const { data: newProgress } = await supabase
-        .from('training_lesson_progress')
+        .from('lesson_progress')
         .insert({
           enrollment_id: enrollment.id,
           lesson_id: lessonId,
@@ -175,7 +175,7 @@ export default function CourseDetail() {
       setLessonProgress(prev => [...prev, newProgress]);
     } else if (!existing.is_completed) {
       await supabase
-        .from('training_lesson_progress')
+        .from('lesson_progress')
         .update({
           is_completed: true,
           completed_at: new Date().toISOString(),
@@ -193,7 +193,7 @@ export default function CourseDetail() {
     const progressPercent = Math.round((completedCount / totalLessons) * 100);
 
     await supabase
-      .from('training_enrollments')
+      .from('enrollments')
       .update({ progress_percent: progressPercent })
       .eq('id', enrollment.id);
 
@@ -253,7 +253,7 @@ export default function CourseDetail() {
 
       // 儲存測驗記錄
       const { data: attempt } = await supabase
-        .from('training_quiz_attempts')
+        .from('quiz_attempts')
         .insert({
           enrollment_id: enrollment.id,
           user_id: user.id,
@@ -283,7 +283,7 @@ export default function CourseDetail() {
       } else {
         // 未通過
         await supabase
-          .from('training_enrollments')
+          .from('enrollments')
           .update({ status: 'failed' })
           .eq('id', enrollment.id);
 
@@ -318,7 +318,7 @@ export default function CourseDetail() {
   // 完成課程
   const completeCourse = async () => {
     await supabase
-      .from('training_enrollments')
+      .from('enrollments')
       .update({
         status: 'completed',
         progress_percent: 100,

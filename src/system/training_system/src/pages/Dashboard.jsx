@@ -175,7 +175,7 @@ export default function Dashboard() {
       try {
         // 載入分類
         const { data: categoriesData } = await supabase
-          .from('training_categories')
+          .from('categories')
           .select('*')
           .eq('is_active', true)
           .order('sort_order');
@@ -184,10 +184,10 @@ export default function Dashboard() {
 
         // 載入課程（根據品牌和受眾篩選）
         let query = supabase
-          .from('training_courses')
+          .from('courses')
           .select(`
             *,
-            category:training_categories(name, icon)
+            category:categories(name, icon)
           `)
           .eq('is_published', true)
           .order('created_at', { ascending: false });
@@ -215,7 +215,7 @@ export default function Dashboard() {
 
         // 載入我的學習進度
         const { data: enrollmentsData } = await supabase
-          .from('training_enrollments')
+          .from('enrollments')
           .select('*')
           .eq('user_id', user.id);
 

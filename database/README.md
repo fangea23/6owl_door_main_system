@@ -389,6 +389,112 @@ WHERE employee_id = 'EMP001';
 3. **備份重要資料**
    定期備份 public.employees 和 public.departments 表
 
+## Schema 架構說明
+
+本系統採用多 Schema 設計，將不同功能模組分離到獨立的 Schema 中，以提高安全性、維護性和資料隔離。
+
+### Schema 列表
+
+| Schema 名稱 | 用途說明 |
+|-------------|----------|
+| `public` | 共用資料表（employees, departments, brands, stores 等） |
+| `auth` | Supabase 認證系統（由 Supabase 管理） |
+| `rbac` | 角色權限控制系統（roles, permissions, user_roles 等） |
+| `training` | 教育訓練系統（courses, lessons, enrollments 等） |
+
+### Training Schema 結構
+
+教育訓練系統使用獨立的 `training` schema，包含以下資料表：
+
+```sql
+training.categories          -- 課程分類
+training.courses             -- 課程
+training.lessons             -- 課程章節
+training.questions           -- 測驗題目
+training.enrollments         -- 學習進度
+training.lesson_progress     -- 章節進度
+training.quiz_attempts       -- 測驗記錄
+training.onboarding_templates -- 新人訓練範本
+training.onboarding_items    -- 新人訓練項目
+training.onboarding_progress -- 新人訓練進度
+```
+
+### 跨 Schema 關聯
+
+Training Schema 透過以下方式與其他 Schema 關聯：
+
+```sql
+-- 關聯 public schema
+training.courses.brand_id → public.brands(id)
+training.courses.created_by → auth.users(id)
+training.enrollments.user_id → auth.users(id)
+
+-- 使用 RBAC schema 做權限檢查
+training.courses RLS policies 使用 rbac.user_has_permission()
+```
+
+### 前端 Supabase 客戶端配置
+
+各子系統需要正確配置 Supabase 客戶端以支援多 Schema：
+
+**Training System 配置範例：**
+
+```javascript
+// src/system/training_system/src/supabaseClient.js
+
+import { supabase as mainClient } from '../../../lib/supabase';
+
+// Training schema 的表名（無前綴）
+const TRAINING_TABLES = [
+  'categories', 'courses', 'lessons', 'questions',
+  'enrollments', 'lesson_progress', 'quiz_attempts',
+  'onboarding_templates', 'onboarding_items', 'onboarding_progress'
+];
+
+// 取得 training schema client
+const trainingSchema = mainClient.schema('training');
+
+export const supabase = {
+  auth: mainClient.auth,
+  storage: mainClient.storage,
+
+  // 自動判斷 schema
+  from: (table) => {
+    if (TRAINING_TABLES.includes(table)) {
+      return trainingSchema.from(table);
+    }
+    return mainClient.from(table); // public schema
+  },
+
+  // 直接存取指定 schema
+  training: trainingSchema,
+  public: mainClient,
+
+  // RPC 呼叫
+  rpc: (fn, args) => mainClient.rpc(fn, args),
+  schema: (schemaName) => mainClient.schema(schemaName),
+};
+```
+
+### 新增 Schema 注意事項
+
+1. **建立 Schema 並授權**
+   ```sql
+   CREATE SCHEMA IF NOT EXISTS your_schema;
+   GRANT USAGE ON SCHEMA your_schema TO authenticated;
+   GRANT ALL ON ALL TABLES IN SCHEMA your_schema TO authenticated;
+   GRANT ALL ON ALL SEQUENCES IN SCHEMA your_schema TO authenticated;
+   ```
+
+2. **設定 RLS 政策**
+   - 確保所有表都啟用 RLS
+   - 使用 `rbac.user_has_permission()` 做權限檢查
+   - 跨 Schema 引用需使用完整路徑（如 `public.brands`）
+
+3. **前端配置**
+   - 更新 supabaseClient.js 支援新 Schema
+   - 確保表名陣列正確列出所有新表
+
 ## 支援
 
 如有問題，請聯繫系統管理員或參考：

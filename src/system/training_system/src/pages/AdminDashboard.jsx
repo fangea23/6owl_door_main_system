@@ -171,7 +171,7 @@ export default function AdminDashboard() {
       try {
         // 載入分類
         const { data: categoriesData } = await supabase
-          .from('training_categories')
+          .from('categories')
           .select('*')
           .order('sort_order');
 
@@ -179,10 +179,10 @@ export default function AdminDashboard() {
 
         // 載入課程（含學習人數統計）
         const { data: coursesData } = await supabase
-          .from('training_courses')
+          .from('courses')
           .select(`
             *,
-            category:training_categories(id, name, icon)
+            category:categories(id, name, icon)
           `)
           .order('created_at', { ascending: false });
 
@@ -190,7 +190,7 @@ export default function AdminDashboard() {
         const coursesWithStats = await Promise.all(
           (coursesData || []).map(async (course) => {
             const { count } = await supabase
-              .from('training_enrollments')
+              .from('enrollments')
               .select('*', { count: 'exact', head: true })
               .eq('course_id', course.id);
 
@@ -202,11 +202,11 @@ export default function AdminDashboard() {
 
         // 統計資料
         const { count: totalEnrollments } = await supabase
-          .from('training_enrollments')
+          .from('enrollments')
           .select('*', { count: 'exact', head: true });
 
         const { count: completedEnrollments } = await supabase
-          .from('training_enrollments')
+          .from('enrollments')
           .select('*', { count: 'exact', head: true })
           .eq('status', 'completed');
 
@@ -253,7 +253,7 @@ export default function AdminDashboard() {
   const handleTogglePublish = async (course) => {
     try {
       const { error } = await supabase
-        .from('training_courses')
+        .from('courses')
         .update({ is_published: !course.is_published })
         .eq('id', course.id);
 
@@ -275,7 +275,7 @@ export default function AdminDashboard() {
   const handleDelete = async (course) => {
     // 檢查是否有學習記錄
     const { count: enrollmentCount } = await supabase
-      .from('training_enrollments')
+      .from('enrollments')
       .select('*', { count: 'exact', head: true })
       .eq('course_id', course.id);
 
@@ -289,7 +289,7 @@ export default function AdminDashboard() {
 
     try {
       const { error } = await supabase
-        .from('training_courses')
+        .from('courses')
         .delete()
         .eq('id', course.id);
 
