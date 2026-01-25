@@ -12,9 +12,10 @@ import {
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../../../../contexts/AuthContext';
+import { useUserRole } from '../../../../hooks/useUserRole';
 import logoSrc from '../../../../assets/logo.png';
 
-// 員工代墊款系統的基礎路徑
+// {roleName}的基礎路徑
 const BASE_PATH = '/systems/expense-reimbursement';
 
 // 六扇門 Logo 組件
@@ -39,6 +40,7 @@ export default function Header() {
   const userMenuRef = useRef(null);
 
   const { user } = useAuth();
+  const { roleName } = useUserRole();
 
   // 員工姓名狀態與抓取邏輯
   const [employeeName, setEmployeeName] = useState(null);
@@ -194,7 +196,7 @@ export default function Header() {
                   {displayName}
                 </p>
                 <p className="text-[10px] text-stone-400 font-medium tracking-wide">
-                  員工代墊款系統
+                  {roleName}
                 </p>
               </div>
               <ChevronDown
@@ -213,7 +215,7 @@ export default function Header() {
                   <p className="text-xs text-stone-500 mb-2 truncate">{user?.email}</p>
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-medium bg-amber-100 text-amber-700 rounded-full border border-amber-200/50">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                    員工代墊款系統
+                    {roleName}
                   </span>
                 </div>
 
@@ -274,7 +276,7 @@ export default function Header() {
                   </div>
                 </div>
                 <div className="text-[10px] text-stone-400 px-1">
-                  員工代墊款系統
+                  {roleName}
                 </div>
               </div>
             )}

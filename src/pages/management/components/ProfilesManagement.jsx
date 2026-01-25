@@ -3,7 +3,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useProfiles } from '../../../hooks/management/useProfiles';
 import { supabase } from '../../../lib/supabase';
 import {
-  UserPlus, Search, Loader2, Mail, Calendar, User, ChevronRight, Trash2, Shield, Save
+  UserPlus, Search, Loader2, Mail, Calendar, User, ChevronRight, Trash2, Shield, Save, BadgeCheck, Users
 } from 'lucide-react';
 
 // 角色顏色映射
@@ -48,8 +48,12 @@ export default function ProfilesManagement() {
   const [processing, setProcessing] = useState(false);
   const [roles, setRoles] = useState([]); // 從資料庫讀取的角色列表
 
+  // 建立模式：'email' | 'employee'
+  const [createMode, setCreateMode] = useState('employee');
+
   const [newUser, setNewUser] = useState({
     email: '',
+    employee_id: '', // 員工編號
     password: '',
     full_name: '',
     role: 'user'
@@ -84,11 +88,27 @@ export default function ProfilesManagement() {
     setProcessing(true);
 
     try {
-      const result = await createProfile(newUser);
+      // 根據模式準備資料
+      const userData = {
+        password: newUser.password,
+        full_name: newUser.full_name,
+        role: newUser.role,
+      };
+
+      if (createMode === 'employee') {
+        userData.employee_id = newUser.employee_id;
+      } else {
+        userData.email = newUser.email;
+      }
+
+      const result = await createProfile(userData);
 
       if (result.success) {
-        alert('✅ 帳號建立成功！');
-        setNewUser({ email: '', password: '', full_name: '', role: 'user' });
+        const loginInfo = createMode === 'employee'
+          ? `登入帳號：${newUser.employee_id}`
+          : `登入帳號：${newUser.email}`;
+        alert(`✅ 帳號建立成功！\n\n${loginInfo}\n預設密碼：${newUser.password}\n\n請告知使用者登入後修改密碼。`);
+        setNewUser({ email: '', employee_id: '', password: '', full_name: '', role: 'user' });
         setShowCreateForm(false);
       } else {
         alert('❌ 建立失敗: ' + result.error);
@@ -196,20 +216,76 @@ export default function ProfilesManagement() {
           </h3>
 
           <form onSubmit={handleCreateUser} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  電子信箱 (登入帳號) *
-                </label>
-                <input
-                  type="email"
-                  required
-                  placeholder="user@example.com"
-                  value={newUser.email}
-                  onChange={e => setNewUser({ ...newUser, email: e.target.value })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                />
+            {/* 建立模式切換 */}
+            <div className="flex bg-gray-100 rounded-xl p-1 mb-2">
+              <button
+                type="button"
+                onClick={() => setCreateMode('employee')}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  createMode === 'employee'
+                    ? 'bg-white text-blue-700 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <BadgeCheck size={16} />
+                員工編號（門市推薦）
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreateMode('email')}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  createMode === 'email'
+                    ? 'bg-white text-blue-700 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Mail size={16} />
+                電子郵件
+              </button>
+            </div>
+
+            {/* 提示訊息 */}
+            {createMode === 'employee' && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
+                <strong>員工編號模式：</strong>適合門市員工，不需要真實 Email。使用者登入時輸入員工編號和密碼即可。
               </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* 員工編號輸入（員工編號模式） */}
+              {createMode === 'employee' && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    員工編號 (登入帳號) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="例如：A001、S0123"
+                    value={newUser.employee_id}
+                    onChange={e => setNewUser({ ...newUser, employee_id: e.target.value.toUpperCase() })}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none uppercase"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">員工登入時使用此編號</p>
+                </div>
+              )}
+
+              {/* Email 輸入（Email 模式） */}
+              {createMode === 'email' && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    電子信箱 (登入帳號) *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="user@example.com"
+                    value={newUser.email}
+                    onChange={e => setNewUser({ ...newUser, email: e.target.value })}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">
@@ -315,7 +391,19 @@ export default function ProfilesManagement() {
                           {isSelf && <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">你自己</span>}
                         </div>
                         <div className="text-sm text-gray-500 flex items-center gap-1">
-                          <Mail size={12} /> {profile.email}
+                          {profile.email?.endsWith('@6owldoor.internal') ? (
+                            <>
+                              <BadgeCheck size={12} className="text-green-600" />
+                              <span className="text-green-700 font-medium">
+                                {profile.email.replace('@6owldoor.internal', '').toUpperCase()}
+                              </span>
+                              <span className="text-gray-400 text-xs ml-1">(員工編號)</span>
+                            </>
+                          ) : (
+                            <>
+                              <Mail size={12} /> {profile.email}
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -409,8 +497,20 @@ export default function ProfilesManagement() {
 
               <div className="space-y-2 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-100 mb-3">
                 <div className="flex items-center gap-2">
-                  <Mail size={16} className="text-gray-400" />
-                  <span className="truncate">{profile.email}</span>
+                  {profile.email?.endsWith('@6owldoor.internal') ? (
+                    <>
+                      <BadgeCheck size={16} className="text-green-600" />
+                      <span className="text-green-700 font-medium">
+                        {profile.email.replace('@6owldoor.internal', '').toUpperCase()}
+                      </span>
+                      <span className="text-gray-400 text-xs">(員工編號)</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mail size={16} className="text-gray-400" />
+                      <span className="truncate">{profile.email}</span>
+                    </>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar size={16} className="text-gray-400" />

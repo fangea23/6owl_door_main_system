@@ -7,7 +7,8 @@ import {
   ChevronDown,
   AlertCircle,
   Calendar,
-  Users
+  Users,
+  ChevronRight
 } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../AuthContext';
@@ -20,7 +21,9 @@ export default function AttendanceInput() {
   const [currentPeriod, setCurrentPeriod] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [attendanceData, setAttendanceData] = useState({});
+  const [myStoreId, setMyStoreId] = useState(null);
   const [myStoreCode, setMyStoreCode] = useState(null);
+  const [activeSection, setActiveSection] = useState('10th'); // '10th' or '12th'
 
   const { hasPermission: canInput, loading: permLoading } = usePermission('payroll.attendance.input');
 
@@ -33,17 +36,19 @@ export default function AttendanceInput() {
 
     setLoading(true);
     try {
-      // 取得當前用戶的門市
+      // 取得當前用戶的門市 (同時取得 store_id 和 store_code)
       const { data: empData } = await supabase
         .from('employees')
-        .select('store_code')
+        .select('store_id, store_code')
         .eq('user_id', user.id)
         .single();
 
+      const storeId = empData?.store_id;
       const storeCode = empData?.store_code;
+      setMyStoreId(storeId);
       setMyStoreCode(storeCode);
 
-      if (!storeCode) {
+      if (!storeId) {
         setLoading(false);
         return;
       }
@@ -65,22 +70,22 @@ export default function AttendanceInput() {
         return;
       }
 
-      // 取得門市員工
+      // 取得門市員工 (使用 store_id)
       const { data: storeEmployees } = await supabase
         .from('employees')
         .select('id, name, employee_id, position, employment_type_new')
-        .eq('store_code', storeCode)
+        .eq('store_id', storeId)
         .eq('status', 'active')
         .order('employee_id');
 
       setEmployees(storeEmployees || []);
 
-      // 取得現有的出勤資料
+      // 取得現有的出勤資料 (使用 store_id)
       const { data: existingAttendance } = await supabase
         .from('monthly_attendance_summary')
         .select('*')
         .eq('period_id', periodData.id)
-        .eq('store_id', parseInt(storeCode));
+        .eq('store_id', storeId);
 
       // 轉換為 Map
       const attendanceMap = {};
@@ -88,15 +93,27 @@ export default function AttendanceInput() {
         const existing = existingAttendance?.find(a => a.employee_id === emp.id);
         attendanceMap[emp.id] = existing || {
           employee_id: emp.id,
+          // 基本出勤
           work_days: 0,
           scheduled_days: 0,
+          work_days_in_month: 30,  // 在職天數
+          // 10日發薪 - 時數
           regular_hours: 0,
-          overtime_hours_133: 0,
-          overtime_hours_166: 0,
-          overtime_hours_200: 0,
+          overtime_hours_134: 0,  // 加班前2小時 (×1.34)
+          overtime_hours_167: 0,  // 加班2小時後 (×1.67)
+          holiday_hours: 0,       // 國假時數
+          // 12日發薪 - 時數
+          overtime_12th_hours: 0,      // 12日計時超額時數
+          overtime_12th_hours_134: 0,  // 12日加班前2hr
+          overtime_12th_hours_167: 0,  // 12日加班2hr後
+          // 請假
           annual_leave_days: 0,
-          sick_leave_days: 0,
-          personal_leave_days: 0,
+          annual_leave_used_hours: 0,  // 特休已休時數
+          annual_leave_pay_hours: 0,   // 特休代金時數
+          sick_leave_hours: 0,         // 病假時數
+          personal_leave_hours: 0,     // 事假時數
+          paid_leave_hours: 0,         // 公婚喪產假時數
+          // 其他
           late_count: 0,
           absent_count: 0,
           status: 'draft'
@@ -123,7 +140,7 @@ export default function AttendanceInput() {
   };
 
   const handleSave = async () => {
-    if (!currentPeriod || !myStoreCode) return;
+    if (!currentPeriod || !myStoreId) return;
 
     setSaving(true);
     try {
@@ -134,16 +151,28 @@ export default function AttendanceInput() {
         const upsertData = {
           period_id: currentPeriod.id,
           employee_id: emp.id,
-          store_id: parseInt(myStoreCode),
+          store_id: myStoreId,
+          // 基本出勤
           work_days: data.work_days || 0,
           scheduled_days: data.scheduled_days || 0,
+          work_days_in_month: data.work_days_in_month || 30,
+          // 10日發薪時數
           regular_hours: data.regular_hours || 0,
-          overtime_hours_133: data.overtime_hours_133 || 0,
-          overtime_hours_166: data.overtime_hours_166 || 0,
-          overtime_hours_200: data.overtime_hours_200 || 0,
+          overtime_hours_134: data.overtime_hours_134 || 0,
+          overtime_hours_167: data.overtime_hours_167 || 0,
+          holiday_hours: data.holiday_hours || 0,
+          // 12日發薪時數
+          overtime_12th_hours: data.overtime_12th_hours || 0,
+          overtime_12th_hours_134: data.overtime_12th_hours_134 || 0,
+          overtime_12th_hours_167: data.overtime_12th_hours_167 || 0,
+          // 請假
           annual_leave_days: data.annual_leave_days || 0,
-          sick_leave_days: data.sick_leave_days || 0,
-          personal_leave_days: data.personal_leave_days || 0,
+          annual_leave_used_hours: data.annual_leave_used_hours || 0,
+          annual_leave_pay_hours: data.annual_leave_pay_hours || 0,
+          sick_leave_hours: data.sick_leave_hours || 0,
+          personal_leave_hours: data.personal_leave_hours || 0,
+          paid_leave_hours: data.paid_leave_hours || 0,
+          // 其他
           late_count: data.late_count || 0,
           absent_count: data.absent_count || 0,
           status: 'draft',
@@ -191,7 +220,7 @@ export default function AttendanceInput() {
           submitted_by: user.id
         })
         .eq('period_id', currentPeriod.id)
-        .eq('store_id', parseInt(myStoreCode));
+        .eq('store_id', myStoreId);
 
       if (error) throw error;
 
@@ -226,7 +255,7 @@ export default function AttendanceInput() {
     );
   }
 
-  if (!myStoreCode) {
+  if (!myStoreId) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md text-center">
@@ -314,167 +343,367 @@ export default function AttendanceInput() {
         </div>
       </div>
 
-      {/* 出勤表格 */}
-      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1000px]">
-            <thead>
-              <tr className="bg-stone-50 text-stone-500 text-xs font-bold uppercase tracking-wider border-b border-stone-200">
-                <th className="p-3 text-left sticky left-0 bg-stone-50 z-10">員工</th>
-                <th className="p-3 text-center" title="應出勤天數">應出勤</th>
-                <th className="p-3 text-center" title="實際出勤天數">實際出勤</th>
-                <th className="p-3 text-center bg-blue-50 text-blue-700" title="正常工時">正常時數</th>
-                <th className="p-3 text-center bg-amber-50 text-amber-700" title="加班 ×1.33">加班(1.33)</th>
-                <th className="p-3 text-center bg-amber-50 text-amber-700" title="加班 ×1.66">加班(1.66)</th>
-                <th className="p-3 text-center bg-red-50 text-red-700" title="假日加班 ×2">假日(2.0)</th>
-                <th className="p-3 text-center" title="特休天數">特休</th>
-                <th className="p-3 text-center" title="病假天數">病假</th>
-                <th className="p-3 text-center" title="事假天數">事假</th>
-                <th className="p-3 text-center" title="遲到次數">遲到</th>
-                <th className="p-3 text-center" title="曠職天數">曠職</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-100">
-              {employees.map((emp) => {
-                const data = attendanceData[emp.id] || {};
-                const disabled = isSubmitted;
-
-                return (
-                  <tr key={emp.id} className="hover:bg-stone-50 transition-colors">
-                    <td className="p-3 sticky left-0 bg-white z-10">
-                      <div>
-                        <p className="font-bold text-stone-800">{emp.name}</p>
-                        <p className="text-xs text-stone-400">
-                          {emp.employee_id} | {emp.employment_type_new === 'parttime' ? '計時' : '正職'}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="p-3">
-                      <input
-                        type="number"
-                        value={data.scheduled_days || ''}
-                        onChange={(e) => handleChange(emp.id, 'scheduled_days', e.target.value)}
-                        disabled={disabled}
-                        className="w-16 px-2 py-1 border border-stone-300 rounded text-center text-sm disabled:bg-stone-100"
-                        min="0"
-                        max="31"
-                      />
-                    </td>
-                    <td className="p-3">
-                      <input
-                        type="number"
-                        value={data.work_days || ''}
-                        onChange={(e) => handleChange(emp.id, 'work_days', e.target.value)}
-                        disabled={disabled}
-                        className="w-16 px-2 py-1 border border-stone-300 rounded text-center text-sm disabled:bg-stone-100"
-                        min="0"
-                        max="31"
-                      />
-                    </td>
-                    <td className="p-3 bg-blue-50/50">
-                      <input
-                        type="number"
-                        value={data.regular_hours || ''}
-                        onChange={(e) => handleChange(emp.id, 'regular_hours', e.target.value)}
-                        disabled={disabled}
-                        className="w-16 px-2 py-1 border border-blue-200 rounded text-center text-sm disabled:bg-stone-100"
-                        min="0"
-                        step="0.5"
-                      />
-                    </td>
-                    <td className="p-3 bg-amber-50/50">
-                      <input
-                        type="number"
-                        value={data.overtime_hours_133 || ''}
-                        onChange={(e) => handleChange(emp.id, 'overtime_hours_133', e.target.value)}
-                        disabled={disabled}
-                        className="w-16 px-2 py-1 border border-amber-200 rounded text-center text-sm disabled:bg-stone-100"
-                        min="0"
-                        step="0.5"
-                      />
-                    </td>
-                    <td className="p-3 bg-amber-50/50">
-                      <input
-                        type="number"
-                        value={data.overtime_hours_166 || ''}
-                        onChange={(e) => handleChange(emp.id, 'overtime_hours_166', e.target.value)}
-                        disabled={disabled}
-                        className="w-16 px-2 py-1 border border-amber-200 rounded text-center text-sm disabled:bg-stone-100"
-                        min="0"
-                        step="0.5"
-                      />
-                    </td>
-                    <td className="p-3 bg-red-50/50">
-                      <input
-                        type="number"
-                        value={data.overtime_hours_200 || ''}
-                        onChange={(e) => handleChange(emp.id, 'overtime_hours_200', e.target.value)}
-                        disabled={disabled}
-                        className="w-16 px-2 py-1 border border-red-200 rounded text-center text-sm disabled:bg-stone-100"
-                        min="0"
-                        step="0.5"
-                      />
-                    </td>
-                    <td className="p-3">
-                      <input
-                        type="number"
-                        value={data.annual_leave_days || ''}
-                        onChange={(e) => handleChange(emp.id, 'annual_leave_days', e.target.value)}
-                        disabled={disabled}
-                        className="w-16 px-2 py-1 border border-stone-300 rounded text-center text-sm disabled:bg-stone-100"
-                        min="0"
-                        step="0.5"
-                      />
-                    </td>
-                    <td className="p-3">
-                      <input
-                        type="number"
-                        value={data.sick_leave_days || ''}
-                        onChange={(e) => handleChange(emp.id, 'sick_leave_days', e.target.value)}
-                        disabled={disabled}
-                        className="w-16 px-2 py-1 border border-stone-300 rounded text-center text-sm disabled:bg-stone-100"
-                        min="0"
-                        step="0.5"
-                      />
-                    </td>
-                    <td className="p-3">
-                      <input
-                        type="number"
-                        value={data.personal_leave_days || ''}
-                        onChange={(e) => handleChange(emp.id, 'personal_leave_days', e.target.value)}
-                        disabled={disabled}
-                        className="w-16 px-2 py-1 border border-stone-300 rounded text-center text-sm disabled:bg-stone-100"
-                        min="0"
-                        step="0.5"
-                      />
-                    </td>
-                    <td className="p-3">
-                      <input
-                        type="number"
-                        value={data.late_count || ''}
-                        onChange={(e) => handleChange(emp.id, 'late_count', e.target.value)}
-                        disabled={disabled}
-                        className="w-16 px-2 py-1 border border-stone-300 rounded text-center text-sm disabled:bg-stone-100"
-                        min="0"
-                      />
-                    </td>
-                    <td className="p-3">
-                      <input
-                        type="number"
-                        value={data.absent_count || ''}
-                        onChange={(e) => handleChange(emp.id, 'absent_count', e.target.value)}
-                        disabled={disabled}
-                        className="w-16 px-2 py-1 border border-stone-300 rounded text-center text-sm disabled:bg-stone-100"
-                        min="0"
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      {/* 切換 Tab - 10日/12日發薪 */}
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => setActiveSection('10th')}
+          className={`px-4 py-2 rounded-lg font-medium transition-all ${
+            activeSection === '10th'
+              ? 'bg-blue-600 text-white shadow-lg'
+              : 'bg-white border border-stone-200 text-stone-600 hover:bg-stone-50'
+          }`}
+        >
+          10日發薪項目
+        </button>
+        <button
+          onClick={() => setActiveSection('12th')}
+          className={`px-4 py-2 rounded-lg font-medium transition-all ${
+            activeSection === '12th'
+              ? 'bg-purple-600 text-white shadow-lg'
+              : 'bg-white border border-stone-200 text-stone-600 hover:bg-stone-50'
+          }`}
+        >
+          12日發薪項目
+        </button>
+        <button
+          onClick={() => setActiveSection('leave')}
+          className={`px-4 py-2 rounded-lg font-medium transition-all ${
+            activeSection === 'leave'
+              ? 'bg-emerald-600 text-white shadow-lg'
+              : 'bg-white border border-stone-200 text-stone-600 hover:bg-stone-50'
+          }`}
+        >
+          請假與扣款
+        </button>
       </div>
+
+      {/* 10日發薪項目表格 */}
+      {activeSection === '10th' && (
+        <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
+          <div className="bg-blue-50 px-4 py-3 border-b border-blue-100">
+            <h2 className="font-bold text-blue-800">10日發薪 - 出勤時數</h2>
+            <p className="text-xs text-blue-600 mt-1">本薪、加班費（×1.34、×1.67）、國假加班費</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px]">
+              <thead>
+                <tr className="bg-stone-50 text-stone-500 text-xs font-bold uppercase tracking-wider border-b border-stone-200">
+                  <th className="p-3 text-left sticky left-0 bg-stone-50 z-10">員工</th>
+                  <th className="p-3 text-center" title="在職天數">在職天數</th>
+                  <th className="p-3 text-center" title="應出勤天數">應出勤</th>
+                  <th className="p-3 text-center" title="實際出勤天數">實際出勤</th>
+                  <th className="p-3 text-center bg-blue-50 text-blue-700" title="正常工時">正常時數</th>
+                  <th className="p-3 text-center bg-amber-50 text-amber-700" title="加班前2小時 ×1.34">加班(1.34)</th>
+                  <th className="p-3 text-center bg-amber-50 text-amber-700" title="加班2小時後 ×1.67">加班(1.67)</th>
+                  <th className="p-3 text-center bg-red-50 text-red-700" title="國定假日工作時數">國假時數</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {employees.map((emp) => {
+                  const data = attendanceData[emp.id] || {};
+                  const disabled = isSubmitted;
+
+                  return (
+                    <tr key={emp.id} className="hover:bg-stone-50 transition-colors">
+                      <td className="p-3 sticky left-0 bg-white z-10">
+                        <div>
+                          <p className="font-bold text-stone-800">{emp.name}</p>
+                          <p className="text-xs text-stone-400">
+                            {emp.employee_id} | {emp.employment_type_new === 'parttime' ? '計時' : '正職'}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <input
+                          type="number"
+                          value={data.work_days_in_month || ''}
+                          onChange={(e) => handleChange(emp.id, 'work_days_in_month', e.target.value)}
+                          disabled={disabled}
+                          className="w-16 px-2 py-1 border border-stone-300 rounded text-center text-sm disabled:bg-stone-100"
+                          min="0"
+                          max="31"
+                        />
+                      </td>
+                      <td className="p-3">
+                        <input
+                          type="number"
+                          value={data.scheduled_days || ''}
+                          onChange={(e) => handleChange(emp.id, 'scheduled_days', e.target.value)}
+                          disabled={disabled}
+                          className="w-16 px-2 py-1 border border-stone-300 rounded text-center text-sm disabled:bg-stone-100"
+                          min="0"
+                          max="31"
+                        />
+                      </td>
+                      <td className="p-3">
+                        <input
+                          type="number"
+                          value={data.work_days || ''}
+                          onChange={(e) => handleChange(emp.id, 'work_days', e.target.value)}
+                          disabled={disabled}
+                          className="w-16 px-2 py-1 border border-stone-300 rounded text-center text-sm disabled:bg-stone-100"
+                          min="0"
+                          max="31"
+                        />
+                      </td>
+                      <td className="p-3 bg-blue-50/50">
+                        <input
+                          type="number"
+                          value={data.regular_hours || ''}
+                          onChange={(e) => handleChange(emp.id, 'regular_hours', e.target.value)}
+                          disabled={disabled}
+                          className="w-16 px-2 py-1 border border-blue-200 rounded text-center text-sm disabled:bg-stone-100"
+                          min="0"
+                          step="0.5"
+                        />
+                      </td>
+                      <td className="p-3 bg-amber-50/50">
+                        <input
+                          type="number"
+                          value={data.overtime_hours_134 || ''}
+                          onChange={(e) => handleChange(emp.id, 'overtime_hours_134', e.target.value)}
+                          disabled={disabled}
+                          className="w-16 px-2 py-1 border border-amber-200 rounded text-center text-sm disabled:bg-stone-100"
+                          min="0"
+                          step="0.5"
+                        />
+                      </td>
+                      <td className="p-3 bg-amber-50/50">
+                        <input
+                          type="number"
+                          value={data.overtime_hours_167 || ''}
+                          onChange={(e) => handleChange(emp.id, 'overtime_hours_167', e.target.value)}
+                          disabled={disabled}
+                          className="w-16 px-2 py-1 border border-amber-200 rounded text-center text-sm disabled:bg-stone-100"
+                          min="0"
+                          step="0.5"
+                        />
+                      </td>
+                      <td className="p-3 bg-red-50/50">
+                        <input
+                          type="number"
+                          value={data.holiday_hours || ''}
+                          onChange={(e) => handleChange(emp.id, 'holiday_hours', e.target.value)}
+                          disabled={disabled}
+                          className="w-16 px-2 py-1 border border-red-200 rounded text-center text-sm disabled:bg-stone-100"
+                          min="0"
+                          step="0.5"
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 12日發薪項目表格 */}
+      {activeSection === '12th' && (
+        <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
+          <div className="bg-purple-50 px-4 py-3 border-b border-purple-100">
+            <h2 className="font-bold text-purple-800">12日發薪 - 時數</h2>
+            <p className="text-xs text-purple-600 mt-1">計時超額津貼、12日加班費（×1.34、×1.67）</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[700px]">
+              <thead>
+                <tr className="bg-stone-50 text-stone-500 text-xs font-bold uppercase tracking-wider border-b border-stone-200">
+                  <th className="p-3 text-left sticky left-0 bg-stone-50 z-10">員工</th>
+                  <th className="p-3 text-center bg-purple-50 text-purple-700" title="12日計時超額時數">超額時數</th>
+                  <th className="p-3 text-center bg-purple-50 text-purple-700" title="12日加班前2小時 ×1.34">12日加班(1.34)</th>
+                  <th className="p-3 text-center bg-purple-50 text-purple-700" title="12日加班2小時後 ×1.67">12日加班(1.67)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {employees.map((emp) => {
+                  const data = attendanceData[emp.id] || {};
+                  const disabled = isSubmitted;
+
+                  return (
+                    <tr key={emp.id} className="hover:bg-stone-50 transition-colors">
+                      <td className="p-3 sticky left-0 bg-white z-10">
+                        <div>
+                          <p className="font-bold text-stone-800">{emp.name}</p>
+                          <p className="text-xs text-stone-400">
+                            {emp.employee_id} | {emp.employment_type_new === 'parttime' ? '計時' : '正職'}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="p-3 bg-purple-50/50">
+                        <input
+                          type="number"
+                          value={data.overtime_12th_hours || ''}
+                          onChange={(e) => handleChange(emp.id, 'overtime_12th_hours', e.target.value)}
+                          disabled={disabled}
+                          className="w-16 px-2 py-1 border border-purple-200 rounded text-center text-sm disabled:bg-stone-100"
+                          min="0"
+                          step="0.5"
+                        />
+                      </td>
+                      <td className="p-3 bg-purple-50/50">
+                        <input
+                          type="number"
+                          value={data.overtime_12th_hours_134 || ''}
+                          onChange={(e) => handleChange(emp.id, 'overtime_12th_hours_134', e.target.value)}
+                          disabled={disabled}
+                          className="w-16 px-2 py-1 border border-purple-200 rounded text-center text-sm disabled:bg-stone-100"
+                          min="0"
+                          step="0.5"
+                        />
+                      </td>
+                      <td className="p-3 bg-purple-50/50">
+                        <input
+                          type="number"
+                          value={data.overtime_12th_hours_167 || ''}
+                          onChange={(e) => handleChange(emp.id, 'overtime_12th_hours_167', e.target.value)}
+                          disabled={disabled}
+                          className="w-16 px-2 py-1 border border-purple-200 rounded text-center text-sm disabled:bg-stone-100"
+                          min="0"
+                          step="0.5"
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 請假與扣款表格 */}
+      {activeSection === 'leave' && (
+        <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
+          <div className="bg-emerald-50 px-4 py-3 border-b border-emerald-100">
+            <h2 className="font-bold text-emerald-800">請假與扣款項目</h2>
+            <p className="text-xs text-emerald-600 mt-1">特休、病假、事假、有薪假、遲到曠職</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1100px]">
+              <thead>
+                <tr className="bg-stone-50 text-stone-500 text-xs font-bold uppercase tracking-wider border-b border-stone-200">
+                  <th className="p-3 text-left sticky left-0 bg-stone-50 z-10">員工</th>
+                  <th className="p-3 text-center" title="特休天數">特休天數</th>
+                  <th className="p-3 text-center bg-green-50 text-green-700" title="特休已休時數（計時人員）">已休時數</th>
+                  <th className="p-3 text-center bg-green-50 text-green-700" title="特休代金時數">代金時數</th>
+                  <th className="p-3 text-center bg-amber-50 text-amber-700" title="病假時數（扣半薪）">病假時數</th>
+                  <th className="p-3 text-center bg-red-50 text-red-700" title="事假時數（扣全薪）">事假時數</th>
+                  <th className="p-3 text-center bg-blue-50 text-blue-700" title="公婚喪產假時數（有薪）">有薪假時數</th>
+                  <th className="p-3 text-center" title="遲到次數">遲到</th>
+                  <th className="p-3 text-center" title="曠職天數">曠職</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {employees.map((emp) => {
+                  const data = attendanceData[emp.id] || {};
+                  const disabled = isSubmitted;
+
+                  return (
+                    <tr key={emp.id} className="hover:bg-stone-50 transition-colors">
+                      <td className="p-3 sticky left-0 bg-white z-10">
+                        <div>
+                          <p className="font-bold text-stone-800">{emp.name}</p>
+                          <p className="text-xs text-stone-400">
+                            {emp.employee_id} | {emp.employment_type_new === 'parttime' ? '計時' : '正職'}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <input
+                          type="number"
+                          value={data.annual_leave_days || ''}
+                          onChange={(e) => handleChange(emp.id, 'annual_leave_days', e.target.value)}
+                          disabled={disabled}
+                          className="w-16 px-2 py-1 border border-stone-300 rounded text-center text-sm disabled:bg-stone-100"
+                          min="0"
+                          step="0.5"
+                        />
+                      </td>
+                      <td className="p-3 bg-green-50/50">
+                        <input
+                          type="number"
+                          value={data.annual_leave_used_hours || ''}
+                          onChange={(e) => handleChange(emp.id, 'annual_leave_used_hours', e.target.value)}
+                          disabled={disabled}
+                          className="w-16 px-2 py-1 border border-green-200 rounded text-center text-sm disabled:bg-stone-100"
+                          min="0"
+                          step="0.5"
+                        />
+                      </td>
+                      <td className="p-3 bg-green-50/50">
+                        <input
+                          type="number"
+                          value={data.annual_leave_pay_hours || ''}
+                          onChange={(e) => handleChange(emp.id, 'annual_leave_pay_hours', e.target.value)}
+                          disabled={disabled}
+                          className="w-16 px-2 py-1 border border-green-200 rounded text-center text-sm disabled:bg-stone-100"
+                          min="0"
+                          step="0.5"
+                        />
+                      </td>
+                      <td className="p-3 bg-amber-50/50">
+                        <input
+                          type="number"
+                          value={data.sick_leave_hours || ''}
+                          onChange={(e) => handleChange(emp.id, 'sick_leave_hours', e.target.value)}
+                          disabled={disabled}
+                          className="w-16 px-2 py-1 border border-amber-200 rounded text-center text-sm disabled:bg-stone-100"
+                          min="0"
+                          step="0.5"
+                        />
+                      </td>
+                      <td className="p-3 bg-red-50/50">
+                        <input
+                          type="number"
+                          value={data.personal_leave_hours || ''}
+                          onChange={(e) => handleChange(emp.id, 'personal_leave_hours', e.target.value)}
+                          disabled={disabled}
+                          className="w-16 px-2 py-1 border border-red-200 rounded text-center text-sm disabled:bg-stone-100"
+                          min="0"
+                          step="0.5"
+                        />
+                      </td>
+                      <td className="p-3 bg-blue-50/50">
+                        <input
+                          type="number"
+                          value={data.paid_leave_hours || ''}
+                          onChange={(e) => handleChange(emp.id, 'paid_leave_hours', e.target.value)}
+                          disabled={disabled}
+                          className="w-16 px-2 py-1 border border-blue-200 rounded text-center text-sm disabled:bg-stone-100"
+                          min="0"
+                          step="0.5"
+                        />
+                      </td>
+                      <td className="p-3">
+                        <input
+                          type="number"
+                          value={data.late_count || ''}
+                          onChange={(e) => handleChange(emp.id, 'late_count', e.target.value)}
+                          disabled={disabled}
+                          className="w-16 px-2 py-1 border border-stone-300 rounded text-center text-sm disabled:bg-stone-100"
+                          min="0"
+                        />
+                      </td>
+                      <td className="p-3">
+                        <input
+                          type="number"
+                          value={data.absent_count || ''}
+                          onChange={(e) => handleChange(emp.id, 'absent_count', e.target.value)}
+                          disabled={disabled}
+                          className="w-16 px-2 py-1 border border-stone-300 rounded text-center text-sm disabled:bg-stone-100"
+                          min="0"
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="mt-4 text-center text-xs text-stone-400 flex items-center justify-center gap-2">
         <Users size={14} />

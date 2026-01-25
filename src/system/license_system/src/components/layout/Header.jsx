@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { useUserRole } from '../../../../../hooks/useUserRole';
 import logoSrc from '../../../../../assets/logo.png'; 
 
 // 系統基礎路徑
@@ -73,7 +74,8 @@ const navConfig = [
 export function Header() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, role, logout, signOut } = useAuth(); // 假設 AuthContext 有提供 role
+  const { user, logout, signOut } = useAuth();
+  const { roleName } = useUserRole();
 
   // --- 狀態管理 ---
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -146,9 +148,6 @@ export function Header() {
 
   // 判斷連結是否啟用
   const isActive = (path) => location.pathname.startsWith(path);
-
-  // 角色名稱顯示 (可根據您的系統角色調整)
-  const roleNameDisplay = role === 'admin' ? '系統管理員' : '一般使用者';
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-200 shadow-sm print:hidden">
@@ -273,7 +272,7 @@ export function Header() {
                   {displayName}
                 </p>
                 <p className="text-[10px] text-gray-400 font-medium tracking-wide">
-                  {roleNameDisplay}
+                  {roleName}
                 </p>
               </div>
               <ChevronDown
@@ -292,7 +291,7 @@ export function Header() {
                   <p className="text-xs text-gray-500 mb-2 truncate">{user?.email}</p>
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-medium bg-blue-100 text-blue-700 rounded-full border border-blue-200/50">
                     <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
-                    {roleNameDisplay}
+                    {roleName}
                   </span>
                 </div>
 
@@ -355,7 +354,7 @@ export function Header() {
                   </div>
                 </div>
                 <div className="text-[10px] text-gray-400 px-1">
-                  {roleNameDisplay}
+                  {roleName}
                 </div>
               </div>
             )}

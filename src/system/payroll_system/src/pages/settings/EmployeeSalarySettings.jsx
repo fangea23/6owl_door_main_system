@@ -36,10 +36,10 @@ export default function EmployeeSalarySettings() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 取得員工
+      // 取得員工 (同時取得 store_id 和 store_code)
       const { data: empData } = await supabase
         .from('employees')
-        .select('id, name, employee_id, position, store_code, employment_type_new, bank_name, bank_account')
+        .select('id, name, employee_id, position, store_id, store_code, employment_type_new, bank_name, bank_account')
         .eq('status', 'active')
         .order('employee_id');
 
@@ -164,7 +164,10 @@ export default function EmployeeSalarySettings() {
       emp.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       emp.employee_id?.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchStore = filterStore === 'all' || emp.store_code === filterStore;
+    // 使用 store_id 比對（轉成字串比較）
+    const matchStore = filterStore === 'all' ||
+      String(emp.store_id) === filterStore ||
+      emp.store_code === filterStore;
 
     return matchSearch && matchStore;
   });
@@ -238,7 +241,7 @@ export default function EmployeeSalarySettings() {
           >
             <option value="all">全部門市</option>
             {stores.map(store => (
-              <option key={store.id} value={store.code}>{store.code} - {store.name}</option>
+              <option key={store.id} value={String(store.id)}>{store.code} - {store.name}</option>
             ))}
           </select>
           <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" size={18} />
@@ -278,7 +281,7 @@ export default function EmployeeSalarySettings() {
                           </div>
                         </td>
                         <td className="p-4 text-sm text-stone-600">
-                          {emp.store_code || '-'}
+                          {emp.store_code || stores.find(s => s.id === emp.store_id)?.code || '-'}
                         </td>
                         <td className="p-4">
                           <select
@@ -368,7 +371,7 @@ export default function EmployeeSalarySettings() {
                           </div>
                         </td>
                         <td className="p-4 text-sm text-stone-600">
-                          {emp.store_code || '-'}
+                          {emp.store_code || stores.find(s => s.id === emp.store_id)?.code || '-'}
                         </td>
                         <td className="p-4">
                           <span className={`text-sm ${setting?.salary_grade_id ? 'text-stone-800' : 'text-stone-400'}`}>

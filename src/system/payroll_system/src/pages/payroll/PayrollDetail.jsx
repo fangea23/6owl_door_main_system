@@ -9,7 +9,9 @@ import {
   Clock,
   Shield,
   Building,
-  FileText
+  FileText,
+  Minus,
+  Plus
 } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../AuthContext';
@@ -99,12 +101,13 @@ export default function PayrollDetail() {
     );
   }
 
-  const overtimeTotal = parseFloat(payroll.overtime_pay_133 || 0) +
-                        parseFloat(payroll.overtime_pay_166 || 0) +
-                        parseFloat(payroll.overtime_pay_200 || 0);
+  // 計算加班費總額
+  const overtimeTotal = parseFloat(payroll.overtime_pay_134 || payroll.overtime_pay_133 || 0) +
+                        parseFloat(payroll.overtime_pay_167 || payroll.overtime_pay_166 || 0);
 
-  const insuranceTotal = parseFloat(payroll.labor_insurance_employee || 0) +
-                         parseFloat(payroll.health_insurance_employee || 0);
+  // 計算請假扣款總額
+  const leaveDeductionTotal = parseFloat(payroll.sick_leave_deduction || 0) +
+                              parseFloat(payroll.personal_leave_deduction || 0);
 
   return (
     <div className="pb-20 max-w-4xl mx-auto">
@@ -152,28 +155,43 @@ export default function PayrollDetail() {
         <div className="space-y-3">
           {/* 應發項目 */}
           <div className="bg-emerald-50 rounded-xl p-4">
-            <h3 className="text-sm font-bold text-emerald-700 mb-3">應發項目</h3>
+            <h3 className="text-sm font-bold text-emerald-700 mb-3 flex items-center gap-1">
+              <Plus size={14} />
+              應發項目
+            </h3>
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-stone-600">本薪</span>
                 <span className="font-mono font-bold">${parseFloat(payroll.base_salary || 0).toLocaleString()}</span>
               </div>
-              {parseFloat(payroll.overtime_pay_133 || 0) > 0 && (
+              {parseFloat(payroll.overtime_pay_134 || payroll.overtime_pay_133 || 0) > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-stone-600">加班費 (×1.33)</span>
-                  <span className="font-mono">${parseFloat(payroll.overtime_pay_133).toLocaleString()}</span>
+                  <span className="text-stone-600">加班費 (×1.34)</span>
+                  <span className="font-mono">${parseFloat(payroll.overtime_pay_134 || payroll.overtime_pay_133 || 0).toLocaleString()}</span>
                 </div>
               )}
-              {parseFloat(payroll.overtime_pay_166 || 0) > 0 && (
+              {parseFloat(payroll.overtime_pay_167 || payroll.overtime_pay_166 || 0) > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-stone-600">加班費 (×1.66)</span>
-                  <span className="font-mono">${parseFloat(payroll.overtime_pay_166).toLocaleString()}</span>
+                  <span className="text-stone-600">加班費 (×1.67)</span>
+                  <span className="font-mono">${parseFloat(payroll.overtime_pay_167 || payroll.overtime_pay_166 || 0).toLocaleString()}</span>
                 </div>
               )}
-              {parseFloat(payroll.overtime_pay_200 || 0) > 0 && (
+              {parseFloat(payroll.holiday_pay || 0) > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-stone-600">假日加班 (×2.0)</span>
-                  <span className="font-mono">${parseFloat(payroll.overtime_pay_200).toLocaleString()}</span>
+                  <span className="text-stone-600">國假加班費</span>
+                  <span className="font-mono">${parseFloat(payroll.holiday_pay || 0).toLocaleString()}</span>
+                </div>
+              )}
+              {parseFloat(payroll.annual_leave_pay || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-stone-600">特休代金</span>
+                  <span className="font-mono">${parseFloat(payroll.annual_leave_pay || 0).toLocaleString()}</span>
+                </div>
+              )}
+              {parseFloat(payroll.festival_bonus || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-stone-600">三節生日獎金</span>
+                  <span className="font-mono">${parseFloat(payroll.festival_bonus || 0).toLocaleString()}</span>
                 </div>
               )}
               <div className="flex justify-between pt-2 border-t border-emerald-200">
@@ -185,24 +203,63 @@ export default function PayrollDetail() {
 
           {/* 應扣項目 */}
           <div className="bg-red-50 rounded-xl p-4">
-            <h3 className="text-sm font-bold text-red-700 mb-3">應扣項目</h3>
+            <h3 className="text-sm font-bold text-red-700 mb-3 flex items-center gap-1">
+              <Minus size={14} />
+              應扣項目
+            </h3>
             <div className="space-y-2">
+              {parseFloat(payroll.sick_leave_deduction || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-stone-600">病假扣款</span>
+                  <span className="font-mono">-${parseFloat(payroll.sick_leave_deduction || 0).toLocaleString()}</span>
+                </div>
+              )}
+              {parseFloat(payroll.personal_leave_deduction || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-stone-600">事假扣款</span>
+                  <span className="font-mono">-${parseFloat(payroll.personal_leave_deduction || 0).toLocaleString()}</span>
+                </div>
+              )}
               {parseFloat(payroll.labor_insurance_employee || 0) > 0 && (
                 <div className="flex justify-between">
                   <span className="text-stone-600">勞保費 (自付)</span>
-                  <span className="font-mono">-${parseFloat(payroll.labor_insurance_employee).toLocaleString()}</span>
+                  <span className="font-mono">-${parseFloat(payroll.labor_insurance_employee || 0).toLocaleString()}</span>
                 </div>
               )}
               {parseFloat(payroll.health_insurance_employee || 0) > 0 && (
                 <div className="flex justify-between">
                   <span className="text-stone-600">健保費 (自付)</span>
-                  <span className="font-mono">-${parseFloat(payroll.health_insurance_employee).toLocaleString()}</span>
+                  <span className="font-mono">-${parseFloat(payroll.health_insurance_employee || 0).toLocaleString()}</span>
                 </div>
               )}
-              {parseFloat(payroll.absence_deduction || 0) > 0 && (
+              {parseFloat(payroll.health_insurance_dependents || 0) > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-stone-600">曠職扣款</span>
-                  <span className="font-mono">-${parseFloat(payroll.absence_deduction).toLocaleString()}</span>
+                  <span className="text-stone-600">健保眷屬</span>
+                  <span className="font-mono">-${parseFloat(payroll.health_insurance_dependents || 0).toLocaleString()}</span>
+                </div>
+              )}
+              {parseFloat(payroll.advance_payment || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-stone-600">預支</span>
+                  <span className="font-mono">-${parseFloat(payroll.advance_payment || 0).toLocaleString()}</span>
+                </div>
+              )}
+              {parseFloat(payroll.labor_insurance_retroactive || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-stone-600">勞保追朔</span>
+                  <span className="font-mono">-${parseFloat(payroll.labor_insurance_retroactive || 0).toLocaleString()}</span>
+                </div>
+              )}
+              {parseFloat(payroll.health_insurance_retroactive || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-stone-600">健保追朔</span>
+                  <span className="font-mono">-${parseFloat(payroll.health_insurance_retroactive || 0).toLocaleString()}</span>
+                </div>
+              )}
+              {parseFloat(payroll.other_deduction || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-stone-600">其他扣款</span>
+                  <span className="font-mono">-${parseFloat(payroll.other_deduction || 0).toLocaleString()}</span>
                 </div>
               )}
               <div className="flex justify-between pt-2 border-t border-red-200">
@@ -232,39 +289,76 @@ export default function PayrollDetail() {
           <span className="text-sm font-normal text-stone-400 ml-2">{period?.pay_date_12th}</span>
         </h2>
 
-        <div className="bg-purple-50 rounded-xl p-4">
-          <div className="space-y-2">
-            {parseFloat(payroll.meal_allowance || 0) > 0 && (
+        <div className="space-y-3">
+          {/* 12日應發 */}
+          <div className="bg-purple-50 rounded-xl p-4">
+            <h3 className="text-sm font-bold text-purple-700 mb-3 flex items-center gap-1">
+              <Plus size={14} />
+              應發項目
+            </h3>
+            <div className="space-y-2">
+              {parseFloat(payroll.overtime_12th_allowance || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-stone-600">計時超額津貼</span>
+                  <span className="font-mono">${parseFloat(payroll.overtime_12th_allowance || 0).toLocaleString()}</span>
+                </div>
+              )}
+              {parseFloat(payroll.overtime_12th_pay || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-stone-600">12日加班費</span>
+                  <span className="font-mono">${parseFloat(payroll.overtime_12th_pay || 0).toLocaleString()}</span>
+                </div>
+              )}
+              {parseFloat(payroll.position_allowance || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-stone-600">職務獎金</span>
+                  <span className="font-mono">${parseFloat(payroll.position_allowance || 0).toLocaleString()}</span>
+                </div>
+              )}
+              {parseFloat(payroll.meal_allowance || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-stone-600">伙食津貼</span>
+                  <span className="font-mono">${parseFloat(payroll.meal_allowance || 0).toLocaleString()}</span>
+                </div>
+              )}
+              {parseFloat(payroll.performance_bonus || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-stone-600">績效獎金</span>
+                  <span className="font-mono">${parseFloat(payroll.performance_bonus || 0).toLocaleString()}</span>
+                </div>
+              )}
+              {parseFloat(payroll.attendance_bonus || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-stone-600">全勤獎金</span>
+                  <span className="font-mono">${parseFloat(payroll.attendance_bonus || 0).toLocaleString()}</span>
+                </div>
+              )}
+              {parseFloat(payroll.other_bonus || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-stone-600">其他加項</span>
+                  <span className="font-mono">${parseFloat(payroll.other_bonus || 0).toLocaleString()}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 12日扣項 */}
+          {parseFloat(payroll.pay_12th_deduction || 0) > 0 && (
+            <div className="bg-orange-50 rounded-xl p-4">
+              <h3 className="text-sm font-bold text-orange-700 mb-3 flex items-center gap-1">
+                <Minus size={14} />
+                扣款項目
+              </h3>
               <div className="flex justify-between">
-                <span className="text-stone-600">伙食津貼</span>
-                <span className="font-mono">${parseFloat(payroll.meal_allowance).toLocaleString()}</span>
+                <span className="text-stone-600">其他扣項</span>
+                <span className="font-mono">-${parseFloat(payroll.pay_12th_deduction || 0).toLocaleString()}</span>
               </div>
-            )}
-            {parseFloat(payroll.position_allowance || 0) > 0 && (
-              <div className="flex justify-between">
-                <span className="text-stone-600">職務津貼</span>
-                <span className="font-mono">${parseFloat(payroll.position_allowance).toLocaleString()}</span>
-              </div>
-            )}
-            {parseFloat(payroll.performance_bonus || 0) > 0 && (
-              <div className="flex justify-between">
-                <span className="text-stone-600">績效獎金</span>
-                <span className="font-mono">${parseFloat(payroll.performance_bonus).toLocaleString()}</span>
-              </div>
-            )}
-            {parseFloat(payroll.attendance_bonus || 0) > 0 && (
-              <div className="flex justify-between">
-                <span className="text-stone-600">全勤獎金</span>
-                <span className="font-mono">${parseFloat(payroll.attendance_bonus).toLocaleString()}</span>
-              </div>
-            )}
-            {parseFloat(payroll.annual_leave_pay || 0) > 0 && (
-              <div className="flex justify-between">
-                <span className="text-stone-600">特休代金</span>
-                <span className="font-mono">${parseFloat(payroll.annual_leave_pay).toLocaleString()}</span>
-              </div>
-            )}
-            <div className="flex justify-between pt-2 border-t border-purple-200">
+            </div>
+          )}
+
+          {/* 12日實發 */}
+          <div className="bg-purple-100 rounded-xl p-4">
+            <div className="flex justify-between items-center">
               <span className="font-bold text-purple-800 text-lg">12日發放金額</span>
               <span className="font-mono font-bold text-purple-800 text-xl">${parseFloat(payroll.pay_12th_total || 0).toLocaleString()}</span>
             </div>
@@ -282,10 +376,12 @@ export default function PayrollDetail() {
             出勤統計
           </h2>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <div className="bg-stone-50 rounded-xl p-3 text-center">
-              <p className="text-xs text-stone-500">實際出勤</p>
-              <p className="text-xl font-bold text-stone-800">{attendance.work_days}/{attendance.scheduled_days}</p>
+              <p className="text-xs text-stone-500">在職/應出勤</p>
+              <p className="text-xl font-bold text-stone-800">
+                {attendance.work_days_in_month || 30}/{attendance.scheduled_days || 0}
+              </p>
               <p className="text-xs text-stone-400">天</p>
             </div>
             <div className="bg-blue-50 rounded-xl p-3 text-center">
@@ -294,22 +390,44 @@ export default function PayrollDetail() {
               <p className="text-xs text-blue-400">小時</p>
             </div>
             <div className="bg-amber-50 rounded-xl p-3 text-center">
-              <p className="text-xs text-amber-600">加班時數</p>
+              <p className="text-xs text-amber-600">10日加班</p>
               <p className="text-xl font-bold text-amber-700">
-                {(parseFloat(attendance.overtime_hours_133 || 0) +
-                  parseFloat(attendance.overtime_hours_166 || 0) +
-                  parseFloat(attendance.overtime_hours_200 || 0)).toFixed(1)}
+                {((parseFloat(attendance.overtime_hours_134 || 0) +
+                  parseFloat(attendance.overtime_hours_167 || 0))).toFixed(1)}
               </p>
               <p className="text-xs text-amber-400">小時</p>
             </div>
-            <div className="bg-green-50 rounded-xl p-3 text-center">
-              <p className="text-xs text-green-600">請假天數</p>
-              <p className="text-xl font-bold text-green-700">
-                {(parseFloat(attendance.annual_leave_days || 0) +
-                  parseFloat(attendance.sick_leave_days || 0) +
-                  parseFloat(attendance.personal_leave_days || 0)).toFixed(1)}
+            <div className="bg-red-50 rounded-xl p-3 text-center">
+              <p className="text-xs text-red-600">國假時數</p>
+              <p className="text-xl font-bold text-red-700">{attendance.holiday_hours || 0}</p>
+              <p className="text-xs text-red-400">小時</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-purple-50 rounded-xl p-3 text-center">
+              <p className="text-xs text-purple-600">12日時數</p>
+              <p className="text-xl font-bold text-purple-700">
+                {((parseFloat(attendance.overtime_12th_hours || 0) +
+                  parseFloat(attendance.overtime_12th_hours_134 || 0) +
+                  parseFloat(attendance.overtime_12th_hours_167 || 0))).toFixed(1)}
               </p>
-              <p className="text-xs text-green-400">天</p>
+              <p className="text-xs text-purple-400">小時</p>
+            </div>
+            <div className="bg-green-50 rounded-xl p-3 text-center">
+              <p className="text-xs text-green-600">特休代金</p>
+              <p className="text-xl font-bold text-green-700">{attendance.annual_leave_pay_hours || 0}</p>
+              <p className="text-xs text-green-400">小時</p>
+            </div>
+            <div className="bg-orange-50 rounded-xl p-3 text-center">
+              <p className="text-xs text-orange-600">病假時數</p>
+              <p className="text-xl font-bold text-orange-700">{attendance.sick_leave_hours || 0}</p>
+              <p className="text-xs text-orange-400">小時</p>
+            </div>
+            <div className="bg-rose-50 rounded-xl p-3 text-center">
+              <p className="text-xs text-rose-600">事假時數</p>
+              <p className="text-xl font-bold text-rose-700">{attendance.personal_leave_hours || 0}</p>
+              <p className="text-xs text-rose-400">小時</p>
             </div>
           </div>
         </div>

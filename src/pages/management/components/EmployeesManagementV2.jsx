@@ -150,10 +150,16 @@ export default function EmployeesManagementV2() {
 
     setProcessing(true);
     try {
+      // 根據 store_id 找到對應的 store_code
+      const selectedStore = formData.store_id
+        ? stores.find(s => s.id === parseInt(formData.store_id) || s.id === formData.store_id)
+        : null;
+
       const cleanData = {
         ...formData,
         department_id: formData.department_id || null,
         store_id: formData.store_id || null,
+        store_code: selectedStore?.code || null,  // 同步更新 store_code
         email: formData.email || null,
         phone: formData.phone || null,
         mobile: formData.mobile || null,
