@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate ,} from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../AuthContext';
+import { usePermission, PermissionGuard } from '../../../../hooks/usePermission';
 import {
   Calendar,
   Clock,
@@ -16,6 +17,7 @@ import {
   AlertCircle,
   LayoutList,
   LayoutGrid,
+  Shield,
   User
 } from 'lucide-react';
 
@@ -83,6 +85,16 @@ export default function Dashboard() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState('schedule'); // 'list' | 'schedule'
 
+  // RBAC 權限檢查 - 獲取 loading 狀態
+  const { hasPermission: canCreate } = usePermission('meeting.booking.create');
+  const { hasPermission: canViewAll, loading: loadingViewAll } = usePermission('meeting.booking.view.all');
+  const { hasPermission: canViewOwn, loading: loadingViewOwn } = usePermission('meeting.booking.view.own');
+  const { hasPermission: canCancelOwn } = usePermission('meeting.booking.cancel.own');
+  const { hasPermission: canCancelAll } = usePermission('meeting.booking.cancel.all');
+
+  // 檢查權限是否都載入完成
+  const permissionsLoading = loadingViewAll || loadingViewOwn;
+
   // 取得本週日期範圍
   const getWeekDates = (date) => {
     const start = new Date(date);
@@ -114,18 +126,29 @@ export default function Dashboard() {
         const startOfWeek = toDateString(weekDates[0]);
         const endOfWeek = toDateString(weekDates[6]);
 
+        // 根據權限查詢預約資料
+        let bookingsQuery = supabase
+          .from('bookings')
+          .select(`
+            *,
+            rooms (id, name, location, capacity)
+          `)
+          .gte('booking_date', startOfWeek)
+          .lte('booking_date', endOfWeek);
+
+        // 🔒 權限過濾：只能查看自己的預約
+        if (canViewOwn && !canViewAll) {
+          bookingsQuery = bookingsQuery.eq('user_id', user.id);
+        }
+        // 如果有 canViewAll，則不加過濾（查看所有）
+
+        bookingsQuery = bookingsQuery
+          .order('booking_date', { ascending: true })
+          .order('start_time', { ascending: true });
+
         // 同時取得預約和會議室資料
         const [bookingsRes, roomsRes] = await Promise.all([
-          supabase
-            .from('bookings')
-            .select(`
-              *,
-              rooms (id, name, location, capacity)
-            `)
-            .gte('booking_date', startOfWeek)
-            .lte('booking_date', endOfWeek)
-            .order('booking_date', { ascending: true })
-            .order('start_time', { ascending: true }),
+          bookingsQuery,
           supabase
             .from('rooms')
             .select('*')
@@ -209,6 +232,38 @@ export default function Dashboard() {
     return colors[status] || colors.pending;
   };
 
+  // 🔒 權限載入中 - 顯示 loading 而不是無權限頁面
+  if (permissionsLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <Loader2 className="animate-spin mb-3 text-amber-500" size={32} />
+        <p className="text-stone-400">載入中...</p>
+      </div>
+    );
+  }
+
+  // 🔒 權限檢查：必須有查看權限才能進入 Dashboard
+  if (!canViewAll && !canViewOwn) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md">
+          <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Shield size={32} />
+          </div>
+          <h2 className="text-2xl font-bold text-center mb-2">無查看權限</h2>
+          <p className="text-gray-600 text-center mb-4">
+            您沒有查看會議室預約的權限。
+          </p>
+          <p className="text-sm text-gray-500 text-center">
+            需要以下任一權限：
+            <br />• meeting.booking.view.all（查看所有預約）
+            <br />• meeting.booking.view.own（查看自己的預約）
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* 頁面標題 */}
@@ -243,13 +298,15 @@ export default function Dashboard() {
               列表
             </button>
           </div>
-          <button
-            onClick={() => navigate(`${BASE_PATH}/booking`)}
-            className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl font-medium transition-colors shadow-sm"
-          >
-            <Plus size={18} />
-            新增預約
-          </button>
+          <PermissionGuard permission="meeting.booking.create">
+            <button
+              onClick={() => navigate(`${BASE_PATH}/booking`)}
+              className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl font-medium transition-colors shadow-sm"
+            >
+              <Plus size={18} />
+              新增預約
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 

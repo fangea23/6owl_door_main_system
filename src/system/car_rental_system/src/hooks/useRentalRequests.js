@@ -136,7 +136,13 @@ useEffect(() => {
           p_review_comment: comment
         });
 
-        if (error) throw new Error(error.message || '核准失敗');
+        if (error) {
+          // 檢查是否為車輛時間衝突錯誤
+          if (error.message && error.message.includes('prevent_overlapping_rentals')) {
+            throw new Error('⚠️ 核准失敗：該車輛在此時間段已被其他人租借\n\n請選擇以下方案之一：\n1. 拒絕此申請，請申請人改選其他時間\n2. 拒絕此申請，請申請人改選其他車輛\n3. 取消先前的租借，再重新審核此申請');
+          }
+          throw new Error(error.message || '核准失敗');
+        }
 
       } else {
         // 拒絕：走一般更新 (加上樂觀鎖)
@@ -165,7 +171,7 @@ useEffect(() => {
         .select('*')
         .eq('id', id)
         .single();
-        
+
       if (viewData) {
         setRequests(prev => prev.map(r => r.id === id ? viewData : r));
         resultData = viewData;

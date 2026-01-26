@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from 'react'; // 1. 確保引入 useEffect
+import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
-import { supabase } from '../lib/supabase.js'; // 2. 引入 supabase (請確認路徑是否正確，通常與 contexts 同層級或在 src 根目錄)
+import { useUserRole } from '../hooks/useUserRole';
+import { supabase } from '../lib/supabase.js';
 import logoSrc from '../assets/logo.png';
 import NotificationPanel from './NotificationPanel';
 
@@ -28,6 +29,7 @@ export default function Header({ onSearch }) {
   const notificationRef = useRef(null);
   const { user, logout } = useAuth();
   const { unreadCount } = useNotifications();
+  const { roleName } = useUserRole();
   const navigate = useNavigate();
 
   // --- 3. 新增：員工姓名狀態與抓取邏輯 ---
@@ -211,7 +213,7 @@ export default function Header({ onSearch }) {
                     <p className="text-xs text-stone-500 mb-2 truncate">{user?.email}</p>
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-medium bg-red-100 text-red-700 rounded-full border border-red-200/50">
                       <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-                      {user?.role === 'admin' ? '系統管理員' : '一般用戶'}
+                      {roleName}
                     </span>
                   </div>
 

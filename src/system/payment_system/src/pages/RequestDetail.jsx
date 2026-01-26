@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../AuthContext';
-import { 
-    ArrowLeft, CheckCircle, XCircle, Clock, Shield, Loader2, 
-    Building, FileText, CreditCard, Paperclip, MessageSquare, 
-    ThumbsUp, Printer, Edit2, ExternalLink, Download, 
+import { usePermission } from '../../../../hooks/usePermission'; // RBAC 權限系統
+import {
+    ArrowLeft, CheckCircle, XCircle, Clock, Shield, Loader2,
+    Building, FileText, CreditCard, Paperclip, MessageSquare,
+    ThumbsUp, Printer, Edit2, ExternalLink, Download,
     Image as ImageIcon, Ticket, SkipForward,
     Save, X // ✅ [新增] 引入這兩個圖示
 } from 'lucide-react';
@@ -72,9 +73,24 @@ export default function RequestDetail() {
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState(false);
 
-    const currentRole = role;
+    const currentRole = role; // 保留用於顯示
     const [cashierFee, setCashierFee] = useState(0);
     const [previewFile, setPreviewFile] = useState(null);
+
+    // RBAC 權限檢查
+    const { hasPermission: canCreate } = usePermission('payment.create');
+    const { hasPermission: canApproveManager } = usePermission('payment.approve.manager');
+    const { hasPermission: canApproveAccountant } = usePermission('payment.approve.accountant');
+    const { hasPermission: canApproveAudit } = usePermission('payment.approve.audit');
+    const { hasPermission: canApproveCashier } = usePermission('payment.approve.cashier');
+    const { hasPermission: canApproveBoss } = usePermission('payment.approve.boss');
+    const { hasPermission: canReject } = usePermission('payment.reject');
+    const { hasPermission: canCancel } = usePermission('payment.cancel');
+
+    // 操作權限（細粒度）
+    const { hasPermission: canManageFee } = usePermission('payment.fee.manage');
+    const { hasPermission: canManageInvoice } = usePermission('payment.invoice.manage');
+    const { hasPermission: canViewInvoice } = usePermission('payment.invoice.view');
     // ✅ [新增] 會計補登發票用的 State
     const [accountantInvoice, setAccountantInvoice] = useState({
         hasInvoice: 'no_yet',
@@ -121,7 +137,7 @@ const handleSaveInvoice = async () => {
 
         // 更新本地顯示資料
         setRequest(prev => ({ ...prev, ...updates }));
-        setIsEditingInvoice(false);R
+        setIsEditingInvoice(false);
         alert('✅ 發票資料已更新！');
     } catch (err) {
         console.error(err);
@@ -214,8 +230,8 @@ const handleSaveInvoice = async () => {
                 [`${config.fieldPrefix}_url`]: 'BUTTON_APPROVED',
             };
 
-            // 特殊邏輯：如果是出納，記錄手續費
-            if (currentRole === 'cashier') {
+            // 特殊邏輯：如果有手續費管理權限，記錄手續費（使用細粒度 RBAC 權限）
+            if (canManageFee) {
                 updatePayload.handling_fee = Number(cashierFee);
             }
 
@@ -251,6 +267,12 @@ const handleSaveInvoice = async () => {
     };
 
     const handleReject = async () => {
+        // 🔒 權限檢查
+        if (!canReject) {
+            alert("⚠️ 權限不足\n\n您沒有駁回付款申請的權限（payment.reject）。");
+            return;
+        }
+
         const reason = prompt("請輸入駁回原因：");
         if (!reason) return;
         setProcessing(true);
@@ -269,6 +291,19 @@ const handleSaveInvoice = async () => {
     };
 
     const handleRevoke = async () => {
+        // 🔒 檢查是否已經有任何簽核紀錄
+        const hasAnySignature =
+            request.sign_unit_manager_at ||
+            request.sign_accountant_at ||
+            request.sign_audit_manager_at ||
+            request.sign_cashier_at ||
+            request.sign_boss_at;
+
+        if (hasAnySignature) {
+            alert("⚠️ 此申請已進入簽核流程，不能直接取消。\n\n如需停止此申請，請聯絡有權限的主管進行駁回。");
+            return;
+        }
+
         if (!window.confirm("確定要撤銷此申請單嗎？")) return;
         setProcessing(true);
         try {
@@ -291,7 +326,23 @@ const handleSaveInvoice = async () => {
     if (!request) return <div className="p-10 text-center text-red-500">查無此單據</div>;
 
     const currentConfig = WORKFLOW_CONFIG[request.status];
-    const canApprove = currentConfig && currentRole === currentConfig.role;
+
+    // 使用 RBAC 權限檢查是否可以審核當前狀態
+    const canApprove = currentConfig && (
+        (request.status === 'pending_unit_manager' && canApproveManager) ||
+        (request.status === 'pending_accountant' && canApproveAccountant) ||
+        (request.status === 'pending_audit_manager' && canApproveAudit) ||
+        (request.status === 'pending_cashier' && canApproveCashier) ||
+        (request.status === 'pending_boss' && canApproveBoss)
+    );
+
+    // 🔒 檢查是否已有任何簽核紀錄（已簽核的單子不能取消，只能駁回）
+    const hasAnySignature =
+        request.sign_unit_manager_at ||
+        request.sign_accountant_at ||
+        request.sign_audit_manager_at ||
+        request.sign_cashier_at ||
+        request.sign_boss_at;
 
     return (
         <div className="min-h-screen bg-stone-50 font-sans pb-20 print:bg-white print:pb-0">
@@ -459,9 +510,9 @@ const handleSaveInvoice = async () => {
                                     {/* --- ✅ [修改] 發票資訊區塊 (支援會計補登) --- */}
                                     <div className="print-col-span-2 relative group">
                                         
-                                        {/* 只有「會計」且「非編輯模式」時，顯示編輯按鈕 */}
-                                        {currentRole === 'accountant' && !isEditingInvoice && (
-                                            <button 
+                                        {/* 只有「具有發票管理權限」且「非編輯模式」時，顯示編輯按鈕 */}
+                                        {canManageInvoice && !isEditingInvoice && (
+                                            <button
                                                 onClick={() => setIsEditingInvoice(true)}
                                                 className="absolute right-0 top-0 text-blue-600 hover:text-blue-800 text-xs flex items-center gap-1 no-print bg-blue-50 px-2 py-1 rounded transition-opacity"
                                             >
@@ -660,7 +711,8 @@ const handleSaveInvoice = async () => {
                                     <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
                                         <h4 className="text-red-800 font-bold mb-1">案件已駁回</h4>
                                         <p className="text-red-600 text-sm mb-3">{request.rejection_reason}</p>
-                                        {currentRole === 'staff' && (
+                                        {/* 只有申請人本人可以修改被駁回的申請 */}
+                                        {request.applicant_id === user?.id && canCreate && (
                                             <button onClick={handleEdit} className="w-full py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-bold flex items-center justify-center gap-2">
                                                 <Edit2 size={16} /> 修改並重新送出
                                             </button>
@@ -669,7 +721,8 @@ const handleSaveInvoice = async () => {
                                 ) : request.status === 'revoked' ? (
                                     <div className="bg-gray-100 border border-gray-300 rounded-lg p-4 text-center">
                                         <h4 className="text-gray-600 font-bold mb-1">案件已撤銷</h4>
-                                        {currentRole === 'staff' && (
+                                        {/* 只有申請人本人可以恢復被撤銷的申請 */}
+                                        {request.applicant_id === user?.id && canCreate && (
                                             <button onClick={handleEdit} className="mt-3 w-full py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm font-bold flex items-center justify-center gap-2">
                                                 <Edit2 size={16} /> 恢復並重新送出
                                             </button>
@@ -682,12 +735,24 @@ const handleSaveInvoice = async () => {
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
-                                        {currentRole === 'staff' && (
+                                        {/* 只有申請人本人可以撤銷申請 (且申請尚未被簽核過) */}
+                                        {request.applicant_id === user?.id && canCancel && !hasAnySignature && (
                                             <div className="p-4 bg-white border border-stone-200 rounded-lg shadow-sm">
                                                 <h4 className="font-bold text-gray-700 mb-2">管理申請</h4>
                                                 <button onClick={handleRevoke} className="w-full py-2.5 px-4 bg-red-600 text-white hover:bg-red-700 rounded-md text-sm font-bold transition-colors flex items-center justify-center gap-2 shadow-sm">
                                                     <XCircle size={18} /> 撤銷此申請
                                                 </button>
+                                                <p className="text-xs text-gray-500 mt-2">💡 提示：申請一旦進入簽核流程後即無法撤銷</p>
+                                            </div>
+                                        )}
+
+                                        {/* 如果已有簽核紀錄，顯示提示 */}
+                                        {request.applicant_id === user?.id && hasAnySignature && request.status !== 'rejected' && request.status !== 'revoked' && (
+                                            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                                                <h4 className="font-bold text-amber-800 mb-1 flex items-center gap-2">
+                                                    <Shield size={16} /> 申請已進入簽核流程
+                                                </h4>
+                                                <p className="text-amber-700 text-sm">此申請已有主管簽核紀錄，無法直接撤銷。如需停止申請，請聯絡有權限的主管進行駁回。</p>
                                             </div>
                                         )}
 
@@ -700,8 +765,8 @@ const handleSaveInvoice = async () => {
                                                     <div className="text-sm text-red-600">({currentConfig.label})</div>
                                                 </div>
 
-                                        {/* --- ✅ [新增] 會計專用：發票補登區 --- */}
-                                        {currentRole === 'accountant' && (
+                                        {/* --- ✅ [新增] 發票補登區（使用細粒度 RBAC 權限）--- */}
+                                        {canManageInvoice && (
                                             <div className="mb-4 bg-orange-50 p-4 rounded-lg border border-orange-200 text-left">
                                                 <div className="flex items-center gap-2 mb-3 text-orange-800 font-bold border-b border-orange-200 pb-2">
                                                     <FileText size={18} />
@@ -751,7 +816,7 @@ const handleSaveInvoice = async () => {
                                                 )}
                                             </div>
                                         )}
-                                                {currentRole === 'cashier' && (
+                                                {canManageFee && (
                                                     <div className="mb-4 bg-white p-3 rounded border border-stone-200">
                                                         <label className="block text-sm font-bold text-gray-700 mb-1">實際手續費 (TWD)</label>
                                                         <input type="number" value={cashierFee} onChange={(e) => setCashierFee(e.target.value)} className="w-full border-gray-300 border rounded p-2 text-right font-mono font-bold text-lg focus:ring-red-500 focus:border-red-500" placeholder="0" />
@@ -760,10 +825,14 @@ const handleSaveInvoice = async () => {
                                                 <button onClick={handleApprove} disabled={processing} className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg hover:bg-emerald-700 font-bold flex items-center justify-center gap-2 shadow-md mb-3">
                                                     {processing ? <Loader2 className="animate-spin" /> : <ThumbsUp size={18} />} 確認核准 / 下一步
                                                 </button>
-                                                <button onClick={handleReject} className="w-full py-2 text-red-500 hover:bg-red-50 border border-red-200 rounded text-sm font-medium">駁回此案件</button>
+                                                {/* 🔒 駁回按鈕：需要同時有審核權限和駁回權限 */}
+                                                {canReject && (
+                                                    <button onClick={handleReject} className="w-full py-2 text-red-500 hover:bg-red-50 border border-red-200 rounded text-sm font-medium">駁回此案件</button>
+                                                )}
                                             </div>
                                         ) : (
-                                            currentRole !== 'staff' && (
+                                            /* 非申請人且無審核權限：顯示等待提示 */
+                                            request.applicant_id !== user?.id && (
                                                 <div className="p-4 bg-stone-50 border border-stone-200 text-stone-400 rounded text-center text-sm flex flex-col items-center">
                                                     <Loader2 className="animate-spin mb-1" size={16} /> 等待 <span className="font-bold">{currentConfig.label}</span> 簽核...
                                                 </div>

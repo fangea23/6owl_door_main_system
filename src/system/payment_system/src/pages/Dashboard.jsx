@@ -15,9 +15,10 @@ import {
   Check, 
   XCircle 
 } from 'lucide-react';
-import { supabase } from '../supabaseClient'; 
+import { supabase } from '../supabaseClient';
 import InstallPrompt from '../components/InstallPrompt';
 import { useAuth } from '../../../../contexts/AuthContext'; // 修正引用路徑以配合您的檔案結構
+import { usePermission, PermissionGuard } from '../../../../hooks/usePermission'; // RBAC 權限系統
 
 // 付款系統的基礎路徑
 const BASE_PATH = '/systems/payment-approval';
@@ -49,7 +50,24 @@ export default function Dashboard() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user, role } = useAuth();
-  const currentRole = role || 'staff'; 
+  const currentRole = role || 'staff';
+
+  // RBAC 權限檢查 - 獲取 loading 狀態
+  const { hasPermission: canCreate } = usePermission('payment.create');
+  const { hasPermission: canViewAll, loading: loadingViewAll } = usePermission('payment.view.all');
+  const { hasPermission: canViewOwn, loading: loadingViewOwn } = usePermission('payment.view.own');
+  const { hasPermission: canReject } = usePermission('payment.reject');
+  const { hasPermission: canApproveAccountant, loading: loadingAccountant } = usePermission('payment.approve.accountant');
+  const { hasPermission: canApproveManager, loading: loadingManager } = usePermission('payment.approve.manager');
+  const { hasPermission: canApproveAudit, loading: loadingAudit } = usePermission('payment.approve.audit');
+  const { hasPermission: canApproveCashier, loading: loadingCashier } = usePermission('payment.approve.cashier');
+  const { hasPermission: canApproveBoss, loading: loadingBoss } = usePermission('payment.approve.boss');
+
+  // 操作權限（細粒度）
+  const { hasPermission: canManagePaper } = usePermission('payment.paper.manage');
+
+  // 檢查權限是否都載入完成
+  const permissionsLoading = loadingViewAll || loadingViewOwn || loadingAccountant || loadingManager || loadingAudit || loadingCashier || loadingBoss; 
 
   // --- 1. 新增：員工姓名狀態與抓取邏輯 ---
   const [employeeName, setEmployeeName] = useState('');
@@ -78,15 +96,25 @@ export default function Dashboard() {
   const displayName = employeeName || user?.user_metadata?.full_name || user?.email;
   // -------------------------------------
 
-  // --- 模擬角色與視圖狀態 ---
-  const [viewMode, setViewMode] = useState('all');
+  // --- 視圖狀態 (基於權限) ---
+  const [viewMode, setViewMode] = useState(null);
+  const [viewModeInitialized, setViewModeInitialized] = useState(false);
+
+  // 檢查用戶是否有任何審核權限
+  const hasAnyApprovalPermission =
+    canApproveManager ||
+    canApproveAccountant ||
+    canApproveAudit ||
+    canApproveCashier ||
+    canApproveBoss;
+
+  // 等權限載入完成後，設定初始視圖模式（只執行一次）
   useEffect(() => {
-    if (currentRole !== 'staff') {
-      setViewMode('todo');
-    } else {
-      setViewMode('all');
+    if (!permissionsLoading && !viewModeInitialized) {
+      setViewMode(hasAnyApprovalPermission ? 'todo' : 'all');
+      setViewModeInitialized(true);
     }
-  }, [currentRole]);
+  }, [permissionsLoading, hasAnyApprovalPermission, viewModeInitialized]);
 
   // ✅ Task 1: 批量操作 State
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -94,37 +122,55 @@ export default function Dashboard() {
 
   // --- Supabase 資料載入 & Realtime ---
   useEffect(() => {
-    if (user) {
+    if (user && viewMode) {
       fetchRequests();
     }
 
     const subscription = supabase
       .channel('dashboard-updates')
-      .on('postgres_changes', { event: '*', schema: 'payment_approval', table: 'payment_requests' }, 
-        () => { if(user) fetchRequests(); }
+      .on('postgres_changes', { event: '*', schema: 'payment_approval', table: 'payment_requests' },
+        () => { if(user && viewMode) fetchRequests(); }
       )
       .subscribe();
     return () => { supabase.removeChannel(subscription); };
-  }, [user]); 
+  }, [user, viewMode]); 
 
   const fetchRequests = async () => {
     setLoading(true);
     try {
       let query;
 
-      // 會計角色：使用品牌篩選邏輯
-      if (currentRole === 'accountant' && viewMode === 'todo') {
-        // 使用視圖查詢會計負責品牌的待簽核案件
-        query = supabase
-          .from('accountant_pending_requests')
-          .select('*')
-          .eq('accountant_id', user.id);
+      // 會計角色：使用品牌篩選邏輯（無論哪個模式都要過濾品牌）
+      if (currentRole === 'accountant') {
+        if (viewMode === 'todo') {
+          // 待辦事項：只顯示待簽核的案件
+          query = supabase
+            .from('accountant_pending_requests')
+            .select('*')
+            .eq('accountant_id', user.id);
 
-        // 待辦事項：舊的在上面 (急件先處理)
-        query = query.order('created_at', { ascending: true });
+          // 舊的在上面 (急件先處理)
+          query = query.order('created_at', { ascending: true });
+        } else {
+          // 所有歷史：顯示所有狀態，但仍然只顯示負責品牌的案件
+          query = supabase
+            .from('accountant_all_requests')
+            .select('*')
+            .eq('accountant_id', user.id);
+
+          // 新的在上面 (查看最新進度)
+          query = query.order('created_at', { ascending: false });
+        }
       } else {
-        // 其他角色或查看所有歷史：使用原有邏輯
+        // 其他角色：根據權限決定查看範圍
         query = supabase.from('payment_requests').select('*');
+
+        // 🔒 權限過濾：只能查看自己的申請
+        if (canViewOwn && !canViewAll) {
+          query = query.eq('applicant_id', user.id);
+        }
+        // 如果有 canViewAll，則不加過濾（查看所有）
+        // 如果兩個權限都沒有，query 會返回所有資料，但應該在 UI 層阻擋
 
         // 動態排序策略
         if (viewMode === 'todo') {
@@ -142,8 +188,8 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error:', error);
       // 如果視圖查詢失敗（例如視圖不存在），回退到普通查詢
-      if (error.message?.includes('accountant_pending_requests')) {
-        console.warn('視圖 accountant_pending_requests 不存在，使用標準查詢');
+      if (error.message?.includes('accountant_pending_requests') || error.message?.includes('accountant_all_requests')) {
+        console.warn('會計視圖不存在，使用標準查詢（不含品牌過濾）');
         try {
           const { data, error: fallbackError } = await supabase
             .from('payment_requests')
@@ -167,9 +213,9 @@ export default function Dashboard() {
 
   // --- 切換紙本入庫狀態 ---
   const togglePaperStatus = async (id, currentStatus) => {
-    // ✅ Task 2: 權限檢查
-    if (currentRole !== 'accountant') {
-        alert('只有「會計」角色可以執行紙本入庫作業');
+    // RBAC 權限檢查：只有有紙本管理權限的人可以執行
+    if (!canManagePaper) {
+        alert('⚠️ 權限不足\n\n您沒有紙本入庫管理權限，請聯絡系統管理員申請 payment.paper.manage 權限。');
         return;
     }
 
@@ -194,15 +240,30 @@ export default function Dashboard() {
     }
   };
 
-  // --- 資料篩選邏輯 ---
+  // --- 資料篩選邏輯 (使用 RBAC 權限) ---
   const filteredRequests = requests.filter(req => {
     if (viewMode === 'all') return true;
-    const myResponsibilities = ROLE_RESPONSIBILITY[currentRole] || [];
+
+    // 根據權限決定哪些狀態是我負責的
+    const myResponsibilities = [];
+    if (canApproveManager) myResponsibilities.push('pending_unit_manager');
+    if (canApproveAccountant) myResponsibilities.push('pending_accountant');
+    if (canApproveAudit) myResponsibilities.push('pending_audit_manager');
+    if (canApproveCashier) myResponsibilities.push('pending_cashier');
+    if (canApproveBoss) myResponsibilities.push('pending_boss');
+
     return myResponsibilities.includes(req.status);
   });
 
   const todoCount = requests.filter(req => {
-    const myResponsibilities = ROLE_RESPONSIBILITY[currentRole] || [];
+    // 計算待辦事項數量
+    const myResponsibilities = [];
+    if (canApproveManager) myResponsibilities.push('pending_unit_manager');
+    if (canApproveAccountant) myResponsibilities.push('pending_accountant');
+    if (canApproveAudit) myResponsibilities.push('pending_audit_manager');
+    if (canApproveCashier) myResponsibilities.push('pending_cashier');
+    if (canApproveBoss) myResponsibilities.push('pending_boss');
+
     return myResponsibilities.includes(req.status);
   }).length;
 
@@ -225,15 +286,49 @@ export default function Dashboard() {
   // ✅ Task 1: 批量核准 API
   const handleBatchApprove = async () => {
     if (selectedIds.size === 0) return;
+
+    // RBAC 權限檢查：驗證用戶是否有權限批量核准
+    const selectedRequests = requests.filter(r => selectedIds.has(r.id));
+    const statuses = [...new Set(selectedRequests.map(r => r.status))];
+
+    // 檢查是否所有選取的單據狀態一致
+    if (statuses.length > 1) {
+      alert('⚠️ 批量操作失敗\n\n選取的單據處於不同審核階段，無法一次核准。\n請分別選取相同狀態的單據進行批量操作。');
+      return;
+    }
+
+    const currentStatus = statuses[0];
+
+    // 根據狀態檢查對應權限
+    const statusPermissionMap = {
+      'pending_unit_manager': { hasPermission: canApproveManager, name: '主管審核' },
+      'pending_accountant': { hasPermission: canApproveAccountant, name: '會計審核' },
+      'pending_audit_manager': { hasPermission: canApproveAudit, name: '審核主管' },
+      'pending_cashier': { hasPermission: canApproveCashier, name: '出納撥款' },
+      'pending_boss': { hasPermission: canApproveBoss, name: '放行決行' }
+    };
+
+    const permissionCheck = statusPermissionMap[currentStatus];
+
+    if (!permissionCheck) {
+      alert('⚠️ 無法批量核准\n\n選取的單據狀態無法進行批量核准操作。');
+      return;
+    }
+
+    if (!permissionCheck.hasPermission) {
+      alert(`⚠️ 權限不足\n\n您沒有「${permissionCheck.name}」權限，無法批量核准這些單據。\n請聯絡系統管理員申請相應權限。`);
+      return;
+    }
+
     if (!window.confirm(`確定要一次核准選取的 ${selectedIds.size} 筆單據嗎？`)) return;
-    
+
     setBatchProcessing(true);
-    
+
     const NEXT_STEP_MAP = {
       'pending_unit_manager': { status: 'pending_accountant', step: 2, key: 'sign_manager' },
       'pending_accountant':   { status: 'pending_audit_manager', step: 3, key: 'sign_accountant' },
       'pending_audit_manager':{ status: 'pending_cashier', step: 4, key: 'sign_audit' },
-      'pending_cashier':      { status: 'pending_boss', step: 5, key: 'sign_cashier' }, 
+      'pending_cashier':      { status: 'pending_boss', step: 5, key: 'sign_cashier' },
       'pending_boss':         { status: 'completed', step: 6, key: 'sign_boss' }
     };
 
@@ -266,7 +361,46 @@ export default function Dashboard() {
   // ✅ Task 1: 批量駁回 API
   const handleBatchReject = async () => {
     if (selectedIds.size === 0) return;
-    
+
+    // 🔒 首先檢查 payment.reject 權限
+    if (!canReject) {
+      alert('⚠️ 權限不足\n\n您沒有駁回付款申請的權限（payment.reject）。\n請聯絡系統管理員申請相應權限。');
+      return;
+    }
+
+    // RBAC 權限檢查：驗證用戶是否有權限批量駁回
+    const selectedRequests = requests.filter(r => selectedIds.has(r.id));
+    const statuses = [...new Set(selectedRequests.map(r => r.status))];
+
+    // 檢查是否所有選取的單據狀態一致
+    if (statuses.length > 1) {
+      alert('⚠️ 批量操作失敗\n\n選取的單據處於不同審核階段，無法一次駁回。\n請分別選取相同狀態的單據進行批量操作。');
+      return;
+    }
+
+    const currentStatus = statuses[0];
+
+    // 根據狀態檢查對應權限（駁回需要該階段的審核權限）
+    const statusPermissionMap = {
+      'pending_unit_manager': { hasPermission: canApproveManager, name: '主管審核' },
+      'pending_accountant': { hasPermission: canApproveAccountant, name: '會計審核' },
+      'pending_audit_manager': { hasPermission: canApproveAudit, name: '審核主管' },
+      'pending_cashier': { hasPermission: canApproveCashier, name: '出納撥款' },
+      'pending_boss': { hasPermission: canApproveBoss, name: '放行決行' }
+    };
+
+    const permissionCheck = statusPermissionMap[currentStatus];
+
+    if (!permissionCheck) {
+      alert('⚠️ 無法批量駁回\n\n選取的單據狀態無法進行批量駁回操作。');
+      return;
+    }
+
+    if (!permissionCheck.hasPermission) {
+      alert(`⚠️ 權限不足\n\n您沒有「${permissionCheck.name}」權限，無法批量駁回這些單據。\n請聯絡系統管理員申請相應權限。`);
+      return;
+    }
+
     const reason = prompt(`⚠️ 您即將駁回選取的 ${selectedIds.size} 筆單據。\n\n請輸入駁回原因 (將套用至所有選取案件)：`);
     if (!reason?.trim()) return;
 
@@ -293,6 +427,38 @@ export default function Dashboard() {
     }
   };
 
+  // 🔒 權限載入中 - 顯示 loading 而不是無權限頁面
+  if (permissionsLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <Loader2 className="animate-spin mb-3 text-red-500" size={32} />
+        <p className="text-stone-400">載入中...</p>
+      </div>
+    );
+  }
+
+  // 🔒 權限檢查：必須有查看權限才能進入 Dashboard
+  if (!canViewAll && !canViewOwn) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md">
+          <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Shield size={32} />
+          </div>
+          <h2 className="text-2xl font-bold text-center mb-2">無查看權限</h2>
+          <p className="text-gray-600 text-center mb-4">
+            您沒有查看付款申請的權限。
+          </p>
+          <p className="text-sm text-gray-500 text-center">
+            需要以下任一權限：
+            <br />• payment.view.all（查看所有申請）
+            <br />• payment.view.own（查看自己的申請）
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="pb-20">
       
@@ -314,14 +480,16 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {/* 新增申請按鈕 - 修改為紅色系 */}
-        <Link
-          to={`${BASE_PATH}/apply`}
-          className="w-full md:w-auto bg-red-600 text-white px-6 py-2.5 rounded-xl hover:bg-red-700 font-medium shadow-md shadow-red-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
-        >
-          <FileText size={18} />
-          新增申請
-        </Link>
+        {/* 新增申請按鈕 - 使用 RBAC 權限控制 */}
+        <PermissionGuard permission="payment.create">
+          <Link
+            to={`${BASE_PATH}/apply`}
+            className="w-full md:w-auto bg-red-600 text-white px-6 py-2.5 rounded-xl hover:bg-red-700 font-medium shadow-md shadow-red-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+          >
+            <FileText size={18} />
+            新增申請
+          </Link>
+        </PermissionGuard>
       </div>
 
       {/* ✅ Task 1: 批量操作工具列 (只有在待辦模式 + 有選取時顯示) */}
@@ -331,23 +499,25 @@ export default function Dashboard() {
               <CheckSquare className="text-red-500"/> 已選取 {selectedIds.size} 筆
           </span>
           <div className="flex gap-2">
-             {/* 🔴 批量駁回按鈕 */}
-             <button 
-               onClick={handleBatchReject} 
-               disabled={batchProcessing} 
-               className="bg-white text-stone-600 border border-stone-200 px-4 py-2 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-200 text-sm font-bold flex items-center gap-2 transition-all disabled:opacity-50"
-             >
-               {batchProcessing ? <Loader2 className="animate-spin" size={16}/> : <XCircle size={16}/>} 
-               批量駁回
-             </button>
+             {/* 🔴 批量駁回按鈕 - 需要 payment.reject 權限 */}
+             {canReject && (
+               <button
+                 onClick={handleBatchReject}
+                 disabled={batchProcessing}
+                 className="bg-white text-stone-600 border border-stone-200 px-4 py-2 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-200 text-sm font-bold flex items-center gap-2 transition-all disabled:opacity-50"
+               >
+                 {batchProcessing ? <Loader2 className="animate-spin" size={16}/> : <XCircle size={16}/>}
+                 批量駁回
+               </button>
+             )}
 
              {/* 🟢 批量核准按鈕 */}
-             <button 
-               onClick={handleBatchApprove} 
-               disabled={batchProcessing} 
+             <button
+               onClick={handleBatchApprove}
+               disabled={batchProcessing}
                className="bg-red-600 text-white px-4 py-2 rounded-lg shadow-md shadow-red-500/20 hover:bg-red-700 text-sm font-bold flex items-center gap-2 transition-all disabled:opacity-50"
              >
-               {batchProcessing ? <Loader2 className="animate-spin" size={16}/> : <Check size={16}/>} 
+               {batchProcessing ? <Loader2 className="animate-spin" size={16}/> : <Check size={16}/>}
                批量核准
              </button>
           </div>
@@ -355,39 +525,41 @@ export default function Dashboard() {
       )}
 
       {/* ================= Tabs (分頁籤) ================= */}
-      <div className="flex gap-6 border-b border-stone-200 mb-6 overflow-x-auto">
-        <button
-          onClick={() => { setViewMode('todo'); setSelectedIds(new Set()); }}
-          className={`pb-3 px-1 text-sm font-bold transition-all flex items-center gap-2 relative whitespace-nowrap ${
-            viewMode === 'todo' 
-              ? 'text-red-600 border-b-2 border-red-600' 
-              : 'text-stone-400 hover:text-stone-600'
-          }`}
-        >
-          <CheckSquare size={18} />
-          待我簽核
-          {todoCount > 0 && (
-            <span className="ml-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full shadow-sm">
-              {todoCount}
-            </span>
-          )}
-        </button>
+      {viewMode && (
+        <div className="flex gap-6 border-b border-stone-200 mb-6 overflow-x-auto">
+          <button
+            onClick={() => { setViewMode('todo'); setSelectedIds(new Set()); }}
+            className={`pb-3 px-1 text-sm font-bold transition-all flex items-center gap-2 relative whitespace-nowrap ${
+              viewMode === 'todo'
+                ? 'text-red-600 border-b-2 border-red-600'
+                : 'text-stone-400 hover:text-stone-600'
+            }`}
+          >
+            <CheckSquare size={18} />
+            待我簽核
+            {todoCount > 0 && (
+              <span className="ml-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full shadow-sm">
+                {todoCount}
+              </span>
+            )}
+          </button>
 
-        <button
-          onClick={() => { setViewMode('all'); setSelectedIds(new Set()); }}
-          className={`pb-3 px-1 text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
-            viewMode === 'all' 
-              ? 'text-stone-800 border-b-2 border-stone-800' 
-              : 'text-stone-400 hover:text-stone-600'
-          }`}
-        >
-          <ListFilter size={18} />
-          歷史紀錄
-        </button>
-      </div>
+          <button
+            onClick={() => { setViewMode('all'); setSelectedIds(new Set()); }}
+            className={`pb-3 px-1 text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+              viewMode === 'all'
+                ? 'text-stone-800 border-b-2 border-stone-800'
+                : 'text-stone-400 hover:text-stone-600'
+            }`}
+          >
+            <ListFilter size={18} />
+            歷史紀錄
+          </button>
+        </div>
+      )}
 
       {/* ================= 列表區域 (卡片 vs 表格) ================= */}
-      {loading ? (
+      {(loading || !viewMode) ? (
         <div className="bg-white/50 backdrop-blur rounded-2xl border border-stone-200 p-12 text-center text-stone-400 flex flex-col items-center min-h-[400px] justify-center">
           <Loader2 className="animate-spin mb-3 text-red-500" size={32} />
           <p>資料載入中...</p>
@@ -460,18 +632,18 @@ export default function Dashboard() {
                             </p>
                         </div>
 
-                        {/* 紙本按鈕 */}
+                        {/* 紙本按鈕 - 使用 RBAC 權限 */}
                         <button
                             onClick={(e) => {
-                                e.preventDefault(); 
+                                e.preventDefault();
                                 togglePaperStatus(req.id, req.is_paper_received);
                             }}
-                            disabled={currentRole !== 'accountant'}
+                            disabled={!canManagePaper}
                             className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                            req.is_paper_received 
-                                ? 'bg-blue-50 text-blue-700 border-blue-200' 
+                            req.is_paper_received
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
                                 : 'bg-stone-50 text-stone-400 border-stone-200'
-                            } ${currentRole !== 'accountant' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-stone-100'}`}
+                            } ${!canManagePaper ? 'opacity-50 cursor-not-allowed' : 'hover:bg-stone-100'}`}
                         >
                             {req.is_paper_received ? <FileCheck size={14} /> : <FileX size={14} />}
                             {req.is_paper_received ? '紙本已收' : '未收紙本'}
@@ -562,13 +734,13 @@ export default function Dashboard() {
                       <td className="p-4 text-center">
                         <button
                             onClick={() => togglePaperStatus(req.id, req.is_paper_received)}
-                            disabled={currentRole !== 'accountant'}
-                            title={currentRole !== 'accountant' ? "只有會計可操作" : req.is_paper_received ? "點擊取消入庫" : "點擊確認入庫"}
+                            disabled={!canManagePaper}
+                            title={!canManagePaper ? "只有具有紙本管理權限的人可操作" : req.is_paper_received ? "點擊取消入庫" : "點擊確認入庫"}
                             className={`p-1.5 rounded-lg transition-colors ${
-                            req.is_paper_received 
-                                ? 'text-blue-600 bg-blue-50' 
+                            req.is_paper_received
+                                ? 'text-blue-600 bg-blue-50'
                                 : 'text-stone-300'
-                            } ${currentRole === 'accountant' ? 'hover:bg-stone-100' : ''}`}
+                            } ${canManagePaper ? 'hover:bg-stone-100' : ''}`}
                         >
                             {req.is_paper_received ? <FileCheck size={18} /> : <FileX size={18} />}
                         </button>

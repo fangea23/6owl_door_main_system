@@ -17,8 +17,11 @@ import LicenseSystemLayout from './pages/systems/LicenseSystemLayout';
 import MeetingRoomSystemLayout from './pages/systems/MeetingRoomSystemLayout';
 import CarRentalSystemLayout from './pages/systems/CarRentalSystemLayout';
 import StoreManagementSystemLayout from './pages/systems/StoreManagementSystemLayout';
+import ExpenseReimbursementSystemLayout from './pages/systems/ExpenseReimbursementSystemLayout';
 import EIPKMSystemLayout from './pages/systems/EIPKMSystemLayout';
-import TicketingSystemLayout from './pages/systems/TicketingSystemLayout'; 
+import TicketingSystemLayout from './pages/systems/TicketingSystemLayout';
+import TrainingSystemLayout from './pages/systems/TrainingSystemLayout';
+import PayrollSystemLayout from './pages/systems/PayrollSystemLayout';
 import { useAuth } from './contexts/AuthContext'; // 確保路徑正確
 /*
 function DebugSession() {
@@ -70,8 +73,11 @@ function App() {
                <Route path="/systems/meeting-room/*" element={<MeetingRoomSystemLayout />} />
                <Route path="/systems/car-rental/*" element={<CarRentalSystemLayout />} />
                <Route path="/systems/store-management/*" element={<StoreManagementSystemLayout />} />
+               <Route path="/systems/expense-reimbursement/*" element={<ExpenseReimbursementSystemLayout />} />
                <Route path="/systems/eip-km/*" element={<EIPKMSystemLayout />} />
-               <Route path="/systems/ticketing/*" element={<TicketingSystemLayout />} /> 
+               <Route path="/systems/ticketing/*" element={<TicketingSystemLayout />} />
+               <Route path="/systems/training/*" element={<TrainingSystemLayout />} />
+               <Route path="/systems/payroll/*" element={<PayrollSystemLayout />} />
            </Route>
 
         </Routes>

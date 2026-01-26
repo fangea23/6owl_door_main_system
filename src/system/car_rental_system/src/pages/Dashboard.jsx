@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useDashboard } from '../hooks/useDashboard';
 import { useRentals } from '../hooks/useRentals';
+import { usePermission } from '../../../../hooks/usePermission';
 import { RentalsCalendar } from '../components/RentalsCalendar';
 import { isSameDay, parseISO } from 'date-fns';
 import toast from 'react-hot-toast'; // 👈 引入 toast 提示
@@ -24,6 +25,10 @@ export const Dashboard = () => {
   const { stats, loading: dashboardLoading } = useDashboard();
   // ✅ 修改：解構出操作函式
   const { rentals, loading: rentalsLoading, pickupVehicle, returnVehicle } = useRentals(null);
+
+  // RBAC 權限檢查
+  const { hasPermission: canPickup } = usePermission('car.rental.pickup');
+  const { hasPermission: canReturn } = usePermission('car.rental.return');
 
   const loading = dashboardLoading || rentalsLoading;
 
@@ -36,10 +41,13 @@ export const Dashboard = () => {
     return isSameDay(parseISO(r.start_date), today) && r.status === 'confirmed';
   });
 
-  // ✅ 篩選：今日待還車清單 (狀態必須是 in_progress 且結束日期是今天)
-  const returningTodayList = rentals.filter(r => {
+  // ✅ 篩選：使用中車輛清單 (所有 in_progress 狀態，支持提早還車)
+  const inProgressList = rentals.filter(r => r.status === 'in_progress');
+
+  // ✅ 篩選：今日到期車輛清單 (in_progress 且結束日期是今天)
+  const returningTodayList = inProgressList.filter(r => {
     if (!r.end_date) return false;
-    return isSameDay(parseISO(r.end_date), today) && r.status === 'in_progress';
+    return isSameDay(parseISO(r.end_date), today);
   });
 
   const statCards = [
@@ -103,6 +111,12 @@ export const Dashboard = () => {
 
   // 操作處理函式
   const handlePickup = async (rental) => {
+    // RBAC 權限檢查
+    if (!canPickup) {
+      toast.error('您沒有執行取車操作的權限');
+      return;
+    }
+
     if (window.confirm(`確認將鑰匙交給 ${rental.renter?.name} 嗎？\n車號：${rental.vehicle?.plate_number}`)) {
       const result = await pickupVehicle(rental.id);
       if (result.success) {
@@ -114,6 +128,12 @@ export const Dashboard = () => {
   };
 
   const handleReturn = async (rental) => {
+    // RBAC 權限檢查
+    if (!canReturn) {
+      toast.error('您沒有執行還車操作的權限');
+      return;
+    }
+
     // 這裡可以擴展成彈出視窗輸入里程，目前先做簡單確認
     if (window.confirm(`確認 ${rental.renter?.name} 已歸還車輛與鑰匙？\n車號：${rental.vehicle?.plate_number}`)) {
       const result = await returnVehicle(rental.id); // 若需輸入里程可在此傳入
@@ -225,7 +245,7 @@ export const Dashboard = () => {
                     <h4 className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-2 flex items-center gap-1">
                         <ArrowRightCircle className="w-3.5 h-3.5" /> 待取車 (交接鑰匙)
                     </h4>
-                    
+
                     {departingTodayList.length > 0 ? (
                         <div className="space-y-2">
                             {departingTodayList.map(rental => (
@@ -238,13 +258,15 @@ export const Dashboard = () => {
                                             {rental.vehicle?.plate_number}
                                         </p>
                                     </div>
-                                    <button
-                                        onClick={() => handlePickup(rental)}
-                                        className="ml-2 flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors shadow-sm whitespace-nowrap"
-                                    >
-                                        <Key className="w-3 h-3" />
-                                        確認取車
-                                    </button>
+                                    {canPickup && (
+                                      <button
+                                          onClick={() => handlePickup(rental)}
+                                          className="ml-2 flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors shadow-sm whitespace-nowrap"
+                                      >
+                                          <Key className="w-3 h-3" />
+                                          確認取車
+                                      </button>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -258,37 +280,49 @@ export const Dashboard = () => {
                 {/* 分隔線 */}
                 <div className="border-t border-stone-100"></div>
 
-                {/* 2. 還車任務區塊 */}
+                {/* 2. 還車任務區塊 - 支持提早還車 */}
                 <div>
                     <h4 className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-2 flex items-center gap-1">
-                        <ArrowLeftCircle className="w-3.5 h-3.5" /> 待還車 (檢查車況)
+                        <ArrowLeftCircle className="w-3.5 h-3.5" /> 使用中車輛 (可隨時還車)
                     </h4>
-                    
-                    {returningTodayList.length > 0 ? (
+
+                    {inProgressList.length > 0 ? (
                         <div className="space-y-2">
-                             {returningTodayList.map(rental => (
-                                <div key={rental.id} className="flex items-center justify-between p-3 bg-amber-50 border border-amber-100 rounded-lg">
-                                    <div className="min-w-0">
+                             {inProgressList.map(rental => {
+                               const isDueToday = rental.end_date && isSameDay(parseISO(rental.end_date), today);
+                               return (
+                                <div key={rental.id} className={`flex items-center justify-between p-3 rounded-lg ${
+                                  isDueToday
+                                    ? 'bg-amber-50 border border-amber-200'
+                                    : 'bg-stone-50 border border-stone-200'
+                                }`}>
+                                    <div className="min-w-0 flex-1">
                                         <p className="text-sm font-bold text-stone-900 truncate">
                                             {rental.renter?.name || '未知'}
                                         </p>
                                         <p className="text-xs text-stone-500 truncate">
                                             {rental.vehicle?.plate_number}
+                                            {isDueToday && <span className="ml-2 text-amber-600 font-medium">• 今日到期</span>}
                                         </p>
                                     </div>
-                                    <button
-                                        onClick={() => handleReturn(rental)}
-                                        className="ml-2 flex items-center gap-1 px-3 py-1.5 bg-amber-600 text-white text-xs font-medium rounded hover:bg-amber-700 transition-colors shadow-sm whitespace-nowrap"
-                                    >
-                                        <CheckCircle className="w-3 h-3" />
-                                        確認歸還
-                                    </button>
+                                    {canReturn && (
+                                      <button
+                                          onClick={() => handleReturn(rental)}
+                                          className={`ml-2 flex items-center gap-1 px-3 py-1.5 text-white text-xs font-medium rounded hover:opacity-90 transition-colors shadow-sm whitespace-nowrap ${
+                                            isDueToday ? 'bg-amber-600' : 'bg-stone-600'
+                                          }`}
+                                      >
+                                          <CheckCircle className="w-3 h-3" />
+                                          還車
+                                      </button>
+                                    )}
                                 </div>
-                            ))}
+                               );
+                             })}
                         </div>
                     ) : (
                         <div className="text-sm text-stone-400 italic pl-1 py-2 bg-stone-50 rounded border border-dashed border-stone-200 text-center">
-                            目前無待還車輛
+                            目前無使用中車輛
                         </div>
                     )}
                 </div>

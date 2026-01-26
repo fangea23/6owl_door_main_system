@@ -1,7 +1,27 @@
 import { getAllSystems } from '../data/systems';
+import { useAuth } from '../contexts/AuthContext';
 
-export default function QuickAccess({ onSystemClick }) {
-  const systems = getAllSystems().filter(s => s.status === 'active');
+// hasPermission 由 Portal 傳入，避免重複載入權限造成閃爍
+export default function QuickAccess({ onSystemClick, hasPermission }) {
+  const { role } = useAuth();
+
+  // 過濾系統：需要是 active 且用戶有權限訪問
+  const systems = getAllSystems().filter(system => {
+    if (system.status !== 'active') return false;
+
+    // 優先檢查系統訪問權限（如果有設定 permissionCode）
+    if (system.permissionCode) {
+      // 只要有權限就可以看到，不再檢查角色
+      return hasPermission(system.permissionCode);
+    }
+
+    // 如果沒有 permissionCode，才檢查角色（向後兼容）
+    if (system.requiresRole && system.requiresRole.length > 0) {
+      return system.requiresRole.includes(role);
+    }
+
+    return true;
+  });
 
   if (systems.length === 0) return null;
 

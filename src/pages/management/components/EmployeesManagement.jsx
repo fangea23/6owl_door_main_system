@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useEmployees } from '../../../hooks/management/useEmployees';
 import { useDepartments } from '../../../hooks/management/useDepartments';
 import { useProfiles } from '../../../hooks/management/useProfiles';
+import { usePermission } from '../../../hooks/usePermission';
 import {
-  UserPlus, Search, Loader2, Mail, Phone, Briefcase, Building2, User, Save, X, Edit2, Trash2, Link as LinkIcon
+  UserPlus, Search, Loader2, Mail, Phone, Briefcase, Building2, User, Save, X, Edit2, Trash2, Link as LinkIcon, Shield
 } from 'lucide-react';
 
 // 1. 統一：將 ProfilesManagement 的完整角色列表複製過來，確保兩邊一致
@@ -32,6 +33,12 @@ export default function EmployeesManagement() {
 
   const { departments } = useDepartments();
   const { profiles } = useProfiles();
+
+  // RBAC 權限檢查
+  const { hasPermission: canView, loading: viewLoading } = usePermission('employee.view');
+  const { hasPermission: canCreate } = usePermission('employee.create');
+  const { hasPermission: canEdit } = usePermission('employee.edit');
+  const { hasPermission: canDelete } = usePermission('employee.delete');
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -83,6 +90,13 @@ export default function EmployeesManagement() {
   // 處理創建
   const handleCreate = async (e) => {
     e.preventDefault();
+
+    // 🔒 權限檢查
+    if (!canCreate) {
+      alert('⚠️ 權限不足\n\n您沒有新增員工的權限（employee.create）。');
+      return;
+    }
+
     setProcessing(true);
 
     try {
@@ -113,16 +127,26 @@ export default function EmployeesManagement() {
   // 處理更新
   const handleUpdate = async (e) => {
     e.preventDefault();
+
+    // 🔒 權限檢查
+    if (!canEdit) {
+      alert('⚠️ 權限不足\n\n您沒有編輯員工資料的權限（employee.edit）。');
+      return;
+    }
+
     setProcessing(true);
 
     try {
+      // 🔧 移除內部使用的 _originalEmployeeId 欄位
+      const { _originalEmployeeId, ...formDataWithoutInternal } = formData;
+
       const cleanData = {
-        ...formData,
-        department_id: formData.department_id || null,
-        email: formData.email || null,
-        phone: formData.phone || null,
-        mobile: formData.mobile || null,
-        position: formData.position || null,
+        ...formDataWithoutInternal,
+        department_id: formDataWithoutInternal.department_id || null,
+        email: formDataWithoutInternal.email || null,
+        phone: formDataWithoutInternal.phone || null,
+        mobile: formDataWithoutInternal.mobile || null,
+        position: formDataWithoutInternal.position || null,
       };
 
       const result = await updateEmployee(editingId, cleanData);
@@ -143,7 +167,7 @@ export default function EmployeesManagement() {
   // 開始編輯
   const startEdit = (employee) => {
     setFormData({
-      employee_id: employee.employee_id,
+      employee_id: employee.employee_id || '', // 允許空值
       name: employee.name,
       email: employee.email || '',
       phone: employee.phone || '',
@@ -152,6 +176,7 @@ export default function EmployeesManagement() {
       position: employee.position || '',
       role: employee.role || 'user', // 確保有預設值
       status: employee.status,
+      _originalEmployeeId: employee.employee_id, // 記錄原始值
     });
     setEditingId(employee.id);
     setShowCreateForm(false);
@@ -159,6 +184,12 @@ export default function EmployeesManagement() {
 
   // 處理刪除
 const handleDelete = async (employeeId, employeeName, employeeRole) => { // 1. 接收 role 參數
+    // 🔒 權限檢查
+    if (!canDelete) {
+      alert('⚠️ 權限不足\n\n您沒有刪除員工的權限（employee.delete）。');
+      return;
+    }
+
     // 2. 新增 Admin 保護邏輯 (與 ProfilesManagement 一致)
     if (employeeRole === 'admin') {
       alert('❌ 操作禁止！\n\n擁有「系統管理員 (Admin)」權限的員工無法被直接刪除。\n請先修改其職位角色。');
@@ -207,6 +238,37 @@ const handleDelete = async (employeeId, employeeName, employeeRole) => { // 1. �
     }
   };
 
+  // 權限檢查載入中
+  if (viewLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="animate-spin text-blue-600" size={40} />
+        <span className="ml-3 text-gray-600">檢查權限中...</span>
+      </div>
+    );
+  }
+
+  // 🔒 權限檢查：必須有查看權限才能進入
+  if (!canView) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md">
+          <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Shield size={32} />
+          </div>
+          <h2 className="text-2xl font-bold text-center mb-2">無查看權限</h2>
+          <p className="text-gray-600 text-center mb-4">
+            您沒有查看員工列表的權限。
+          </p>
+          <p className="text-sm text-gray-500 text-center">
+            需要以下權限：
+            <br />• employee.view（查看員工列表）
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -244,17 +306,19 @@ const handleDelete = async (employeeId, employeeName, employeeRole) => { // 1. �
           <option value="resigned">已離職</option>
         </select>
 
-        {/* 新增按鈕 */}
-        <button
-          onClick={() => {
-            resetForm();
-            setShowCreateForm(!showCreateForm);
-          }}
-          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg transition flex items-center gap-2 whitespace-nowrap"
-        >
-          <UserPlus size={20} />
-          {showCreateForm ? '取消' : '新增員工'}
-        </button>
+        {/* 新增按鈕 - 需要 employee.create 權限 */}
+        {canCreate && (
+          <button
+            onClick={() => {
+              resetForm();
+              setShowCreateForm(!showCreateForm);
+            }}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg transition flex items-center gap-2 whitespace-nowrap"
+          >
+            <UserPlus size={20} />
+            {showCreateForm ? '取消' : '新增員工'}
+          </button>
+        )}
       </div>
 
       {/* 表單 (新增或編輯) */}
@@ -268,16 +332,29 @@ const handleDelete = async (employeeId, employeeName, employeeRole) => { // 1. �
           <form onSubmit={editingId ? handleUpdate : handleCreate} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">員工編號 *</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  員工編號 *
+                  {editingId && !formData._originalEmployeeId && (
+                    <span className="ml-2 text-xs text-amber-600">(請填寫員工編號)</span>
+                  )}
+                  {editingId && formData._originalEmployeeId && (
+                    <span className="ml-2 text-xs text-gray-500">(已鎖定，無法修改)</span>
+                  )}
+                </label>
                 <input
                   type="text"
                   required
                   placeholder="EMP001"
                   value={formData.employee_id}
                   onChange={e => setFormData({ ...formData, employee_id: e.target.value })}
-                  disabled={!!editingId}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100"
+                  disabled={editingId && !!formData._originalEmployeeId}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
+                {editingId && !formData._originalEmployeeId && (
+                  <p className="mt-1 text-xs text-amber-600">
+                    此員工尚未設定員工編號，請在此輸入後保存。設定後將無法再修改。
+                  </p>
+                )}
               </div>
 
               <div>
@@ -491,22 +568,28 @@ const handleDelete = async (employeeId, employeeName, employeeRole) => { // 1. �
                     </td>
                     <td className="p-4">
                       <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => startEdit(employee)}
-                          disabled={processing}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                          title="編輯"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(employee.id, employee.name, employee.role)} // 傳入 role
-                          disabled={processing}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                          title="刪除"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        {/* 🔒 編輯按鈕：需要 employee.edit 權限 */}
+                        {canEdit && (
+                          <button
+                            onClick={() => startEdit(employee)}
+                            disabled={processing}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                            title="編輯"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                        )}
+                        {/* 🔒 刪除按鈕：需要 employee.delete 權限 */}
+                        {canDelete && (
+                          <button
+                            onClick={() => handleDelete(employee.id, employee.name, employee.role)} // 傳入 role
+                            disabled={processing}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                            title="刪除"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

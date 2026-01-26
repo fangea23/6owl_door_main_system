@@ -1,9 +1,13 @@
 import React from 'react';
-import { Car, Calendar, MapPin, CheckCircle, Clock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Car, Calendar, MapPin, CheckCircle, Clock, Plus } from 'lucide-react';
 import { useRentals } from '../hooks/useRentals';
 import { useCurrentEmployee } from '../hooks/useCurrentEmployee'; // 👈 引入這個
+import { PermissionGuard } from '../../../../hooks/usePermission';
 
 export const MyRentals = () => {
+  const navigate = useNavigate();
+
   // 1. 取得當前員工資料
   const { employee, loading: employeeLoading } = useCurrentEmployee();
   
@@ -150,9 +154,20 @@ export const MyRentals = () => {
   return (
     <div className="max-w-7xl mx-auto space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">我的租借</h1>
-        <p className="text-gray-600 mt-1">查看您的租車記錄</p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">我的租借</h1>
+          <p className="text-gray-600 mt-1">查看您的租車記錄</p>
+        </div>
+        <PermissionGuard permission="car.request.create">
+          <button
+            onClick={() => navigate('/systems/car-rental/requests/new')}
+            className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors shadow-sm"
+          >
+            <Plus className="w-5 h-5" />
+            新增租車申請
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* Active Rentals */}

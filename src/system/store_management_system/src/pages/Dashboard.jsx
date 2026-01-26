@@ -5,6 +5,7 @@ import { useBrands } from '../hooks/useBrands';
 import { useStores } from '../hooks/useStores';
 import { useAuth } from '../AuthContext';
 import { supabase } from '../supabaseClient'; // 2. 引入 supabase
+import { usePermission } from '../../../../hooks/usePermission'; // 3. 引入權限 hook
 import logoSrc from '../../../../assets/logo.png';
 
 // 六扇門 Logo 組件
@@ -30,11 +31,25 @@ export default function Dashboard() {
   const [editingBrand, setEditingBrand] = useState(null);
   const [editingStore, setEditingStore] = useState(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showStoreDetail, setShowStoreDetail] = useState(null);
   const userMenuRef = useRef(null);
 
   const { brands, loading: brandsLoading, addBrand, updateBrand, deleteBrand } = useBrands();
   const { stores, loading: storesLoading, addStore, updateStore, deleteStore, toggleStoreStatus } = useStores(selectedBrand?.id);
   const { user, profile, logout } = useAuth();
+
+  // 權限檢查 - 獲取 loading 狀態
+  const { hasPermission: canViewStores, loading: loadingViewStores } = usePermission('store.view');
+  const { hasPermission: canCreateStore } = usePermission('store.create');
+  const { hasPermission: canEditStore } = usePermission('store.edit');
+  const { hasPermission: canDeleteStore } = usePermission('store.delete');
+  const { hasPermission: canViewBrands, loading: loadingViewBrands } = usePermission('brand.view');
+  const { hasPermission: canCreateBrand } = usePermission('brand.create');
+  const { hasPermission: canEditBrand } = usePermission('brand.edit');
+  const { hasPermission: canDeleteBrand } = usePermission('brand.delete');
+
+  // 檢查權限是否都載入完成
+  const permissionsLoading = loadingViewStores || loadingViewBrands;
 
   // --- 3. 新增：員工姓名狀態與抓取邏輯 ---
   const [employeeName, setEmployeeName] = useState(null);
@@ -75,6 +90,39 @@ export default function Dashboard() {
   // 4. 修改：獲取顯示名稱（優先順序：employeeName > profile.name > user_metadata...）
   const displayName = employeeName || profile?.name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email;
 
+  // 🔒 權限載入中 - 顯示 loading 而不是無權限頁面
+  if (permissionsLoading) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+        <div className="flex flex-col items-center">
+          <Store className="animate-pulse text-amber-500 mb-3" size={32} />
+          <p className="text-stone-400">載入中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 權限檢查：沒有任何查看權限則無法使用此系統
+  if (!canViewStores && !canViewBrands) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md text-center">
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-stone-800 mb-2">權限不足</h2>
+          <p className="text-stone-600 mb-6">
+            您沒有訪問門店管理系統的權限
+          </p>
+          <button
+            onClick={() => navigate('/')}
+            className="px-6 py-2 bg-gradient-to-r from-red-600 to-amber-500 text-white rounded-lg hover:from-red-700 hover:to-amber-600 transition-all shadow-lg"
+          >
+            返回首頁
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // 登出處理
   const handleLogout = async () => {
     const confirmLogout = window.confirm("確定要登出系統嗎？");
@@ -95,16 +143,28 @@ export default function Dashboard() {
 
   // 處理品牌操作
   const handleAddBrand = () => {
+    if (!canCreateBrand) {
+      alert('⚠️ 權限不足\n\n您沒有新增品牌的權限（brand.create）。');
+      return;
+    }
     setEditingBrand(null);
     setShowBrandModal(true);
   };
 
   const handleEditBrand = (brand) => {
+    if (!canEditBrand) {
+      alert('⚠️ 權限不足\n\n您沒有編輯品牌的權限（brand.edit）。');
+      return;
+    }
     setEditingBrand(brand);
     setShowBrandModal(true);
   };
 
   const handleDeleteBrand = async (brand) => {
+    if (!canDeleteBrand) {
+      alert('⚠️ 權限不足\n\n您沒有刪除品牌的權限（brand.delete）。');
+      return;
+    }
     if (!confirm(`確定要刪除品牌「${brand.name}」嗎？這將影響所有相關店舖。`)) return;
 
     const result = await deleteBrand(brand.id);
@@ -119,6 +179,10 @@ export default function Dashboard() {
 
   // 處理店舖操作
   const handleAddStore = () => {
+    if (!canCreateStore) {
+      alert('⚠️ 權限不足\n\n您沒有新增店舖的權限（store.create）。');
+      return;
+    }
     if (!selectedBrand) {
       alert('請先選擇品牌');
       return;
@@ -128,11 +192,19 @@ export default function Dashboard() {
   };
 
   const handleEditStore = (store) => {
+    if (!canEditStore) {
+      alert('⚠️ 權限不足\n\n您沒有編輯店舖的權限（store.edit）。');
+      return;
+    }
     setEditingStore(store);
     setShowStoreModal(true);
   };
 
   const handleDeleteStore = async (store) => {
+    if (!canDeleteStore) {
+      alert('⚠️ 權限不足\n\n您沒有刪除店舖的權限（store.delete）。');
+      return;
+    }
     if (!confirm(`確定要刪除店舖「${store.name}」嗎？`)) return;
 
     const result = await deleteStore(store.code);
@@ -142,6 +214,10 @@ export default function Dashboard() {
   };
 
   const handleToggleStore = async (store) => {
+    if (!canEditStore) {
+      alert('⚠️ 權限不足\n\n您沒有編輯店舖狀態的權限（store.edit）。');
+      return;
+    }
     const result = await toggleStoreStatus(store.code, !store.is_active);
     if (!result.success) {
       alert(`更新失敗：${result.error}`);
@@ -266,14 +342,16 @@ export default function Dashboard() {
                   <Building2 className="text-red-600 w-4 h-4 sm:w-5 sm:h-5" />
                   <h2 className="font-bold text-stone-900 text-sm sm:text-base">品牌列表</h2>
                 </div>
-                <button
-                  onClick={handleAddBrand}
-                  className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-gradient-to-r from-red-600 to-amber-500 text-white rounded-lg hover:from-red-700 hover:to-amber-600 transition-all text-xs sm:text-sm font-medium shadow-lg shadow-red-500/20 touch-manipulation active:scale-95"
-                >
-                  <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span className="hidden sm:inline">新增</span>
-                  <span className="sm:hidden">+</span>
-                </button>
+                {canCreateBrand && (
+                  <button
+                    onClick={handleAddBrand}
+                    className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-gradient-to-r from-red-600 to-amber-500 text-white rounded-lg hover:from-red-700 hover:to-amber-600 transition-all text-xs sm:text-sm font-medium shadow-lg shadow-red-500/20 touch-manipulation active:scale-95"
+                  >
+                    <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">新增</span>
+                    <span className="sm:hidden">+</span>
+                  </button>
+                )}
               </div>
 
               <div className="p-3 sm:p-4">
@@ -298,31 +376,50 @@ export default function Dashboard() {
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-stone-900 text-sm sm:text-base truncate">{brand.name}</div>
-                            <div className="text-xs text-stone-500 mt-0.5 sm:mt-1 truncate">
-                              ID: {brand.id ? String(brand.id).substring(0, 8) + '...' : 'N/A'}
+                            <div className="flex items-center gap-2">
+                              {brand.code && (
+                                <code className={`px-2 py-0.5 rounded text-xs font-bold ${
+                                  brand.brand_type === 'supplier'
+                                    ? 'bg-purple-50 text-purple-700'
+                                    : 'bg-red-50 text-red-700'
+                                }`}>
+                                  {brand.code}
+                                </code>
+                              )}
+                              <div className="font-semibold text-stone-900 text-sm sm:text-base truncate">{brand.name}</div>
                             </div>
+                            {brand.brand_type && (
+                              <div className="text-xs text-stone-500 mt-0.5 sm:mt-1">
+                                {brand.brand_type === 'supplier' ? '供應商' : '品牌'}
+                              </div>
+                            )}
                           </div>
-                          <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEditBrand(brand);
-                              }}
-                              className="p-1.5 text-amber-600 hover:bg-amber-50 rounded touch-manipulation active:scale-95"
-                            >
-                              <Edit2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteBrand(brand);
-                              }}
-                              className="p-1.5 text-red-600 hover:bg-red-50 rounded touch-manipulation active:scale-95"
-                            >
-                              <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                            </button>
-                          </div>
+                          {(canEditBrand || canDeleteBrand) && (
+                            <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
+                              {canEditBrand && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEditBrand(brand);
+                                  }}
+                                  className="p-1.5 text-amber-600 hover:bg-amber-50 rounded touch-manipulation active:scale-95"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                </button>
+                              )}
+                              {canDeleteBrand && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteBrand(brand);
+                                  }}
+                                  className="p-1.5 text-red-600 hover:bg-red-50 rounded touch-manipulation active:scale-95"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -343,15 +440,17 @@ export default function Dashboard() {
                       {selectedBrand ? `${selectedBrand.name} - 店舖列表` : '店舖列表'}
                     </h2>
                   </div>
-                  <button
-                    onClick={handleAddStore}
-                    disabled={!selectedBrand}
-                    className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-gradient-to-r from-amber-500 to-red-500 text-white rounded-lg hover:from-amber-600 hover:to-red-600 transition-all text-xs sm:text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-amber-500/20 touch-manipulation active:scale-95 flex-shrink-0"
-                  >
-                    <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    <span className="hidden sm:inline">新增店舖</span>
-                    <span className="sm:hidden">新增</span>
-                  </button>
+                  {canCreateStore && (
+                    <button
+                      onClick={handleAddStore}
+                      disabled={!selectedBrand}
+                      className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-gradient-to-r from-amber-500 to-red-500 text-white rounded-lg hover:from-amber-600 hover:to-red-600 transition-all text-xs sm:text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-amber-500/20 touch-manipulation active:scale-95 flex-shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      <span className="hidden sm:inline">新增店舖</span>
+                      <span className="sm:hidden">新增</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* 搜尋欄 */}
@@ -385,7 +484,8 @@ export default function Dashboard() {
                     {filteredStores.map((store) => (
                       <div
                         key={store.code}
-                        className="p-3 sm:p-4 border border-stone-200 rounded-lg hover:shadow-md hover:shadow-red-500/10 transition-all"
+                        className="p-3 sm:p-4 border border-stone-200 rounded-lg hover:shadow-md hover:shadow-red-500/10 transition-all cursor-pointer"
+                        onClick={() => setShowStoreDetail(store)}
                       >
                         <div className="flex items-start justify-between gap-2 sm:gap-3">
                           <div className="flex-1 min-w-0">
@@ -393,59 +493,84 @@ export default function Dashboard() {
                               <h3 className="font-semibold text-stone-900 text-base sm:text-lg">
                                 {store.name}
                               </h3>
-                              <button
-                                onClick={() => handleToggleStore(store)}
-                                className="flex items-center gap-1 text-xs sm:text-sm touch-manipulation active:scale-95"
-                              >
-                                {store.is_active ? (
-                                  <ToggleRight className="text-green-500 w-5 h-5 sm:w-6 sm:h-6" />
-                                ) : (
-                                  <ToggleLeft className="text-stone-400 w-5 h-5 sm:w-6 sm:h-6" />
-                                )}
-                                <span className={store.is_active ? 'text-green-600' : 'text-stone-500'}>
-                                  {store.is_active ? '啟用中' : '已停用'}
-                                </span>
-                              </button>
-                            </div>
-
-                            <div className="mt-1.5 sm:mt-2 space-y-0.5 sm:space-y-1 text-xs sm:text-sm text-stone-600">
-                              {store.store_code && (
-                                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                                  <span className="font-medium">店舖代碼:</span>
-                                  <code className="bg-amber-50 px-2 py-0.5 rounded text-xs text-amber-700 font-semibold">
-                                    {store.store_code}
-                                  </code>
+                              {canEditStore ? (
+                                <button
+                                  onClick={() => handleToggleStore(store)}
+                                  className="flex items-center gap-1 text-xs sm:text-sm touch-manipulation active:scale-95"
+                                >
+                                  {store.is_active ? (
+                                    <ToggleRight className="text-green-500 w-5 h-5 sm:w-6 sm:h-6" />
+                                  ) : (
+                                    <ToggleLeft className="text-stone-400 w-5 h-5 sm:w-6 sm:h-6" />
+                                  )}
+                                  <span className={store.is_active ? 'text-green-600' : 'text-stone-500'}>
+                                    {store.is_active ? '啟用中' : '已停用'}
+                                  </span>
+                                </button>
+                              ) : (
+                                <div className="flex items-center gap-1 text-xs sm:text-sm">
+                                  {store.is_active ? (
+                                    <ToggleRight className="text-green-500 w-5 h-5 sm:w-6 sm:h-6" />
+                                  ) : (
+                                    <ToggleLeft className="text-stone-400 w-5 h-5 sm:w-6 sm:h-6" />
+                                  )}
+                                  <span className={store.is_active ? 'text-green-600' : 'text-stone-500'}>
+                                    {store.is_active ? '啟用中' : '已停用'}
+                                  </span>
                                 </div>
                               )}
-                              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                                <span className="font-medium">店舖 ID:</span>
-                                <code className="bg-stone-100 px-2 py-0.5 rounded text-xs break-all">
+                            </div>
+
+                            <div className="mt-1.5 sm:mt-2 flex items-center gap-2 flex-wrap">
+                              {store.code && (
+                                <code className="bg-amber-50 px-2 py-0.5 rounded text-xs text-amber-700 font-semibold">
                                   {store.code}
                                 </code>
-                              </div>
-                              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                                <span className="font-medium">品牌 ID:</span>
-                                <code className="bg-stone-100 px-2 py-0.5 rounded text-xs break-all">
-                                  {store.brand_id}
-                                </code>
-                              </div>
+                              )}
+                              {store.store_type && (
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                  store.store_type === 'direct'
+                                    ? 'bg-blue-50 text-blue-700'
+                                    : 'bg-green-50 text-green-700'
+                                }`}>
+                                  {store.store_type === 'direct' ? '直營店' : '加盟店'}
+                                </span>
+                              )}
+                              {store.opening_date && (
+                                <span className="text-xs text-stone-500">
+                                  開店: {store.opening_date}
+                                </span>
+                              )}
+                              <span className="text-xs text-blue-600 font-medium">點擊查看詳細資訊 →</span>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-                            <button
-                              onClick={() => handleEditStore(store)}
-                              className="p-1.5 sm:p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors touch-manipulation active:scale-95"
-                            >
-                              <Edit2 className="w-4 h-4 sm:w-5 sm:h-5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteStore(store)}
-                              className="p-1.5 sm:p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors touch-manipulation active:scale-95"
-                            >
-                              <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
-                            </button>
-                          </div>
+                          {(canEditStore || canDeleteStore) && (
+                            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                              {canEditStore && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEditStore(store);
+                                  }}
+                                  className="p-1.5 sm:p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors touch-manipulation active:scale-95"
+                                >
+                                  <Edit2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                                </button>
+                              )}
+                              {canDeleteStore && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteStore(store);
+                                  }}
+                                  className="p-1.5 sm:p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors touch-manipulation active:scale-95"
+                                >
+                                  <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -495,6 +620,14 @@ export default function Dashboard() {
           }}
         />
       )}
+
+      {/* 店舖詳細資訊 Modal */}
+      {showStoreDetail && (
+        <StoreDetailModal
+          store={showStoreDetail}
+          onClose={() => setShowStoreDetail(null)}
+        />
+      )}
     </div>
   );
 }
@@ -502,6 +635,7 @@ export default function Dashboard() {
 // 品牌 Modal 組件
 function BrandModal({ brand, onClose, onSave }) {
   const [name, setName] = useState(brand?.name || '');
+  const [brandType, setBrandType] = useState(brand?.brand_type || 'brand');
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -512,7 +646,10 @@ function BrandModal({ brand, onClose, onSave }) {
     }
 
     setSaving(true);
-    await onSave({ name: name.trim() });
+    await onSave({
+      name: name.trim(),
+      brand_type: brandType
+    });
     setSaving(false);
   };
 
@@ -525,7 +662,7 @@ function BrandModal({ brand, onClose, onSave }) {
           </h3>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-2">
               品牌名稱 *
@@ -538,6 +675,24 @@ function BrandModal({ brand, onClose, onSave }) {
               placeholder="請輸入品牌名稱"
               required
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-2">
+              類型 *
+            </label>
+            <select
+              value={brandType}
+              onChange={(e) => setBrandType(e.target.value)}
+              className="w-full px-3 sm:px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-sm sm:text-base"
+              required
+            >
+              <option value="brand">品牌（編碼 01-89）</option>
+              <option value="supplier">供應商（編碼 90-99）</option>
+            </select>
+            <p className="text-xs text-stone-500 mt-1">
+              品牌編碼將自動生成，不可修改
+            </p>
           </div>
 
           <div className="flex gap-2 sm:gap-3 mt-5 sm:mt-6">
@@ -565,8 +720,13 @@ function BrandModal({ brand, onClose, onSave }) {
 // 店舖 Modal 組件
 function StoreModal({ store, brandId, onClose, onSave }) {
   const [name, setName] = useState(store?.name || '');
-  const [storeCode, setStoreCode] = useState(store?.store_code || '');
+  const [storeType, setStoreType] = useState(store?.store_type || 'franchise');
   const [isActive, setIsActive] = useState(store?.is_active ?? true);
+  const [openingDate, setOpeningDate] = useState(store?.opening_date || '');
+  const [closingDate, setClosingDate] = useState(store?.closing_date || '');
+  const [laborInsuranceNumber, setLaborInsuranceNumber] = useState(store?.labor_insurance_number || '');
+  const [healthInsuranceNumber, setHealthInsuranceNumber] = useState(store?.health_insurance_number || '');
+  const [foodSafetyCertificateNumber, setFoodSafetyCertificateNumber] = useState(store?.food_safety_certificate_number || '');
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -579,9 +739,15 @@ function StoreModal({ store, brandId, onClose, onSave }) {
     setSaving(true);
     await onSave({
       name: name.trim(),
-      store_code: storeCode.trim() || null,
       brand_id: brandId,
+      store_type: storeType,
       is_active: isActive,
+      opening_date: openingDate || null,
+      closing_date: closingDate || null,
+      labor_insurance_number: laborInsuranceNumber.trim() || null,
+      health_insurance_number: healthInsuranceNumber.trim() || null,
+      food_safety_certificate_number: foodSafetyCertificateNumber.trim() || null,
+      // code 會由後端自動生成，不需要傳送
     });
     setSaving(false);
   };
@@ -612,18 +778,86 @@ function StoreModal({ store, brandId, onClose, onSave }) {
 
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-2">
-              店舖代碼
+              店家類型 *
+            </label>
+            <select
+              value={storeType}
+              onChange={(e) => setStoreType(e.target.value)}
+              className="w-full px-3 sm:px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm sm:text-base"
+              required
+            >
+              <option value="franchise">加盟店</option>
+              <option value="direct">直營店</option>
+            </select>
+            <p className="text-xs text-stone-500 mt-1">
+              店家代碼將自動生成（格式：品牌ID + 流水號）
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-2">
+              開店日期
+            </label>
+            <input
+              type="date"
+              value={openingDate}
+              onChange={(e) => setOpeningDate(e.target.value)}
+              className="w-full px-3 sm:px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm sm:text-base"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-2">
+              關店日期
+            </label>
+            <input
+              type="date"
+              value={closingDate}
+              onChange={(e) => setClosingDate(e.target.value)}
+              className="w-full px-3 sm:px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm sm:text-base"
+            />
+            <p className="text-xs text-stone-500 mt-1">
+              僅在店舖永久關閉時填寫
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-2">
+              勞保證號
             </label>
             <input
               type="text"
-              value={storeCode}
-              onChange={(e) => setStoreCode(e.target.value)}
+              value={laborInsuranceNumber}
+              onChange={(e) => setLaborInsuranceNumber(e.target.value)}
               className="w-full px-3 sm:px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm sm:text-base"
-              placeholder="選填，例如: ST001"
+              placeholder="選填"
             />
-            <p className="text-xs text-stone-500 mt-1">
-              用於識別店舖的自訂代碼
-            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-2">
+              健保證號
+            </label>
+            <input
+              type="text"
+              value={healthInsuranceNumber}
+              onChange={(e) => setHealthInsuranceNumber(e.target.value)}
+              className="w-full px-3 sm:px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm sm:text-base"
+              placeholder="選填"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-2">
+              食品安全證號
+            </label>
+            <input
+              type="text"
+              value={foodSafetyCertificateNumber}
+              onChange={(e) => setFoodSafetyCertificateNumber(e.target.value)}
+              className="w-full px-3 sm:px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm sm:text-base"
+              placeholder="選填"
+            />
           </div>
 
           <div>
@@ -658,6 +892,143 @@ function StoreModal({ store, brandId, onClose, onSave }) {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+// 店舖詳細資訊 Modal 組件
+function StoreDetailModal({ store, onClose }) {
+  if (!store) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4">
+      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 p-4 sm:p-6 border-b border-stone-200 bg-gradient-to-r from-amber-500 to-red-500 flex items-center justify-between">
+          <div>
+            <h3 className="text-lg sm:text-xl font-bold text-white">
+              {store.name}
+            </h3>
+            <p className="text-sm text-white/90 mt-1">店舖詳細資訊</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-4 sm:p-6 space-y-6">
+          {/* 基本資訊 */}
+          <div className="bg-stone-50 rounded-lg p-4">
+            <h4 className="font-bold text-stone-800 mb-3 flex items-center gap-2">
+              <Store className="w-5 h-5 text-amber-600" />
+              基本資訊
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <div className="text-xs text-stone-500 mb-1">店舖名稱</div>
+                <div className="font-medium text-stone-900">{store.name}</div>
+              </div>
+              {store.code && (
+                <div>
+                  <div className="text-xs text-stone-500 mb-1">店舖代碼</div>
+                  <code className="bg-amber-50 px-3 py-1 rounded text-sm text-amber-700 font-bold">
+                    {store.code}
+                  </code>
+                </div>
+              )}
+              {store.store_type && (
+                <div>
+                  <div className="text-xs text-stone-500 mb-1">店家類型</div>
+                  <span className={`inline-block px-3 py-1 rounded text-sm font-medium ${
+                    store.store_type === 'direct'
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'bg-green-50 text-green-700'
+                  }`}>
+                    {store.store_type === 'direct' ? '直營店' : '加盟店'}
+                  </span>
+                </div>
+              )}
+              <div>
+                <div className="text-xs text-stone-500 mb-1">狀態</div>
+                <span className={`inline-block px-3 py-1 rounded text-sm font-medium ${
+                  store.is_active
+                    ? 'bg-green-50 text-green-700'
+                    : 'bg-stone-100 text-stone-600'
+                }`}>
+                  {store.is_active ? '✓ 啟用中' : '✗ 已停用'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 日期資訊 */}
+          {(store.opening_date || store.closing_date) && (
+            <div className="bg-blue-50 rounded-lg p-4">
+              <h4 className="font-bold text-stone-800 mb-3">營業日期</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {store.opening_date && (
+                  <div>
+                    <div className="text-xs text-stone-500 mb-1">開店日期</div>
+                    <div className="font-medium text-stone-900">{store.opening_date}</div>
+                  </div>
+                )}
+                {store.closing_date && (
+                  <div>
+                    <div className="text-xs text-stone-500 mb-1">關店日期</div>
+                    <div className="font-medium text-red-600">{store.closing_date}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 證號資訊 */}
+          {(store.labor_insurance_number || store.health_insurance_number || store.food_safety_certificate_number) && (
+            <div className="bg-green-50 rounded-lg p-4">
+              <h4 className="font-bold text-stone-800 mb-3">證照資訊</h4>
+              <div className="space-y-3">
+                {store.labor_insurance_number && (
+                  <div>
+                    <div className="text-xs text-stone-500 mb-1">勞保證號</div>
+                    <code className="bg-white border border-blue-200 px-3 py-2 rounded text-sm text-blue-700 font-mono block">
+                      {store.labor_insurance_number}
+                    </code>
+                  </div>
+                )}
+                {store.health_insurance_number && (
+                  <div>
+                    <div className="text-xs text-stone-500 mb-1">健保證號</div>
+                    <code className="bg-white border border-green-200 px-3 py-2 rounded text-sm text-green-700 font-mono block">
+                      {store.health_insurance_number}
+                    </code>
+                  </div>
+                )}
+                {store.food_safety_certificate_number && (
+                  <div>
+                    <div className="text-xs text-stone-500 mb-1">食品安全證號</div>
+                    <code className="bg-white border border-purple-200 px-3 py-2 rounded text-sm text-purple-700 font-mono block">
+                      {store.food_safety_certificate_number}
+                    </code>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="sticky bottom-0 p-4 sm:p-6 border-t border-stone-200 bg-white">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2 bg-stone-600 text-white rounded-lg hover:bg-stone-700 transition-colors font-medium"
+          >
+            關閉
+          </button>
+        </div>
       </div>
     </div>
   );

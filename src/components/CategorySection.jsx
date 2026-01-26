@@ -9,18 +9,26 @@ const colorVariants = {
   blue: 'from-red-600 to-amber-500',
 };
 
-export default function CategorySection({ category, onSystemClick }) {
+// hasPermission 由 Portal 傳入，避免重複載入權限造成閃爍
+export default function CategorySection({ category, onSystemClick, hasPermission }) {
   const { role } = useAuth();
   const gradientColor = colorVariants[category.color] || colorVariants.stone;
 
-  // 根據用戶角色過濾系統
+  // 根據用戶角色和權限過濾系統
   const visibleSystems = category.systems.filter(system => {
-    // 如果系統沒有 requiresRole，所有人都可以看到
-    if (!system.requiresRole || system.requiresRole.length === 0) {
-      return true;
+    // 1. 優先檢查權限（如果有設定 permissionCode）
+    if (system.permissionCode) {
+      // 只要有系統訪問權限就可以看到，不再檢查角色
+      return hasPermission(system.permissionCode);
     }
-    // 如果有 requiresRole，檢查用戶角色是否匹配
-    return system.requiresRole.includes(role);
+
+    // 2. 如果沒有 permissionCode，才檢查角色（向後兼容）
+    if (system.requiresRole && system.requiresRole.length > 0) {
+      return system.requiresRole.includes(role);
+    }
+
+    // 沒有任何限制，所有人都可以看到
+    return true;
   });
 
   if (visibleSystems.length === 0) {

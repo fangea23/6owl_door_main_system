@@ -14,6 +14,7 @@
  * url: '/path-to-system',    // 系統連結
  * status: 'active',          // active | coming-soon | maintenance
  * isExternal: false,         // 是否為外部連結
+ * permissionCode: 'system.xxx', // 系統訪問權限代碼（可選，沒有則所有人可見）
  * }
  */
 
@@ -33,7 +34,7 @@ export const categories = [
         url: '/management',
         status: 'active',
         isExternal: false,
-        requiresRole: ['admin', 'hr'], // 需要特定角色才能看到
+        permissionCode: 'system.management', // 系統訪問權限（已取代 requiresRole）
       },
     ],
   },
@@ -52,6 +53,17 @@ export const categories = [
         url: '/systems/payment-approval',
         status: 'active',
         isExternal: false,
+        permissionCode: 'system.payment', // 需要系統訪問權限
+      },
+      {
+        id: 'expense-reimbursement',
+        name: '員工代墊款系統',
+        description: '員工費用報銷申請與審核',
+        icon: '💸',
+        url: '/systems/expense-reimbursement',
+        status: 'active',
+        isExternal: false,
+        permissionCode: 'system.expense_reimbursement', // 需要系統訪問權限
       },
     ],
   },
@@ -70,6 +82,36 @@ export const categories = [
         url: '/systems/software-license',
         status: 'active',
         isExternal: false,
+        permissionCode: 'system.license', // 需要系統訪問權限
+      },
+    ],
+  },
+  {
+    id: 'hr-service',
+    name: '人力資源',
+    description: '員工發展與薪資管理',
+    icon: '👥',
+    color: 'amber',
+    systems: [
+      {
+        id: 'payroll',
+        name: '薪資管理系統',
+        description: '員工薪資計算與發放',
+        icon: '💰',
+        url: '/systems/payroll',
+        status: 'active',
+        isExternal: false,
+        permissionCode: 'system.payroll', // 需要系統訪問權限
+      },
+      {
+        id: 'training',
+        name: '教育訓練系統',
+        description: '線上課程學習與測驗',
+        icon: '🎓',
+        url: '/systems/training',
+        status: 'active',
+        isExternal: false,
+        permissionCode: 'system.training', // 需要系統訪問權限
       },
     ],
   },
@@ -78,7 +120,7 @@ export const categories = [
     name: '行政服務',
     description: '日常行政與辦公支援',
     icon: '🏢',
-    color: 'amber', // 改為琥珀橘，保持暖色調但不刺眼
+    color: 'stone', // 改為岩石灰，與 HR 區分
     systems: [
       {
         id: 'meeting-room',
@@ -88,6 +130,7 @@ export const categories = [
         url: '/systems/meeting-room',
         status: 'active',
         isExternal: false,
+        permissionCode: 'system.meeting_room', // 需要系統訪問權限
       },
       {
         id: 'car-rental',
@@ -97,6 +140,7 @@ export const categories = [
         url: '/systems/car-rental',
         status: 'active',
         isExternal: false,
+        permissionCode: 'system.car_rental', // 需要系統訪問權限
       },
       {
         id: 'store-management',
@@ -106,6 +150,7 @@ export const categories = [
         url: '/systems/store-management',
         status: 'active',
         isExternal: false,
+        permissionCode: 'system.store_management', // 需要系統訪問權限
       },
       {
         id: 'eip-km',
@@ -115,6 +160,7 @@ export const categories = [
         url: '/systems/eip-km',
         status: 'active',
         isExternal: false,
+        permissionCode: 'system.eip_km', // 需要系統訪問權限
       },
       {
         id: 'ticketing',
@@ -124,6 +170,7 @@ export const categories = [
         url: '/systems/ticketing',
         status: 'active',
         isExternal: false,
+        permissionCode: 'system.ticketing', // 需要系統訪問權限
       },
     ],
   },

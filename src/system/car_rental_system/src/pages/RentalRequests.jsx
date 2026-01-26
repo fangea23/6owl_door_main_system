@@ -1,14 +1,21 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, CheckCircle, XCircle, Clock, Eye, AlertTriangle, Ban } from 'lucide-react';
+import { Plus, CheckCircle, XCircle, Clock, Eye, AlertTriangle, Ban, Shield } from 'lucide-react';
 import { useRentalRequests } from '../hooks/useRentalRequests';
 import { useCurrentEmployee } from '../hooks/useCurrentEmployee';
+import { usePermission, PermissionGuard } from '../../../../hooks/usePermission';
 import toast from 'react-hot-toast';
 
 export const RentalRequests = () => {
   // 1. 解構 cancelRequest
   const { requests, loading, reviewRequest, cancelRequest } = useRentalRequests();
   const { employee } = useCurrentEmployee();
+
+  // RBAC 權限檢查
+  const { hasPermission: canCreate } = usePermission('car.request.create');
+  const { hasPermission: canApprove } = usePermission('car.approve');
+  const { hasPermission: canViewAll } = usePermission('car.request.view.all');
+  const { hasPermission: canCancelOwn } = usePermission('car.request.cancel.own');
   
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState('all');
@@ -48,25 +55,59 @@ export const RentalRequests = () => {
 
   // 處理審核
   const handleReview = async (id, status) => {
+    // RBAC 權限檢查
+    if (!canApprove) {
+      toast.error('⚠️ 權限不足\n\n您沒有審核租車申請的權限，請聯絡系統管理員申請 car.approve 權限。');
+      return;
+    }
+
     if (!employee) {
       toast.error('無法確認您的員工身分，請重新登入');
       return;
     }
+
+    const toastId = toast.loading(status === 'approved' ? '核准中...' : '處理中...');
     const result = await reviewRequest(id, status, employee.id, reviewComment);
-    
+    toast.dismiss(toastId);
+
     if (result.success) {
       toast.success(status === 'approved' ? '申請已核准' : '申請已拒絕');
       setReviewingRequest(null);
       setReviewComment('');
     } else {
-      toast.error(result.error || '審核失敗');
+      // 使用更長的顯示時間和更好的格式顯示錯誤
+      toast.error(result.error || '審核失敗', {
+        duration: 6000,
+        style: {
+          maxWidth: '500px',
+          whiteSpace: 'pre-line',
+        },
+      });
     }
   };
 
   // 2. 處理取消 (新增邏輯)
   const handleCancel = async (request) => {
+    // RBAC 權限檢查：只能取消自己的申請
+    if (!canCancelOwn) {
+      toast.error('您沒有取消申請的權限');
+      return;
+    }
+
+    // 檢查是否是自己的申請
+    if (!employee) {
+      toast.error('無法確認您的員工身分，請重新登入');
+      return;
+    }
+
+    const isOwnRequest = request.requester?.id === employee.id;
+    if (!isOwnRequest) {
+      toast.error('您只能取消自己的申請');
+      return;
+    }
+
     const isApproved = request.status === 'approved';
-    
+
     // 根據狀態顯示不同的警告訊息
     const message = isApproved
       ? '⚠️ 警告：此申請已核准並預約車輛。\n\n取消後將會：\n1. 釋放該車輛供他人租借\n2. 刪除相關的租借紀錄\n\n確定要繼續嗎？'
@@ -110,13 +151,15 @@ export const RentalRequests = () => {
           <h1 className="text-3xl font-bold text-gray-900">租借申請管理</h1>
           <p className="text-gray-600 mt-1">查看、審核與管理所有的用車申請</p>
         </div>
-        <button
-          onClick={() => navigate('/systems/car-rental/requests/new')}
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors shadow-sm"
-        >
-          <Plus className="w-5 h-5" />
-          新增申請
-        </button>
+        <PermissionGuard permission="car.request.create">
+          <button
+            onClick={() => navigate('/systems/car-rental/requests/new')}
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors shadow-sm"
+          >
+            <Plus className="w-5 h-5" />
+            新增申請
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* Filters */}
@@ -207,8 +250,8 @@ export const RentalRequests = () => {
 
               {/* 3. 操作按鈕區塊 */}
               <div className="flex gap-3 pt-4 border-t border-gray-100">
-                {/* 審核按鈕：只在 pending 顯示 */}
-                {request.status === 'pending' && (
+                {/* 審核按鈕：只在 pending 且有權限時顯示 */}
+                {request.status === 'pending' && canApprove && (
                   <button
                     onClick={() => setReviewingRequest(request)}
                     className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors shadow-sm"
@@ -218,8 +261,11 @@ export const RentalRequests = () => {
                   </button>
                 )}
 
-                {/* 取消按鈕：在 pending 或 approved 顯示 */}
-                {(request.status === 'pending' || request.status === 'approved') && (
+                {/* 取消按鈕：在 pending 或 approved 顯示，且只能取消自己的申請 */}
+                {(request.status === 'pending' || request.status === 'approved') &&
+                 canCancelOwn &&
+                 employee &&
+                 request.requester?.id === employee.id && (
                   <button
                     onClick={() => handleCancel(request)}
                     className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors border ${

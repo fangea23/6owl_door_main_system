@@ -6,6 +6,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 const BASE_PATH = '/systems/payment-approval';
 import SignatureCanvas from 'react-signature-canvas';
 import { useAuth } from '../AuthContext';
+import { usePermission } from '../../../../hooks/usePermission'; // RBAC 權限系統
 import SearchableSelect from '../components/SearchableSelect';
 import PaymentItemsInput from '../components/PaymentItemsInput';
 import {
@@ -29,7 +30,8 @@ import {
     Wallet,
     Ticket,
     Plus,
-    List
+    List,
+    Shield // 新增：權限提示圖示
 } from 'lucide-react';
 
 // ★ 設定：需要經過「單位主管」簽核的部門 (請依照你 DB 實際部門名稱修改)
@@ -48,10 +50,13 @@ const SectionTitle = ({ icon: Icon, title }) => (
 );
 
 export default function ApplyForm() {
-    const navigate = useNavigate(); 
+    const navigate = useNavigate();
     const location = useLocation();
     const sigCanvas = useRef({});
     const { user } = useAuth();
+
+    // RBAC 權限檢查：只有有建立權限的人可以訪問此頁面
+    const { hasPermission: canCreate, loading: permissionLoading } = usePermission('payment.create');
     
     // 用來重置簽名的函式
     const clearSignature = () => {
@@ -747,7 +752,39 @@ invoice_number: formData.invoiceNumber,
         }
     };
 
+    // 權限載入中
+    if (permissionLoading) {
         return (
+            <div className="min-h-screen flex items-center justify-center bg-stone-50">
+                <div className="text-center">
+                    <Loader2 className="w-12 h-12 text-red-600 animate-spin mx-auto mb-4" />
+                    <p className="text-gray-600">檢查權限中...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // 無建立權限
+    if (!canCreate) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-stone-50">
+                <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md text-center">
+                    <Shield className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <h2 className="text-2xl font-bold text-gray-800 mb-2">無建立權限</h2>
+                    <p className="text-gray-600 mb-6">您沒有建立付款申請的權限</p>
+                    <p className="text-sm text-gray-400 mb-6">請聯絡系統管理員申請 payment.create 權限</p>
+                    <button
+                        onClick={() => navigate(`${BASE_PATH}/dashboard`)}
+                        className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+                    >
+                        返回總覽
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
             <div className="min-h-screen bg-stone-50 py-8 px-4 sm:px-6 lg:px-8 font-sans">
                 <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-stone-200">
 

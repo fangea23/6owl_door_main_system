@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../AuthContext';
+import { usePermission } from '../../../../../src/hooks/usePermission';
 import {
   Building2,
   Plus,
@@ -9,11 +10,19 @@ import {
   Users,
   MapPin,
   Loader2,
-  X
+  X,
+  Shield
 } from 'lucide-react';
 
 export default function RoomManagement() {
   const { user } = useAuth();
+
+  // 權限檢查
+  const { hasPermission: canView, loading: viewLoading } = usePermission('meeting.room.view');
+  const { hasPermission: canCreate, loading: createLoading } = usePermission('meeting.room.create');
+  const { hasPermission: canEdit, loading: editLoading } = usePermission('meeting.room.edit');
+  const { hasPermission: canDelete, loading: deleteLoading } = usePermission('meeting.room.delete');
+
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -115,6 +124,41 @@ export default function RoomManagement() {
     }
   };
 
+  // 權限檢查載入中
+  if (viewLoading || createLoading || editLoading || deleteLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="animate-spin text-amber-500" size={40} />
+        <span className="ml-3 text-stone-600">檢查權限中...</span>
+      </div>
+    );
+  }
+
+  // 沒有任何權限（包含查看權限）
+  const hasAnyPermission = canView || canCreate || canEdit || canDelete;
+  if (!hasAnyPermission) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md text-center border border-red-100">
+          <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Shield size={32} />
+          </div>
+          <h2 className="text-2xl font-bold text-stone-800 mb-2">無查看權限</h2>
+          <p className="text-stone-600 mb-4">您沒有權限查看或管理會議室</p>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-left text-sm">
+            <p className="font-medium text-amber-800 mb-2">需要以下任一權限：</p>
+            <ul className="space-y-1 text-amber-700">
+              <li><code className="bg-amber-100 px-2 py-0.5 rounded text-xs">meeting.room.view</code> - 查看會議室清單</li>
+              <li><code className="bg-amber-100 px-2 py-0.5 rounded text-xs">meeting.room.create</code> - 新增會議室</li>
+              <li><code className="bg-amber-100 px-2 py-0.5 rounded text-xs">meeting.room.edit</code> - 編輯會議室</li>
+              <li><code className="bg-amber-100 px-2 py-0.5 rounded text-xs">meeting.room.delete</code> - 刪除會議室</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* 頁面標題 */}
@@ -123,13 +167,15 @@ export default function RoomManagement() {
           <h2 className="text-2xl font-bold text-stone-800">會議室管理</h2>
           <p className="text-stone-500 text-sm mt-1">管理可預約的會議室</p>
         </div>
-        <button
-          onClick={() => openModal()}
-          className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl font-medium transition-colors shadow-sm"
-        >
-          <Plus size={18} />
-          新增會議室
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => openModal()}
+            className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl font-medium transition-colors shadow-sm"
+          >
+            <Plus size={18} />
+            新增會議室
+          </button>
+        )}
       </div>
 
       {/* 會議室列表 */}
@@ -141,12 +187,14 @@ export default function RoomManagement() {
         <div className="bg-white rounded-xl border border-stone-200 p-12 text-center">
           <Building2 size={48} className="mx-auto mb-3 text-stone-300" />
           <p className="text-stone-500">尚無會議室資料</p>
-          <button
-            onClick={() => openModal()}
-            className="mt-4 text-amber-600 hover:text-amber-700 font-medium"
-          >
-            立即新增
-          </button>
+          {canCreate && (
+            <button
+              onClick={() => openModal()}
+              className="mt-4 text-amber-600 hover:text-amber-700 font-medium"
+            >
+              立即新增
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -167,18 +215,24 @@ export default function RoomManagement() {
                   )}
                 </div>
                 <div className="flex gap-1">
-                  <button
-                    onClick={() => openModal(room)}
-                    className="p-2 hover:bg-amber-50 text-stone-500 hover:text-amber-600 rounded-lg transition-colors"
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(room)}
-                    className="p-2 hover:bg-red-50 text-stone-500 hover:text-red-600 rounded-lg transition-colors"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  {canEdit && (
+                    <button
+                      onClick={() => openModal(room)}
+                      className="p-2 hover:bg-amber-50 text-stone-500 hover:text-amber-600 rounded-lg transition-colors"
+                      title="編輯會議室"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button
+                      onClick={() => handleDelete(room)}
+                      className="p-2 hover:bg-red-50 text-stone-500 hover:text-red-600 rounded-lg transition-colors"
+                      title="刪除會議室"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
                 </div>
               </div>
 

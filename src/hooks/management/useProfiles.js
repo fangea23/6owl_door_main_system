@@ -1,5 +1,4 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { createClient } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabase';
 
 // 取得環境變數
@@ -37,61 +36,42 @@ export const useProfiles = () => {
   });
 
   // --- 2. 建立新用戶 (Mutation) ---
+  // 支援兩種模式：
+  // A. 傳統 Email 模式：userData.email 存在
+  // B. 員工編號模式：userData.employee_id 存在，系統自動生成虛擬 email
+  // 使用 Edge Function 來建立已確認的帳號，避免 email 驗證問題
   const createMutation = useMutation({
     mutationFn: async (userData) => {
-      // ⚠️ 關鍵技巧：建立臨時 Client 避免登出管理員
-      const tempSupabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-        auth: { 
-          autoRefreshToken: false, 
-          persistSession: false, 
-          detectSessionInUrl: false
-        }
-      });
-
-      // A. 在 Auth 系統註冊
-      const { data: authData, error: authError } = await tempSupabase.auth.signUp({
-        email: userData.email,
-        password: userData.password,
-        options: {
-          data: {
-            full_name: userData.full_name,
-            role: userData.role || 'user' 
-          }
-        }
-      });
-
-      if (authError) throw authError;
-      if (!authData.user) throw new Error('無法建立使用者，請檢查 Email 是否已存在');
-
-      // B. 確保 Profile 資料寫入
-      // 嘗試更新 Profile (假設 Trigger 已建立)
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ 
-          full_name: userData.full_name,
-          role: userData.role || 'user'
-        })
-        .eq('id', authData.user.id);
-
-      // 如果更新失敗(可能 Trigger 還沒跑或沒建立)，則手動插入
-      if (updateError) {
-         // 稍微等待一下，避免 Race Condition
-         await new Promise(r => setTimeout(r, 500));
-         
-         const { error: insertError } = await supabase.from('profiles').insert({
-            id: authData.user.id,
-            email: userData.email,
-            full_name: userData.full_name,
-            role: userData.role || 'user'
-         });
-         
-         // 如果 Insert 也失敗，通常是因為已經存在，忽略錯誤
-         if (insertError && insertError.code !== '23505') {
-             console.warn('Profile creation warning:', insertError);
-         }
+      // 取得當前 session token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('請先登入');
       }
 
-      return authData.user;
+      // 呼叫 Edge Function 建立帳號
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/create-employee-account`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': SUPABASE_KEY,
+        },
+        body: JSON.stringify({
+          employee_id: userData.employee_id || null,
+          email: userData.email || null,
+          password: userData.password,
+          full_name: userData.full_name,
+          role: userData.role || 'user',
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || '建立帳號失敗');
+      }
+
+      return result.user;
     },
     onSuccess: () => {
       // 成功後，讓 React Query 標記資料過期，自動觸發重新抓取
@@ -100,13 +80,59 @@ export const useProfiles = () => {
   });
 
   // --- 3. 更新角色 (Mutation) ---
+  // 同時更新 profiles.role、employees.role 和 rbac.user_roles
   const updateRoleMutation = useMutation({
     mutationFn: async ({ userId, newRole }) => {
-      const { error } = await supabase
+      // 1. 更新 profiles 表
+      const { error: profileError } = await supabase
         .from('profiles')
         .update({ role: newRole })
         .eq('id', userId);
-      if (error) throw error;
+      if (profileError) throw profileError;
+
+      // 2. 更新 employees 表（如果有關聯）
+      const { error: employeeError } = await supabase
+        .from('employees')
+        .update({ role: newRole })
+        .eq('user_id', userId);
+      // employees 可能不存在該用戶，忽略錯誤
+      if (employeeError && employeeError.code !== 'PGRST116') {
+        console.warn('Update employee role warning:', employeeError);
+      }
+
+      // 3. 取得新角色的 role_id
+      const { data: roleData, error: roleError } = await supabase
+        .schema('rbac')
+        .from('roles')
+        .select('id')
+        .eq('code', newRole)
+        .is('deleted_at', null)
+        .single();
+
+      if (roleError || !roleData) {
+        console.warn('Role not found in RBAC:', newRole);
+        return; // 角色不存在於 RBAC，跳過
+      }
+
+      // 4. 刪除該用戶的所有舊角色
+      await supabase
+        .schema('rbac')
+        .from('user_roles')
+        .delete()
+        .eq('user_id', userId);
+
+      // 5. 新增新角色
+      const { error: userRoleError } = await supabase
+        .schema('rbac')
+        .from('user_roles')
+        .insert({
+          user_id: userId,
+          role_id: roleData.id
+        });
+
+      if (userRoleError) {
+        console.warn('Insert user_role error:', userRoleError);
+      }
     },
     onSuccess: () => queryClient.invalidateQueries(QUERY_KEY),
   });

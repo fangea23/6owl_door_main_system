@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../AuthContext';
+import { usePermission } from '../../../../hooks/usePermission';
 import {
   Calendar,
   Clock,
@@ -12,7 +13,8 @@ import {
   Save,
   Loader2,
   AlertCircle,
-  Trash2
+  Trash2,
+  Shield
 } from 'lucide-react';
 
 const BASE_PATH = '/systems/meeting-room';
@@ -33,6 +35,12 @@ export default function BookingForm() {
   const { user } = useAuth();
   const isEditMode = !!id;
 
+  // RBAC 權限檢查
+  const { hasPermission: canCreate, loading: permissionLoading } = usePermission('meeting.booking.create');
+  const { hasPermission: canEdit } = usePermission('meeting.booking.edit.own');
+  const { hasPermission: canCancelOwn } = usePermission('meeting.booking.cancel.own');
+  const { hasPermission: canCancelAll } = usePermission('meeting.booking.cancel.all');
+
   // 從 URL 參數取得預設值（從時間表視圖快速預約）
   const urlRoom = searchParams.get('room') || '';
   const urlDate = searchParams.get('date') || '';
@@ -42,6 +50,7 @@ export default function BookingForm() {
   const [submitting, setSubmitting] = useState(false);
   const [rooms, setRooms] = useState([]);
   const [errorMsg, setErrorMsg] = useState('');
+  const [bookingUserId, setBookingUserId] = useState(null); // 保存預約的 user_id
   const [conflicts, setConflicts] = useState([]);
 
   // 計算預設結束時間（開始時間 + 1 小時）
@@ -104,6 +113,8 @@ export default function BookingForm() {
             booker_email: data.booker_email || '',
             booker_phone: data.booker_phone || '',
           });
+          // 保存預約的 user_id 用於權限檢查
+          setBookingUserId(data.user_id);
         }
         setLoading(false);
       } 
@@ -267,6 +278,24 @@ export default function BookingForm() {
     if (!confirm('確定要取消此預約嗎？')) return;
 
     try {
+      // 🔒 權限檢查：先查詢預約資料
+      const { data: booking, error: fetchError } = await supabase
+        .from('bookings')
+        .select('user_id')
+        .eq('id', id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // 檢查取消權限
+      const isOwnBooking = booking.user_id === user.id;
+      const canCancel = canCancelAll || (canCancelOwn && isOwnBooking);
+
+      if (!canCancel) {
+        alert('⚠️ 權限不足\n\n您沒有取消此預約的權限。');
+        return;
+      }
+
       const { error } = await supabase
         .from('bookings')
         .update({ status: 'cancelled' })
@@ -287,6 +316,57 @@ export default function BookingForm() {
       const time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
       timeOptions.push(time);
     }
+  }
+
+  // 權限載入狀態處理
+  if (permissionLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-amber-500 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">檢查權限中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 無權限處理
+  if (!isEditMode && !canCreate) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md text-center">
+          <Shield className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">無建立權限</h2>
+          <p className="text-gray-600 mb-6">您沒有建立會議室預約的權限</p>
+          <p className="text-sm text-gray-400 mb-6">請聯絡系統管理員申請 meeting.booking.create 權限</p>
+          <button
+            onClick={() => navigate(`${BASE_PATH}/dashboard`)}
+            className="w-full bg-amber-500 text-white px-6 py-2.5 rounded-xl hover:bg-amber-600 font-medium shadow-md transition-all"
+          >
+            返回總覽
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isEditMode && !canEdit) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md text-center">
+          <Shield className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">無編輯權限</h2>
+          <p className="text-gray-600 mb-6">您沒有編輯預約的權限</p>
+          <p className="text-sm text-gray-400 mb-6">請聯絡系統管理員申請 meeting.booking.edit.own 權限</p>
+          <button
+            onClick={() => navigate(`${BASE_PATH}/dashboard`)}
+            className="w-full bg-amber-500 text-white px-6 py-2.5 rounded-xl hover:bg-amber-600 font-medium shadow-md transition-all"
+          >
+            返回總覽
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (loading) {
@@ -535,7 +615,8 @@ export default function BookingForm() {
 
         {/* 提交按鈕 */}
         <div className="flex justify-between items-center pt-4 border-t border-stone-200">
-          {isEditMode && (
+          {/* 🔒 取消預約按鈕：需要取消權限 */}
+          {isEditMode && (canCancelAll || (canCancelOwn && bookingUserId === user?.id)) && (
             <button
               type="button"
               onClick={handleDelete}

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../../../../contexts/AuthContext';
+import { useUserRole } from '../../../../hooks/useUserRole';
 import logoSrc from '../../../../assets/logo.png';
 
 // 付款系統的基礎路徑
@@ -40,7 +41,8 @@ export default function Header() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef(null);
 
-  const { user, role } = useAuth();
+  const { user } = useAuth();
+  const { roleName } = useUserRole();
 
   // --- 新增：員工姓名狀態與抓取邏輯 ---
   const [employeeName, setEmployeeName] = useState(null);
@@ -112,17 +114,6 @@ export default function Header() {
       alert('登出發生錯誤，請稍後再試');
     }
   };
-
-  // 角色名稱對照
-  const roleName = {
-    'staff': '一般員工',
-    'unit_manager': '單位主管',
-    'accountant': '會計',
-    'audit_manager': '審核主管',
-    'cashier': '出納',
-    'boss': '放行主管',
-    'admin': '管理員'
-  }[role] || '訪客';
 
   // 輔助函式：產生連結樣式
   const getNavLinkClass = (active) => `

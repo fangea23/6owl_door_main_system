@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Plus, Search, Edit2, Trash2, Car, Filter } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Car, Filter, Shield } from 'lucide-react';
 import { useVehicles } from '../hooks/useVehicles';
+import { usePermission, PermissionGuard } from '../../../../hooks/usePermission';
 import toast from 'react-hot-toast';
 
 export const Vehicles = () => {
@@ -9,6 +10,12 @@ export const Vehicles = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState(null);
+
+  // RBAC 權限檢查
+  const { hasPermission: canView, loading: viewLoading } = usePermission('car.vehicle.view');
+  const { hasPermission: canCreate } = usePermission('car.vehicle.create');
+  const { hasPermission: canEdit } = usePermission('car.vehicle.edit');
+  const { hasPermission: canDelete } = usePermission('car.vehicle.delete');
 
   const [formData, setFormData] = useState({
     plate_number: '',
@@ -70,6 +77,16 @@ export const Vehicles = () => {
   });
 
   const handleOpenModal = (vehicle = null) => {
+    // RBAC 權限檢查
+    if (vehicle && !canEdit) {
+      toast.error('您沒有編輯車輛的權限');
+      return;
+    }
+    if (!vehicle && !canCreate) {
+      toast.error('您沒有新增車輛的權限');
+      return;
+    }
+
     if (vehicle) {
       setEditingVehicle(vehicle);
       setFormData(vehicle);
@@ -114,6 +131,12 @@ export const Vehicles = () => {
   };
 
   const handleDelete = async (id, platNumber) => {
+    // RBAC 權限檢查
+    if (!canDelete) {
+      toast.error('您沒有刪除車輛的權限');
+      return;
+    }
+
     if (!confirm(`確定要刪除車輛 ${platNumber} 嗎？`)) return;
 
     const result = await deleteVehicle(id);
@@ -124,12 +147,37 @@ export const Vehicles = () => {
     }
   };
 
-  if (loading) {
+  if (loading || viewLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">載入中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 權限檢查：必須有 car.vehicle.view 權限才能查看車輛清單
+  if (!canView) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md text-center border border-red-100">
+          <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Shield size={32} />
+          </div>
+          <h2 className="text-2xl font-bold text-stone-800 mb-2">無查看權限</h2>
+          <p className="text-gray-600 mb-4">您沒有查看車輛清單的權限</p>
+          <div className="bg-gray-50 p-4 rounded-lg text-left">
+            <p className="text-sm font-medium text-gray-700 mb-2">需要以下權限：</p>
+            <ul className="text-sm text-gray-600 space-y-1">
+              <li className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-rose-500 rounded-full"></span>
+                查看車輛清單 (car.vehicle.view)
+              </li>
+            </ul>
+          </div>
+          <p className="text-xs text-gray-500 mt-4">請聯絡系統管理員申請權限</p>
         </div>
       </div>
     );
@@ -143,13 +191,15 @@ export const Vehicles = () => {
           <h1 className="text-3xl font-bold text-gray-900">車輛管理</h1>
           <p className="text-gray-600 mt-1">管理公司所有車輛</p>
         </div>
-        <button
-          onClick={() => handleOpenModal()}
-          className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          新增車輛
-        </button>
+        <PermissionGuard permission="car.vehicle.create">
+          <button
+            onClick={() => handleOpenModal()}
+            className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            新增車輛
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* Filters */}
@@ -224,22 +274,28 @@ export const Vehicles = () => {
                 </div>
               </div>
 
-              <div className="flex gap-2 mt-4 pt-4 border-t border-gray-200">
-                <button
-                  onClick={() => handleOpenModal(vehicle)}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                >
-                  <Edit2 className="w-4 h-4" />
-                  編輯
-                </button>
-                <button
-                  onClick={() => handleDelete(vehicle.id, vehicle.plate_number)}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  刪除
-                </button>
-              </div>
+              {(canEdit || canDelete) && (
+                <div className="flex gap-2 mt-4 pt-4 border-t border-gray-200">
+                  {canEdit && (
+                    <button
+                      onClick={() => handleOpenModal(vehicle)}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                      編輯
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button
+                      onClick={() => handleDelete(vehicle.id, vehicle.plate_number)}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      刪除
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ))}

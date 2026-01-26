@@ -4,12 +4,17 @@ import {
   Car, Calendar, User, ChevronDown 
 } from 'lucide-react';
 import { useRentals } from '../hooks/useRentals';
+import { usePermission } from '../../../../hooks/usePermission';
 import toast from 'react-hot-toast';
 
 export const RentalsList = () => {
   const { rentals, loading, pickupVehicle, returnVehicle, fetchRentals } = useRentals(null);
   const [filter, setFilter] = useState('active'); // active, all, confirmed, in_progress, completed
   const [searchTerm, setSearchTerm] = useState('');
+
+  // RBAC 權限檢查
+  const { hasPermission: canPickup } = usePermission('car.rental.pickup');
+  const { hasPermission: canReturn } = usePermission('car.rental.return');
 
   // 狀態過濾器選項
   const tabs = [
@@ -40,6 +45,12 @@ export const RentalsList = () => {
 
   // 處理取車
   const handlePickup = async (rental) => {
+    // RBAC 權限檢查
+    if (!canPickup) {
+      toast.error('您沒有執行取車操作的權限');
+      return;
+    }
+
     if (window.confirm(`確認將鑰匙交給 ${rental.renter?.name} 嗎？\n車號：${rental.vehicle?.plate_number}`)) {
       const result = await pickupVehicle(rental.id);
       if (result.success) toast.success('取車成功');
@@ -49,6 +60,12 @@ export const RentalsList = () => {
 
   // 處理還車
   const handleReturn = async (rental) => {
+    // RBAC 權限檢查
+    if (!canReturn) {
+      toast.error('您沒有執行還車操作的權限');
+      return;
+    }
+
     if (window.confirm(`確認 ${rental.renter?.name} 已歸還車輛？`)) {
       const result = await returnVehicle(rental.id);
       if (result.success) toast.success('還車成功');
@@ -175,7 +192,7 @@ export const RentalsList = () => {
                       {getStatusBadge(rental.status)}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {rental.status === 'confirmed' && (
+                      {rental.status === 'confirmed' && canPickup && (
                         <button
                           onClick={() => handlePickup(rental)}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors shadow-sm"
@@ -184,8 +201,8 @@ export const RentalsList = () => {
                           確認取車
                         </button>
                       )}
-                      
-                      {rental.status === 'in_progress' && (
+
+                      {rental.status === 'in_progress' && canReturn && (
                         <button
                           onClick={() => handleReturn(rental)}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white text-xs font-medium rounded hover:bg-amber-700 transition-colors shadow-sm"
