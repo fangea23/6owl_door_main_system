@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react'; // 1. 引入 useEffect, useRef
 import { Link, useNavigate } from 'react-router-dom';
-import { Store, Plus, Edit2, Trash2, Search, Building2, ToggleLeft, ToggleRight, AlertCircle, User, LogOut, ChevronDown, Settings } from 'lucide-react';
+import { Store, Plus, Edit2, Trash2, Search, Building2, ToggleLeft, ToggleRight, AlertCircle, User, LogOut, ChevronDown, Settings, FileText, Shield } from 'lucide-react';
 import { useBrands } from '../hooks/useBrands';
 import { useStores } from '../hooks/useStores';
 import { useAuth } from '../AuthContext';
 import { supabase } from '../supabaseClient'; // 2. 引入 supabase
 import { usePermission } from '../../../../hooks/usePermission'; // 3. 引入權限 hook
+import LeaseManagement from '../components/LeaseManagement';
+import InsuranceManagement from '../components/InsuranceManagement';
 import logoSrc from '../../../../assets/logo.png';
 
 // 六扇門 Logo 組件
@@ -261,7 +263,7 @@ export default function Dashboard() {
                   <Store size={18} className="text-amber-600" />
                 </div>
                 <div className="hidden sm:block">
-                  <p className="text-sm font-bold text-stone-700">店舖管理</p>
+                  <p className="text-sm font-bold text-stone-700">門店管理</p>
                   <p className="text-[10px] text-stone-400 tracking-wider">STORE MANAGEMENT</p>
                 </div>
               </div>
@@ -626,6 +628,8 @@ export default function Dashboard() {
         <StoreDetailModal
           store={showStoreDetail}
           onClose={() => setShowStoreDetail(null)}
+          canEditStore={canEditStore}
+          canDeleteStore={canDeleteStore}
         />
       )}
     </div>
@@ -897,19 +901,31 @@ function StoreModal({ store, brandId, onClose, onSave }) {
   );
 }
 
-// 店舖詳細資訊 Modal 組件
-function StoreDetailModal({ store, onClose }) {
+// 店舖詳細資訊 Modal 組件（含租約與保險頁籤）
+function StoreDetailModal({ store, onClose, canEditStore, canDeleteStore }) {
+  const [activeTab, setActiveTab] = useState('info');
+
   if (!store) return null;
+
+  const tabs = [
+    { id: 'info', label: '基本資訊', icon: Store },
+    { id: 'lease', label: '租約管理', icon: FileText },
+    { id: 'insurance', label: '保險管理', icon: Shield },
+  ];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 p-4 sm:p-6 border-b border-stone-200 bg-gradient-to-r from-amber-500 to-red-500 flex items-center justify-between">
+      <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="p-4 sm:p-6 border-b border-stone-200 bg-gradient-to-r from-amber-500 to-red-500 flex items-center justify-between flex-shrink-0">
           <div>
             <h3 className="text-lg sm:text-xl font-bold text-white">
               {store.name}
             </h3>
-            <p className="text-sm text-white/90 mt-1">店舖詳細資訊</p>
+            <p className="text-sm text-white/90 mt-1">
+              {store.code && <code className="bg-white/20 px-2 py-0.5 rounded text-xs mr-2">{store.code}</code>}
+              門店詳細資訊
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -921,107 +937,155 @@ function StoreDetailModal({ store, onClose }) {
           </button>
         </div>
 
-        <div className="p-4 sm:p-6 space-y-6">
-          {/* 基本資訊 */}
-          <div className="bg-stone-50 rounded-lg p-4">
-            <h4 className="font-bold text-stone-800 mb-3 flex items-center gap-2">
-              <Store className="w-5 h-5 text-amber-600" />
-              基本資訊
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <div className="text-xs text-stone-500 mb-1">店舖名稱</div>
-                <div className="font-medium text-stone-900">{store.name}</div>
-              </div>
-              {store.code && (
-                <div>
-                  <div className="text-xs text-stone-500 mb-1">店舖代碼</div>
-                  <code className="bg-amber-50 px-3 py-1 rounded text-sm text-amber-700 font-bold">
-                    {store.code}
-                  </code>
-                </div>
-              )}
-              {store.store_type && (
-                <div>
-                  <div className="text-xs text-stone-500 mb-1">店家類型</div>
-                  <span className={`inline-block px-3 py-1 rounded text-sm font-medium ${
-                    store.store_type === 'direct'
-                      ? 'bg-blue-50 text-blue-700'
-                      : 'bg-green-50 text-green-700'
-                  }`}>
-                    {store.store_type === 'direct' ? '直營店' : '加盟店'}
-                  </span>
-                </div>
-              )}
-              <div>
-                <div className="text-xs text-stone-500 mb-1">狀態</div>
-                <span className={`inline-block px-3 py-1 rounded text-sm font-medium ${
-                  store.is_active
-                    ? 'bg-green-50 text-green-700'
-                    : 'bg-stone-100 text-stone-600'
-                }`}>
-                  {store.is_active ? '✓ 啟用中' : '✗ 已停用'}
-                </span>
-              </div>
-            </div>
+        {/* Tab 導航 */}
+        <div className="border-b border-stone-200 bg-stone-50 flex-shrink-0">
+          <div className="flex gap-1 p-2">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === tab.id
+                      ? 'bg-white text-amber-700 shadow-sm border border-amber-200'
+                      : 'text-stone-500 hover:text-stone-700 hover:bg-white/50'
+                  }`}
+                >
+                  <Icon size={16} />
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
+        </div>
 
-          {/* 日期資訊 */}
-          {(store.opening_date || store.closing_date) && (
-            <div className="bg-blue-50 rounded-lg p-4">
-              <h4 className="font-bold text-stone-800 mb-3">營業日期</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {store.opening_date && (
+        {/* 內容區域 */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+          {/* 基本資訊頁籤 */}
+          {activeTab === 'info' && (
+            <div className="space-y-6">
+              {/* 基本資訊 */}
+              <div className="bg-stone-50 rounded-lg p-4">
+                <h4 className="font-bold text-stone-800 mb-3 flex items-center gap-2">
+                  <Store className="w-5 h-5 text-amber-600" />
+                  基本資訊
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <div className="text-xs text-stone-500 mb-1">開店日期</div>
-                    <div className="font-medium text-stone-900">{store.opening_date}</div>
+                    <div className="text-xs text-stone-500 mb-1">店舖名稱</div>
+                    <div className="font-medium text-stone-900">{store.name}</div>
                   </div>
-                )}
-                {store.closing_date && (
+                  {store.code && (
+                    <div>
+                      <div className="text-xs text-stone-500 mb-1">店舖代碼</div>
+                      <code className="bg-amber-50 px-3 py-1 rounded text-sm text-amber-700 font-bold">
+                        {store.code}
+                      </code>
+                    </div>
+                  )}
+                  {store.store_type && (
+                    <div>
+                      <div className="text-xs text-stone-500 mb-1">店家類型</div>
+                      <span className={`inline-block px-3 py-1 rounded text-sm font-medium ${
+                        store.store_type === 'direct'
+                          ? 'bg-blue-50 text-blue-700'
+                          : 'bg-green-50 text-green-700'
+                      }`}>
+                        {store.store_type === 'direct' ? '直營店' : '加盟店'}
+                      </span>
+                    </div>
+                  )}
                   <div>
-                    <div className="text-xs text-stone-500 mb-1">關店日期</div>
-                    <div className="font-medium text-red-600">{store.closing_date}</div>
+                    <div className="text-xs text-stone-500 mb-1">狀態</div>
+                    <span className={`inline-block px-3 py-1 rounded text-sm font-medium ${
+                      store.is_active
+                        ? 'bg-green-50 text-green-700'
+                        : 'bg-stone-100 text-stone-600'
+                    }`}>
+                      {store.is_active ? '✓ 啟用中' : '✗ 已停用'}
+                    </span>
                   </div>
-                )}
+                </div>
               </div>
+
+              {/* 日期資訊 */}
+              {(store.opening_date || store.closing_date) && (
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <h4 className="font-bold text-stone-800 mb-3">營業日期</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {store.opening_date && (
+                      <div>
+                        <div className="text-xs text-stone-500 mb-1">開店日期</div>
+                        <div className="font-medium text-stone-900">{store.opening_date}</div>
+                      </div>
+                    )}
+                    {store.closing_date && (
+                      <div>
+                        <div className="text-xs text-stone-500 mb-1">關店日期</div>
+                        <div className="font-medium text-red-600">{store.closing_date}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 證號資訊 */}
+              {(store.labor_insurance_number || store.health_insurance_number || store.food_safety_certificate_number) && (
+                <div className="bg-green-50 rounded-lg p-4">
+                  <h4 className="font-bold text-stone-800 mb-3">證照資訊</h4>
+                  <div className="space-y-3">
+                    {store.labor_insurance_number && (
+                      <div>
+                        <div className="text-xs text-stone-500 mb-1">勞保證號</div>
+                        <code className="bg-white border border-blue-200 px-3 py-2 rounded text-sm text-blue-700 font-mono block">
+                          {store.labor_insurance_number}
+                        </code>
+                      </div>
+                    )}
+                    {store.health_insurance_number && (
+                      <div>
+                        <div className="text-xs text-stone-500 mb-1">健保證號</div>
+                        <code className="bg-white border border-green-200 px-3 py-2 rounded text-sm text-green-700 font-mono block">
+                          {store.health_insurance_number}
+                        </code>
+                      </div>
+                    )}
+                    {store.food_safety_certificate_number && (
+                      <div>
+                        <div className="text-xs text-stone-500 mb-1">食品安全證號</div>
+                        <code className="bg-white border border-purple-200 px-3 py-2 rounded text-sm text-purple-700 font-mono block">
+                          {store.food_safety_certificate_number}
+                        </code>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* 證號資訊 */}
-          {(store.labor_insurance_number || store.health_insurance_number || store.food_safety_certificate_number) && (
-            <div className="bg-green-50 rounded-lg p-4">
-              <h4 className="font-bold text-stone-800 mb-3">證照資訊</h4>
-              <div className="space-y-3">
-                {store.labor_insurance_number && (
-                  <div>
-                    <div className="text-xs text-stone-500 mb-1">勞保證號</div>
-                    <code className="bg-white border border-blue-200 px-3 py-2 rounded text-sm text-blue-700 font-mono block">
-                      {store.labor_insurance_number}
-                    </code>
-                  </div>
-                )}
-                {store.health_insurance_number && (
-                  <div>
-                    <div className="text-xs text-stone-500 mb-1">健保證號</div>
-                    <code className="bg-white border border-green-200 px-3 py-2 rounded text-sm text-green-700 font-mono block">
-                      {store.health_insurance_number}
-                    </code>
-                  </div>
-                )}
-                {store.food_safety_certificate_number && (
-                  <div>
-                    <div className="text-xs text-stone-500 mb-1">食品安全證號</div>
-                    <code className="bg-white border border-purple-200 px-3 py-2 rounded text-sm text-purple-700 font-mono block">
-                      {store.food_safety_certificate_number}
-                    </code>
-                  </div>
-                )}
-              </div>
-            </div>
+          {/* 租約管理頁籤 */}
+          {activeTab === 'lease' && (
+            <LeaseManagement
+              storeCode={store.code}
+              canEdit={canEditStore}
+              canDelete={canDeleteStore}
+            />
+          )}
+
+          {/* 保險管理頁籤 */}
+          {activeTab === 'insurance' && (
+            <InsuranceManagement
+              storeCode={store.code}
+              canEdit={canEditStore}
+              canDelete={canDeleteStore}
+            />
           )}
         </div>
 
-        <div className="sticky bottom-0 p-4 sm:p-6 border-t border-stone-200 bg-white">
+        {/* Footer */}
+        <div className="p-4 sm:p-6 border-t border-stone-200 bg-white flex-shrink-0">
           <button
             onClick={onClose}
             className="w-full px-4 py-2 bg-stone-600 text-white rounded-lg hover:bg-stone-700 transition-colors font-medium"

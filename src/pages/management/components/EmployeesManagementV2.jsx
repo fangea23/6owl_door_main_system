@@ -7,9 +7,10 @@ import { usePermission } from '../../../hooks/usePermission';
 import { supabase } from '../../../lib/supabase';
 import Badge, { StatusBadge, statusBadgeMap } from '../../../components/ui/Badge';
 import Modal from '../../../components/ui/Modal';
+import SearchableSelect from '../../../components/ui/SearchableSelect';
 import {
   UserPlus, Search, Loader2, Mail, Phone, Briefcase, Building2, User, Save, X,
-  Edit2, Trash2, Link as LinkIcon, Shield, Store, Filter, ChevronDown, Users
+  Edit2, Trash2, Link as LinkIcon, Shield, Store, Filter, ChevronDown, Users, Landmark
 } from 'lucide-react';
 
 // 組織類型
@@ -78,6 +79,12 @@ export default function EmployeesManagementV2() {
   const [showModal, setShowModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
 
+  // 銀行資料狀態
+  const [bankList, setBankList] = useState([]);
+  const [branchList, setBranchList] = useState([]);
+  const [fetchingBanks, setFetchingBanks] = useState(false);
+  const [fetchingBranches, setFetchingBranches] = useState(false);
+
   // 表單資料
   const [formData, setFormData] = useState({
     employee_id: '',
@@ -92,7 +99,60 @@ export default function EmployeesManagementV2() {
     employment_type_new: 'fulltime',
     status: 'active',
     hire_date: '',
+    // 銀行帳戶資訊
+    bank_name: '',
+    bank_code: '',
+    branch_name: '',
+    branch_code: '',
+    bank_account: '',
   });
+
+  // 載入銀行列表（從 payment_approval schema）
+  useEffect(() => {
+    const fetchBanks = async () => {
+      setFetchingBanks(true);
+      try {
+        const { data, error } = await supabase
+          .schema('payment_approval')
+          .from('banks')
+          .select('bank_code, bank_name')
+          .order('bank_code', { ascending: true });
+
+        if (data) setBankList(data);
+        if (error) console.error('Error fetching banks:', error);
+      } finally {
+        setFetchingBanks(false);
+      }
+    };
+    fetchBanks();
+  }, []);
+
+  // 根據銀行代碼載入分行列表（從 payment_approval schema）
+  useEffect(() => {
+    const fetchBranches = async () => {
+      if (!formData.bank_code) {
+        setBranchList([]);
+        return;
+      }
+
+      setFetchingBranches(true);
+      try {
+        // 使用 branches 表（有 branch_name 欄位）
+        const { data, error } = await supabase
+          .schema('payment_approval')
+          .from('branches')
+          .select('branch_code, branch_name')
+          .eq('bank_code', formData.bank_code)
+          .order('branch_code', { ascending: true });
+
+        if (data) setBranchList(data);
+        if (error) console.error('Error fetching branches:', error);
+      } finally {
+        setFetchingBranches(false);
+      }
+    };
+    fetchBranches();
+  }, [formData.bank_code]);
 
   // 重置表單
   const resetForm = () => {
@@ -109,6 +169,12 @@ export default function EmployeesManagementV2() {
       employment_type_new: 'fulltime',
       status: 'active',
       hire_date: '',
+      // 銀行帳戶資訊
+      bank_name: '',
+      bank_code: '',
+      branch_name: '',
+      branch_code: '',
+      bank_account: '',
     });
     setEditingEmployee(null);
   };
@@ -130,6 +196,12 @@ export default function EmployeesManagementV2() {
         employment_type_new: employee.employment_type_new || 'fulltime',
         status: employee.status || 'active',
         hire_date: employee.hire_date || '',
+        // 銀行帳戶資訊
+        bank_name: employee.bank_name || '',
+        bank_code: employee.bank_code || '',
+        branch_name: employee.branch_name || '',
+        branch_code: employee.branch_code || '',
+        bank_account: employee.bank_account || '',
       });
     } else {
       resetForm();
@@ -164,6 +236,12 @@ export default function EmployeesManagementV2() {
         phone: formData.phone || null,
         mobile: formData.mobile || null,
         hire_date: formData.hire_date || null,
+        // 銀行帳戶資訊
+        bank_name: formData.bank_name || null,
+        bank_code: formData.bank_code || null,
+        branch_name: formData.branch_name || null,
+        branch_code: formData.branch_code || null,
+        bank_account: formData.bank_account || null,
       };
 
       let result;
@@ -712,6 +790,112 @@ export default function EmployeesManagementV2() {
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
+          </div>
+
+          {/* 銀行帳戶資訊 */}
+          <div className="border-t border-gray-200 pt-4 mt-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Landmark size={18} className="text-green-600" />
+              <h3 className="font-semibold text-gray-700">銀行帳戶（代墊款匯款用）</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {/* 銀行選擇（可搜尋） */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex justify-between items-center">
+                  <span>銀行</span>
+                  {fetchingBanks && <span className="text-blue-500 flex items-center text-xs"><Loader2 className="animate-spin h-3 w-3 mr-1" />載入中...</span>}
+                </label>
+                <SearchableSelect
+                  options={bankList.map(bank => ({
+                    value: bank.bank_code,
+                    label: bank.bank_name,
+                    subLabel: bank.bank_code
+                  }))}
+                  value={formData.bank_code}
+                  onChange={(value) => {
+                    const selectedBank = bankList.find(b => b.bank_code === value);
+                    setFormData(prev => ({
+                      ...prev,
+                      bank_name: selectedBank ? selectedBank.bank_name : '',
+                      bank_code: value,
+                      branch_name: '',
+                      branch_code: ''
+                    }));
+                  }}
+                  placeholder="請選擇或搜尋銀行"
+                  loading={fetchingBanks}
+                  loadingText="載入銀行資料中..."
+                  emptyText="無銀行資料"
+                />
+              </div>
+
+              {/* 分行選擇（可搜尋） */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex justify-between items-center">
+                  <span>分行</span>
+                  {fetchingBranches && <span className="text-blue-500 flex items-center text-xs"><Loader2 className="animate-spin h-3 w-3 mr-1" />查詢中...</span>}
+                </label>
+                {branchList.length > 0 ? (
+                  <SearchableSelect
+                    options={branchList.map(branch => ({
+                      value: branch.branch_name,
+                      label: branch.branch_name,
+                      subLabel: branch.branch_code || ''
+                    }))}
+                    value={formData.branch_name}
+                    onChange={(value) => {
+                      const selectedBranch = branchList.find(b => b.branch_name === value);
+                      setFormData(prev => ({
+                        ...prev,
+                        branch_name: value,
+                        branch_code: selectedBranch ? selectedBranch.branch_code : ''
+                      }));
+                    }}
+                    placeholder="請選擇或搜尋分行"
+                    loading={fetchingBranches}
+                    loadingText="查詢分行資料中..."
+                    emptyText="無分行資料"
+                    allowManualInput={true}
+                    manualInputPlaceholder="請手動輸入分行名稱"
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    placeholder={!formData.bank_code ? "請先選擇銀行" : fetchingBranches ? "載入分行資料中..." : "查無分行資料，請手動輸入"}
+                    value={formData.branch_name}
+                    onChange={(e) => setFormData({ ...formData, branch_name: e.target.value })}
+                    disabled={!formData.bank_code}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100 disabled:text-gray-400"
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* 銀行帳號 */}
+            <div className="mt-3">
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">銀行帳號</label>
+              <input
+                type="text"
+                placeholder="請輸入銀行帳號"
+                value={formData.bank_account}
+                onChange={(e) => setFormData({ ...formData, bank_account: e.target.value.replace(/\D/g, '') })}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono tracking-wide"
+              />
+            </div>
+
+            {/* 顯示已選銀行資訊 */}
+            {formData.bank_code && (
+              <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm">
+                <div className="flex items-center gap-4 text-blue-700">
+                  <span><strong>銀行代碼：</strong>{formData.bank_code}</span>
+                  {formData.branch_code && <span><strong>分行代碼：</strong>{formData.branch_code}</span>}
+                </div>
+              </div>
+            )}
+
+            <p className="text-xs text-gray-500 mt-2">
+              💡 此銀行帳戶將用於代墊款系統，系統會自動帶入作為預設匯款帳戶
+            </p>
           </div>
 
           {/* 操作按鈕 */}
