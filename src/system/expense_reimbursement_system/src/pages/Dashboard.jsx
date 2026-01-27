@@ -30,14 +30,19 @@ import { usePermission, PermissionGuard } from '../../../../hooks/usePermission'
 const BASE_PATH = '/systems/expense-reimbursement';
 
 // --- 狀態與文字對照表 ---
+// 新流程：
+// 高金額 (≥30000): CEO → 審核主管 → 出納 → 放行主管決行
+// 低金額 (<30000): 放行主管初審（確認內容）→ 審核主管 → 出納 → 放行主管決行（確認出帳）
 const STATUS_MAP = {
-  'draft':                  { label: '草稿', color: 'bg-stone-100 text-stone-600 border-stone-200', step: 0 },
-  'pending_ceo':            { label: '待總經理簽核', color: 'bg-purple-50 text-purple-700 border-purple-100', step: 1 },
-  'pending_boss':           { label: '待放行主管簽核', color: 'bg-blue-50 text-blue-700 border-blue-100', step: 1 },
-  'pending_audit_manager':  { label: '待審核主管簽核', color: 'bg-amber-50 text-amber-700 border-amber-100', step: 2 },
-  'approved':               { label: '已核准', color: 'bg-emerald-50 text-emerald-700 border-emerald-100', step: 3 },
-  'rejected':               { label: '已駁回', color: 'bg-red-50 text-red-700 border-red-100', step: 0 },
-  'cancelled':              { label: '已取消', color: 'bg-stone-100 text-stone-400 border-stone-200', step: 0 },
+  'draft':                    { label: '草稿', color: 'bg-stone-100 text-stone-600 border-stone-200', step: 0 },
+  'pending_ceo':              { label: '待總經理簽核', color: 'bg-purple-50 text-purple-700 border-purple-100', step: 1 },
+  'pending_boss_preliminary': { label: '待放行主管初審', color: 'bg-indigo-50 text-indigo-700 border-indigo-100', step: 1 },
+  'pending_audit_manager':    { label: '待審核主管簽核', color: 'bg-amber-50 text-amber-700 border-amber-100', step: 2 },
+  'pending_cashier':          { label: '待出納簽核', color: 'bg-cyan-50 text-cyan-700 border-cyan-100', step: 3 },
+  'pending_boss':             { label: '待放行主管決行', color: 'bg-blue-50 text-blue-700 border-blue-100', step: 4 },
+  'approved':                 { label: '已核准', color: 'bg-emerald-50 text-emerald-700 border-emerald-100', step: 5 },
+  'rejected':                 { label: '已駁回', color: 'bg-red-50 text-red-700 border-red-100', step: 0 },
+  'cancelled':                { label: '已取消', color: 'bg-stone-100 text-stone-400 border-stone-200', step: 0 },
 };
 
 export default function Dashboard() {
@@ -51,13 +56,15 @@ export default function Dashboard() {
   const { hasPermission: canViewAll, loading: loadingViewAll } = usePermission('expense.view.all');
   const { hasPermission: canViewOwn, loading: loadingViewOwn } = usePermission('expense.view.own');
   const { hasPermission: canApproveCEO, loading: loadingCEO } = usePermission('expense.approve.ceo');
-  const { hasPermission: canApproveBoss, loading: loadingBoss } = usePermission('expense.approve.boss');
+  const { hasPermission: canApproveBossPreliminary, loading: loadingBossPreliminary } = usePermission('expense.approve.boss_preliminary');
   const { hasPermission: canApproveAudit, loading: loadingAudit } = usePermission('expense.approve.audit_manager');
+  const { hasPermission: canApproveCashier, loading: loadingCashier } = usePermission('expense.approve.cashier');
+  const { hasPermission: canApproveBoss, loading: loadingBoss } = usePermission('expense.approve.boss');
   const { hasPermission: canPrint } = usePermission('expense.print');
   const { hasPermission: canExport } = usePermission('expense.export');
 
   // 檢查權限是否都載入完成
-  const permissionsLoading = loadingViewAll || loadingViewOwn || loadingCEO || loadingBoss || loadingAudit;
+  const permissionsLoading = loadingViewAll || loadingViewOwn || loadingCEO || loadingBossPreliminary || loadingAudit || loadingCashier || loadingBoss;
 
   // 員工姓名
   const [employeeName, setEmployeeName] = useState('');
@@ -88,8 +95,13 @@ export default function Dashboard() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [batchProcessing, setBatchProcessing] = useState(false);
 
+  // 日期區間過濾 State
+  const [dateFilterStart, setDateFilterStart] = useState('');
+  const [dateFilterEnd, setDateFilterEnd] = useState('');
+  const [showDateFilter, setShowDateFilter] = useState(false);
+
   // 檢查用戶是否有任何審核權限
-  const hasAnyApprovalPermission = canApproveCEO || canApproveBoss || canApproveAudit;
+  const hasAnyApprovalPermission = canApproveCEO || canApproveBossPreliminary || canApproveAudit || canApproveCashier || canApproveBoss;
 
   // 視圖模式 - 初始設為 null，等權限載入完成後再決定
   const [viewMode, setViewMode] = useState(null);
@@ -187,22 +199,84 @@ export default function Dashboard() {
 
   // 資料篩選邏輯
   const filteredRequests = requests.filter(req => {
+    // 日期區間過濾
+    if (dateFilterStart || dateFilterEnd) {
+      const reqDate = req.application_date; // 格式: YYYY-MM-DD
+      if (dateFilterStart && reqDate < dateFilterStart) return false;
+      if (dateFilterEnd && reqDate > dateFilterEnd) return false;
+    }
+
     if (viewMode === 'all') return true;
 
     // 根據權限決定哪些狀態是我負責的
     const myResponsibilities = [];
     if (canApproveCEO) myResponsibilities.push('pending_ceo');
-    if (canApproveBoss) myResponsibilities.push('pending_boss');
+    if (canApproveBossPreliminary) myResponsibilities.push('pending_boss_preliminary');
     if (canApproveAudit) myResponsibilities.push('pending_audit_manager');
+    if (canApproveCashier) myResponsibilities.push('pending_cashier');
+    if (canApproveBoss) myResponsibilities.push('pending_boss');
 
     return myResponsibilities.includes(req.status);
   });
 
+  // 清除日期過濾
+  const clearDateFilter = () => {
+    setDateFilterStart('');
+    setDateFilterEnd('');
+  };
+
+  // 快速日期選擇
+  const setQuickDateFilter = (type) => {
+    const today = new Date();
+    const formatDate = (d) => d.toISOString().split('T')[0];
+
+    switch (type) {
+      case 'today':
+        setDateFilterStart(formatDate(today));
+        setDateFilterEnd(formatDate(today));
+        break;
+      case 'week':
+        const weekAgo = new Date(today);
+        weekAgo.setDate(today.getDate() - 7);
+        setDateFilterStart(formatDate(weekAgo));
+        setDateFilterEnd(formatDate(today));
+        break;
+      case 'month':
+        const monthAgo = new Date(today);
+        monthAgo.setMonth(today.getMonth() - 1);
+        setDateFilterStart(formatDate(monthAgo));
+        setDateFilterEnd(formatDate(today));
+        break;
+      case 'thisMonth':
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+        setDateFilterStart(formatDate(firstDay));
+        setDateFilterEnd(formatDate(today));
+        break;
+      case 'lastMonth':
+        const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+        setDateFilterStart(formatDate(lastMonthStart));
+        setDateFilterEnd(formatDate(lastMonthEnd));
+        break;
+      default:
+        break;
+    }
+  };
+
   const todoCount = requests.filter(req => {
+    // 日期區間過濾
+    if (dateFilterStart || dateFilterEnd) {
+      const reqDate = req.application_date;
+      if (dateFilterStart && reqDate < dateFilterStart) return false;
+      if (dateFilterEnd && reqDate > dateFilterEnd) return false;
+    }
+
     const myResponsibilities = [];
     if (canApproveCEO) myResponsibilities.push('pending_ceo');
-    if (canApproveBoss) myResponsibilities.push('pending_boss');
+    if (canApproveBossPreliminary) myResponsibilities.push('pending_boss_preliminary');
     if (canApproveAudit) myResponsibilities.push('pending_audit_manager');
+    if (canApproveCashier) myResponsibilities.push('pending_cashier');
+    if (canApproveBoss) myResponsibilities.push('pending_boss');
     return myResponsibilities.includes(req.status);
   }).length;
 
@@ -237,11 +311,13 @@ export default function Dashboard() {
 
     const currentStatus = statuses[0];
 
-    // 根據狀態檢查對應權限
+    // 根據狀態檢查對應權限（新流程：放行主管初審 → 審核主管 → 出納 → 放行主管決行）
     const statusPermissionMap = {
       'pending_ceo': { hasPermission: canApproveCEO, name: '總經理', nextStatus: 'pending_audit_manager' },
-      'pending_boss': { hasPermission: canApproveBoss, name: '放行主管', nextStatus: 'pending_audit_manager' },
-      'pending_audit_manager': { hasPermission: canApproveAudit, name: '審核主管', nextStatus: 'approved' },
+      'pending_boss_preliminary': { hasPermission: canApproveBossPreliminary, name: '放行主管（初審）', nextStatus: 'pending_audit_manager' },
+      'pending_audit_manager': { hasPermission: canApproveAudit, name: '審核主管', nextStatus: 'pending_cashier' },
+      'pending_cashier': { hasPermission: canApproveCashier, name: '出納', nextStatus: 'pending_boss' },
+      'pending_boss': { hasPermission: canApproveBoss, name: '放行主管（決行）', nextStatus: 'approved' },
     };
 
     const permissionCheck = statusPermissionMap[currentStatus];
@@ -262,6 +338,14 @@ export default function Dashboard() {
 
     try {
       const updates = Array.from(selectedIds).map(async (id) => {
+        // 先查詢該申請已有多少簽核紀錄，以計算 approval_order
+        const { data: existingApprovals } = await supabase
+          .from('expense_approvals')
+          .select('id')
+          .eq('request_id', id);
+
+        const approvalOrder = (existingApprovals?.length || 0) + 1;
+
         // 更新申請狀態
         const { error: updateError } = await supabase
           .from('expense_reimbursement_requests')
@@ -272,7 +356,9 @@ export default function Dashboard() {
 
         // 插入簽核紀錄
         const approvalType = currentStatus === 'pending_ceo' ? 'ceo' :
-                            currentStatus === 'pending_boss' ? 'boss' : 'audit_manager';
+                            currentStatus === 'pending_boss_preliminary' ? 'boss_preliminary' :
+                            currentStatus === 'pending_audit_manager' ? 'audit_manager' :
+                            currentStatus === 'pending_cashier' ? 'cashier' : 'boss';
 
         const { error: approvalError } = await supabase
           .from('expense_approvals')
@@ -280,6 +366,7 @@ export default function Dashboard() {
             request_id: id,
             approver_id: user.id,
             approval_type: approvalType,
+            approval_order: approvalOrder,
             status: 'approved',
             approved_at: new Date().toISOString(),
             comment: '批量核准'
@@ -315,11 +402,13 @@ export default function Dashboard() {
 
     const currentStatus = statuses[0];
 
-    // 根據狀態檢查對應權限
+    // 根據狀態檢查對應權限（新流程：放行主管初審 → 審核主管 → 出納 → 放行主管決行）
     const statusPermissionMap = {
       'pending_ceo': { hasPermission: canApproveCEO, name: '總經理' },
-      'pending_boss': { hasPermission: canApproveBoss, name: '放行主管' },
+      'pending_boss_preliminary': { hasPermission: canApproveBossPreliminary, name: '放行主管（初審）' },
       'pending_audit_manager': { hasPermission: canApproveAudit, name: '審核主管' },
+      'pending_cashier': { hasPermission: canApproveCashier, name: '出納' },
+      'pending_boss': { hasPermission: canApproveBoss, name: '放行主管（決行）' },
     };
 
     const permissionCheck = statusPermissionMap[currentStatus];
@@ -341,6 +430,14 @@ export default function Dashboard() {
 
     try {
       const updates = Array.from(selectedIds).map(async (id) => {
+        // 先查詢該申請已有多少簽核紀錄，以計算 approval_order
+        const { data: existingApprovals } = await supabase
+          .from('expense_approvals')
+          .select('id')
+          .eq('request_id', id);
+
+        const approvalOrder = (existingApprovals?.length || 0) + 1;
+
         // 更新申請狀態
         const { error: updateError } = await supabase
           .from('expense_reimbursement_requests')
@@ -351,7 +448,9 @@ export default function Dashboard() {
 
         // 插入駁回紀錄
         const approvalType = currentStatus === 'pending_ceo' ? 'ceo' :
-                            currentStatus === 'pending_boss' ? 'boss' : 'audit_manager';
+                            currentStatus === 'pending_boss_preliminary' ? 'boss_preliminary' :
+                            currentStatus === 'pending_audit_manager' ? 'audit_manager' :
+                            currentStatus === 'pending_cashier' ? 'cashier' : 'boss';
 
         const { error: approvalError } = await supabase
           .from('expense_approvals')
@@ -359,6 +458,7 @@ export default function Dashboard() {
             request_id: id,
             approver_id: user.id,
             approval_type: approvalType,
+            approval_order: approvalOrder,
             status: 'rejected',
             approved_at: new Date().toISOString(),
             comment: reason
@@ -444,35 +544,139 @@ export default function Dashboard() {
 
       {/* ================= Tabs (分頁籤) ================= */}
       {viewMode && (
-        <div className="flex gap-6 border-b border-stone-200 mb-6 overflow-x-auto">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 mb-6">
+          <div className="flex gap-6 overflow-x-auto">
+            <button
+              onClick={() => { setViewMode('todo'); setSelectedIds(new Set()); }}
+              className={`pb-3 px-1 text-sm font-bold transition-all flex items-center gap-2 relative whitespace-nowrap ${
+                viewMode === 'todo'
+                  ? 'text-amber-600 border-b-2 border-amber-600'
+                  : 'text-stone-400 hover:text-stone-600'
+              }`}
+            >
+              <CheckSquare size={18} />
+              待我簽核
+              {todoCount > 0 && (
+                <span className="ml-1 bg-amber-500 text-white text-[10px] px-1.5 py-0.5 rounded-full shadow-sm">
+                  {todoCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => { setViewMode('all'); setSelectedIds(new Set()); }}
+              className={`pb-3 px-1 text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+                viewMode === 'all'
+                  ? 'text-stone-800 border-b-2 border-stone-800'
+                  : 'text-stone-400 hover:text-stone-600'
+              }`}
+            >
+              <ListFilter size={18} />
+              歷史紀錄
+            </button>
+          </div>
+
+          {/* 日期過濾按鈕 */}
           <button
-            onClick={() => { setViewMode('todo'); setSelectedIds(new Set()); }}
-            className={`pb-3 px-1 text-sm font-bold transition-all flex items-center gap-2 relative whitespace-nowrap ${
-              viewMode === 'todo'
-                ? 'text-amber-600 border-b-2 border-amber-600'
-                : 'text-stone-400 hover:text-stone-600'
+            onClick={() => setShowDateFilter(!showDateFilter)}
+            className={`pb-3 sm:pb-0 px-3 py-1.5 text-sm font-medium rounded-lg transition-all flex items-center gap-2 whitespace-nowrap ${
+              (dateFilterStart || dateFilterEnd)
+                ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
             }`}
           >
-            <CheckSquare size={18} />
-            待我簽核
-            {todoCount > 0 && (
-              <span className="ml-1 bg-amber-500 text-white text-[10px] px-1.5 py-0.5 rounded-full shadow-sm">
-                {todoCount}
+            <Calendar size={16} />
+            {(dateFilterStart || dateFilterEnd) ? (
+              <span>
+                {dateFilterStart || '...'} ~ {dateFilterEnd || '...'}
               </span>
+            ) : (
+              '日期篩選'
             )}
           </button>
+        </div>
+      )}
 
-          <button
-            onClick={() => { setViewMode('all'); setSelectedIds(new Set()); }}
-            className={`pb-3 px-1 text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
-              viewMode === 'all'
-                ? 'text-stone-800 border-b-2 border-stone-800'
-                : 'text-stone-400 hover:text-stone-600'
-            }`}
-          >
-            <ListFilter size={18} />
-            歷史紀錄
-          </button>
+      {/* ================= 日期過濾器面板 ================= */}
+      {showDateFilter && (
+        <div className="bg-white border border-stone-200 rounded-xl p-4 mb-6 shadow-sm animate-in slide-in-from-top-2">
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+            {/* 快速選擇按鈕 */}
+            <div className="flex flex-wrap gap-2">
+              <span className="text-xs text-stone-400 w-full mb-1">快速選擇：</span>
+              <button
+                onClick={() => setQuickDateFilter('today')}
+                className="px-3 py-1.5 text-xs bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-lg transition-colors"
+              >
+                今天
+              </button>
+              <button
+                onClick={() => setQuickDateFilter('week')}
+                className="px-3 py-1.5 text-xs bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-lg transition-colors"
+              >
+                近7天
+              </button>
+              <button
+                onClick={() => setQuickDateFilter('thisMonth')}
+                className="px-3 py-1.5 text-xs bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-lg transition-colors"
+              >
+                本月
+              </button>
+              <button
+                onClick={() => setQuickDateFilter('lastMonth')}
+                className="px-3 py-1.5 text-xs bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-lg transition-colors"
+              >
+                上個月
+              </button>
+              <button
+                onClick={() => setQuickDateFilter('month')}
+                className="px-3 py-1.5 text-xs bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-lg transition-colors"
+              >
+                近30天
+              </button>
+            </div>
+
+            {/* 自訂日期區間 */}
+            <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+              <span className="text-xs text-stone-400">自訂區間：</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={dateFilterStart}
+                  onChange={(e) => setDateFilterStart(e.target.value)}
+                  className="px-3 py-1.5 text-sm border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                />
+                <span className="text-stone-400">~</span>
+                <input
+                  type="date"
+                  value={dateFilterEnd}
+                  onChange={(e) => setDateFilterEnd(e.target.value)}
+                  className="px-3 py-1.5 text-sm border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                />
+              </div>
+            </div>
+
+            {/* 清除按鈕 */}
+            {(dateFilterStart || dateFilterEnd) && (
+              <button
+                onClick={clearDateFilter}
+                className="px-3 py-1.5 text-xs bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors flex items-center gap-1"
+              >
+                <XCircle size={14} />
+                清除
+              </button>
+            )}
+          </div>
+
+          {/* 篩選結果提示 */}
+          {(dateFilterStart || dateFilterEnd) && (
+            <div className="mt-3 pt-3 border-t border-stone-100 text-sm text-stone-500">
+              篩選結果：共 <span className="font-bold text-amber-600">{filteredRequests.length}</span> 筆資料
+              {viewMode === 'todo' && todoCount > 0 && (
+                <span className="ml-2">（待簽核 {todoCount} 筆）</span>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -691,9 +895,9 @@ export default function Dashboard() {
                           {statusInfo.label}
                         </span>
                         {/* 進度條 */}
-                        {statusInfo.step > 0 && statusInfo.step < 3 && (
+                        {statusInfo.step > 0 && statusInfo.step < 5 && (
                           <div className="mt-1 w-full bg-stone-200 rounded-full h-1 max-w-[80px] mx-auto opacity-50 group-hover:opacity-100 transition-opacity">
-                            <div className="bg-amber-400 h-1 rounded-full" style={{ width: `${(statusInfo.step / 3) * 100}%` }}></div>
+                            <div className="bg-amber-400 h-1 rounded-full" style={{ width: `${(statusInfo.step / 5) * 100}%` }}></div>
                           </div>
                         )}
                       </td>

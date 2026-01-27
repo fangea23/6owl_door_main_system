@@ -6,7 +6,9 @@
       "Bash(npm run build:*)",
       "mcp__812c4665-47b2-4627-9842-da8f24776497__deploy_edge_function",
       "Bash(grep:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "mcp__812c4665-47b2-4627-9842-da8f24776497__list_tables",
+      "mcp__812c4665-47b2-4627-9842-da8f24776497__list_projects"
     ]
   }
 }

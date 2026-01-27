@@ -91,6 +91,7 @@ export default function RequestDetail() {
     const { hasPermission: canManageFee } = usePermission('payment.fee.manage');
     const { hasPermission: canManageInvoice } = usePermission('payment.invoice.manage');
     const { hasPermission: canViewInvoice } = usePermission('payment.invoice.view');
+    const { hasPermission: canEditExpectedDate } = usePermission('payment.expected_date.edit'); // [新增] 預期放款日編輯權限
     // ✅ [新增] 會計補登發票用的 State
     const [accountantInvoice, setAccountantInvoice] = useState({
         hasInvoice: 'no_yet',
@@ -99,13 +100,17 @@ export default function RequestDetail() {
     });
     // ✅ [新增] 1. 控制發票編輯模式的 State
     const [isEditingInvoice, setIsEditingInvoice] = useState(false);
-    const [invoiceData, setInvoiceData] = useState({ 
-        has_invoice: 'no_yet', 
-        invoice_date: '', 
-        invoice_number: '' 
+    const [invoiceData, setInvoiceData] = useState({
+        has_invoice: 'no_yet',
+        invoice_date: '',
+        invoice_number: ''
     });
 
-    // ✅ [新增] 2. 當 request 載入時，同步發票資料到編輯狀態
+    // ✅ [新增] 預期放款日編輯相關 State
+    const [isEditingExpectedDate, setIsEditingExpectedDate] = useState(false);
+    const [expectedPaymentDate, setExpectedPaymentDate] = useState('');
+
+    // ✅ [新增] 2. 當 request 載入時，同步發票資料和預期放款日到編輯狀態
     useEffect(() => {
         if (request) {
             setInvoiceData({
@@ -113,6 +118,7 @@ export default function RequestDetail() {
                 invoice_date: request.invoice_date || '',
                 invoice_number: request.invoice_number || ''
             });
+            setExpectedPaymentDate(request.expected_payment_date || '');
         }
     }, [request]);
     // ✅ [新增] 3. 獨立儲存發票資料的函式 (不影響簽核狀態)
@@ -146,6 +152,30 @@ const handleSaveInvoice = async () => {
         setProcessing(false);
     }
 };
+
+    // ✅ [新增] 儲存預期放款日的函式
+    const handleSaveExpectedDate = async () => {
+        try {
+            setProcessing(true);
+
+            const { error } = await supabase
+                .from('payment_requests')
+                .update({ expected_payment_date: expectedPaymentDate || null })
+                .eq('id', id);
+
+            if (error) throw error;
+
+            // 更新本地顯示資料
+            setRequest(prev => ({ ...prev, expected_payment_date: expectedPaymentDate || null }));
+            setIsEditingExpectedDate(false);
+            alert('✅ 預期放款日已更新！');
+        } catch (err) {
+            console.error(err);
+            alert('更新失敗: ' + err.message);
+        } finally {
+            setProcessing(false);
+        }
+    };
     useEffect(() => {
         fetchRequestDetail();
         
@@ -409,6 +439,49 @@ const handleSaveInvoice = async () => {
                                         <div className="grid grid-cols-2 gap-4 print-grid-4">
                                             <InfoField label="申請日期" value={request.apply_date} />
                                             <InfoField label="付款日期" value={request.payment_date} />
+                                            {/* 預期放款日 */}
+                                            <div className="col-span-2 print-col-span-2 relative">
+                                                {canEditExpectedDate && !isEditingExpectedDate && (
+                                                    <button
+                                                        onClick={() => setIsEditingExpectedDate(true)}
+                                                        className="absolute right-0 top-0 text-blue-600 hover:text-blue-800 text-xs flex items-center gap-1 no-print bg-blue-50 px-2 py-1 rounded transition-opacity"
+                                                    >
+                                                        <Edit2 size={12} /> 修改
+                                                    </button>
+                                                )}
+                                                {isEditingExpectedDate ? (
+                                                    <div className="bg-white border-2 border-blue-100 rounded-lg p-3 shadow-sm animate-in fade-in">
+                                                        <div className="flex items-center justify-between border-b border-gray-100 pb-2 mb-2">
+                                                            <span className="text-sm font-bold text-blue-800">修改預期放款日</span>
+                                                            <button onClick={() => setIsEditingExpectedDate(false)} className="text-gray-400 hover:text-gray-600">
+                                                                <X size={16} />
+                                                            </button>
+                                                        </div>
+                                                        <div className="mb-3">
+                                                            <input
+                                                                type="date"
+                                                                value={expectedPaymentDate}
+                                                                onChange={(e) => setExpectedPaymentDate(e.target.value)}
+                                                                className="w-full p-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                                            />
+                                                        </div>
+                                                        <button
+                                                            onClick={handleSaveExpectedDate}
+                                                            disabled={processing}
+                                                            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded text-sm font-bold flex items-center justify-center gap-2 transition-colors"
+                                                        >
+                                                            {processing ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                                                            儲存
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <InfoField
+                                                        label="預期放款日"
+                                                        value={request.expected_payment_date || '未設定'}
+                                                        className={request.expected_payment_date ? '' : 'text-stone-400'}
+                                                    />
+                                                )}
+                                            </div>
                                         </div>
 
                                         {/* 多門店付款明細 */}
@@ -458,6 +531,49 @@ const handleSaveInvoice = async () => {
                                         <InfoField label="支付門店" value={request.store} />
                                         <InfoField label="申請日期" value={request.apply_date} />
                                         <InfoField label="付款日期" value={request.payment_date} />
+                                        {/* 預期放款日 */}
+                                        <div className="col-span-2 print-col-span-2 relative">
+                                            {canEditExpectedDate && !isEditingExpectedDate && (
+                                                <button
+                                                    onClick={() => setIsEditingExpectedDate(true)}
+                                                    className="absolute right-0 top-0 text-blue-600 hover:text-blue-800 text-xs flex items-center gap-1 no-print bg-blue-50 px-2 py-1 rounded transition-opacity"
+                                                >
+                                                    <Edit2 size={12} /> 修改
+                                                </button>
+                                            )}
+                                            {isEditingExpectedDate ? (
+                                                <div className="bg-white border-2 border-blue-100 rounded-lg p-3 shadow-sm animate-in fade-in">
+                                                    <div className="flex items-center justify-between border-b border-gray-100 pb-2 mb-2">
+                                                        <span className="text-sm font-bold text-blue-800">修改預期放款日</span>
+                                                        <button onClick={() => setIsEditingExpectedDate(false)} className="text-gray-400 hover:text-gray-600">
+                                                            <X size={16} />
+                                                        </button>
+                                                    </div>
+                                                    <div className="mb-3">
+                                                        <input
+                                                            type="date"
+                                                            value={expectedPaymentDate}
+                                                            onChange={(e) => setExpectedPaymentDate(e.target.value)}
+                                                            className="w-full p-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        />
+                                                    </div>
+                                                    <button
+                                                        onClick={handleSaveExpectedDate}
+                                                        disabled={processing}
+                                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded text-sm font-bold flex items-center justify-center gap-2 transition-colors"
+                                                    >
+                                                        {processing ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                                                        儲存
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <InfoField
+                                                    label="預期放款日"
+                                                    value={request.expected_payment_date || '未設定'}
+                                                    className={request.expected_payment_date ? '' : 'text-stone-400'}
+                                                />
+                                            )}
+                                        </div>
                                         <div className="col-span-2 print-col-span-2">
                                             <InfoField label="金額" value={`$${Math.round(Number(request.amount)).toLocaleString('zh-TW')}`} highlight />
                                         </div>

@@ -24,7 +24,10 @@ import {
   ThumbsUp,
   ThumbsDown,
   Edit2,
-  SkipForward
+  SkipForward,
+  Paperclip,
+  Image as ImageIcon,
+  ExternalLink
 } from 'lucide-react';
 
 const BASE_PATH = '/systems/expense-reimbursement';
@@ -33,29 +36,44 @@ const BASE_PATH = '/systems/expense-reimbursement';
 const STATUS_LABELS = {
   'draft': '草稿',
   'pending_ceo': '待總經理簽核',
-  'pending_boss': '待放行主管簽核',
+  'pending_boss_preliminary': '待放行主管初審',
   'pending_audit_manager': '待審核主管簽核',
+  'pending_cashier': '待出納簽核',
+  'pending_boss': '待放行主管決行',
   'approved': '已核准',
   'rejected': '已駁回',
   'cancelled': '已取消'
 };
 
 // --- 簽核流程配置 ---
+// 新流程：
+// 高金額 (≥30000): pending_ceo → pending_audit_manager → pending_cashier → pending_boss → approved
+// 低金額 (<30000): pending_boss_preliminary（確認內容）→ pending_audit_manager → pending_cashier → pending_boss（確認出帳）→ approved
 const WORKFLOW_CONFIG = {
   'pending_ceo': {
     label: '總經理',
     nextStatus: 'pending_audit_manager',
     permission: 'expense.approve.ceo'
   },
-  'pending_boss': {
-    label: '放行主管',
+  'pending_boss_preliminary': {
+    label: '放行主管（確認內容）',
     nextStatus: 'pending_audit_manager',
-    permission: 'expense.approve.boss'
+    permission: 'expense.approve.boss_preliminary'
   },
   'pending_audit_manager': {
     label: '審核主管',
-    nextStatus: 'approved',
+    nextStatus: 'pending_cashier',
     permission: 'expense.approve.audit_manager'
+  },
+  'pending_cashier': {
+    label: '出納',
+    nextStatus: 'pending_boss',
+    permission: 'expense.approve.cashier'
+  },
+  'pending_boss': {
+    label: '放行主管（確認出帳）',
+    nextStatus: 'approved',
+    permission: 'expense.approve.boss'
   }
 };
 
@@ -100,8 +118,10 @@ export default function RequestDetail() {
 
   // RBAC 權限檢查
   const { hasPermission: canApproveCEO } = usePermission('expense.approve.ceo');
-  const { hasPermission: canApproveBoss } = usePermission('expense.approve.boss');
+  const { hasPermission: canApproveBossPreliminary } = usePermission('expense.approve.boss_preliminary');
   const { hasPermission: canApproveAudit } = usePermission('expense.approve.audit_manager');
+  const { hasPermission: canApproveCashier } = usePermission('expense.approve.cashier');
+  const { hasPermission: canApproveBoss } = usePermission('expense.approve.boss');
   const { hasPermission: canEdit } = usePermission('expense.edit.own');
   const { hasPermission: canDelete } = usePermission('expense.delete.own');
   const { hasPermission: canCancel } = usePermission('expense.cancel');
@@ -240,17 +260,6 @@ export default function RequestDetail() {
       const config = WORKFLOW_CONFIG[request.status];
       if (!config) throw new Error("無效的簽核狀態");
 
-      // 🔒 防止重複簽核：檢查當前用戶是否已經簽核過這個申請
-      const existingApproval = approvals.find(
-        approval => approval.approver_id === user.id && approval.status === 'approved'
-      );
-
-      if (existingApproval) {
-        alert('⚠️ 您已經簽核過此申請，不能重複簽核。');
-        setProcessing(false);
-        return;
-      }
-
       const comment = prompt(`${config.label}簽核\n\n請輸入簽核意見（選填）：`);
       if (comment === null) {
         setProcessing(false);
@@ -301,16 +310,6 @@ export default function RequestDetail() {
   };
 
   const handleReject = async () => {
-    // 🔒 防止重複簽核：檢查當前用戶是否已經簽核過這個申請
-    const existingApproval = approvals.find(
-      approval => approval.approver_id === user.id
-    );
-
-    if (existingApproval) {
-      alert('⚠️ 您已經處理過此申請，不能重複簽核。');
-      return;
-    }
-
     const reason = prompt("請輸入駁回原因：");
     if (!reason?.trim()) return;
 
@@ -408,8 +407,10 @@ export default function RequestDetail() {
   // 檢查是否可以審核當前狀態
   const canApprove = currentConfig && (
     (request.status === 'pending_ceo' && canApproveCEO) ||
-    (request.status === 'pending_boss' && canApproveBoss) ||
-    (request.status === 'pending_audit_manager' && canApproveAudit)
+    (request.status === 'pending_boss_preliminary' && canApproveBossPreliminary) ||
+    (request.status === 'pending_audit_manager' && canApproveAudit) ||
+    (request.status === 'pending_cashier' && canApproveCashier) ||
+    (request.status === 'pending_boss' && canApproveBoss)
   );
 
   // 是否為申請人本人
@@ -580,25 +581,65 @@ export default function RequestDetail() {
               <div className="grid grid-cols-2 gap-4 print-grid-4">
                 <InfoField
                   label="撥款方式"
-                  value={request.payment_method === 'cash' ? '領現' : '匯款（次月12日）'}
+                  value="匯款（次月12日）"
                 />
-                {request.payment_method === 'transfer' && (
-                  <>
-                    <div className="col-span-2 print-col-span-4">
-                      <div className="bg-stone-50 rounded-lg p-4 space-y-3">
-                        <div className="grid grid-cols-2 gap-4 print-grid-4">
-                          <InfoField label="銀行名稱" value={request.bank_name} subValue={request.bank_code} />
-                          <InfoField label="分行名稱" value={request.branch_name} subValue={request.branch_code} />
-                          <div className="col-span-2 print-col-span-4">
-                            <InfoField label="帳號" value={request.account_number} highlight />
-                          </div>
-                        </div>
+                <div className="col-span-2 print-col-span-4">
+                  <div className="bg-stone-50 rounded-lg p-4 space-y-3">
+                    <div className="grid grid-cols-2 gap-4 print-grid-4">
+                      <InfoField label="銀行名稱" value={request.bank_name} subValue={request.bank_code} />
+                      <InfoField label="分行名稱" value={request.branch_name} subValue={request.branch_code} />
+                      <div className="col-span-2 print-col-span-4">
+                        <InfoField label="帳號" value={request.account_number} highlight />
                       </div>
                     </div>
-                  </>
-                )}
+                  </div>
+                </div>
               </div>
             </section>
+
+            {/* 五、附件 */}
+            {request.has_attachment && request.attachments && request.attachments.length > 0 && (
+              <section className="print-section">
+                <SectionHeader icon={Paperclip} title="五、附件" />
+                <div className="space-y-3">
+                  {/* 附件說明 */}
+                  {request.attachment_desc && (
+                    <div className="text-sm text-stone-600 bg-stone-50 rounded-lg px-4 py-2">
+                      📝 {request.attachment_desc}
+                    </div>
+                  )}
+
+                  {/* 附件列表 */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {request.attachments.map((attachment, idx) => {
+                      const isImage = attachment.type?.startsWith('image/');
+                      return (
+                        <a
+                          key={idx}
+                          href={attachment.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-lg p-3 hover:bg-blue-100 hover:border-blue-200 transition-colors group"
+                        >
+                          <div className="bg-blue-200 p-2 rounded-lg text-blue-700 group-hover:bg-blue-300">
+                            {isImage ? <ImageIcon size={20} /> : <FileText size={20} />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-blue-800 truncate">
+                              {attachment.name || `附件 ${idx + 1}`}
+                            </p>
+                            <p className="text-xs text-blue-500">
+                              {isImage ? '圖片' : 'PDF 文件'}
+                            </p>
+                          </div>
+                          <ExternalLink size={16} className="text-blue-400 group-hover:text-blue-600" />
+                        </a>
+                      );
+                    })}
+                  </div>
+                </div>
+              </section>
+            )}
 
             </div>
 
@@ -613,16 +654,22 @@ export default function RequestDetail() {
                   </h3>
                   <div className="space-y-4">
                     {(() => {
-                      // 判斷流程類型：高金額走 CEO，低金額走 Boss
+                      // 判斷流程類型：
+                      // 高金額 (≥30000): CEO → 審核主管 → 出納 → 放行主管決行
+                      // 低金額 (<30000): 放行主管初審（確認內容）→ 審核主管 → 出納 → 放行主管決行（確認出帳）
                       const isHighAmount = parseFloat(request.total_amount) >= 30000;
                       const steps = isHighAmount
                         ? [
                             { key: 'ceo', label: '總經理', statusKey: 'pending_ceo' },
-                            { key: 'audit_manager', label: '審核主管', statusKey: 'pending_audit_manager' }
+                            { key: 'audit_manager', label: '審核主管', statusKey: 'pending_audit_manager' },
+                            { key: 'cashier', label: '出納', statusKey: 'pending_cashier' },
+                            { key: 'boss', label: '放行主管（決行）', statusKey: 'pending_boss' }
                           ]
                         : [
-                            { key: 'boss', label: '放行主管', statusKey: 'pending_boss' },
-                            { key: 'audit_manager', label: '審核主管', statusKey: 'pending_audit_manager' }
+                            { key: 'boss_preliminary', label: '放行主管（確認內容）', statusKey: 'pending_boss_preliminary' },
+                            { key: 'audit_manager', label: '審核主管', statusKey: 'pending_audit_manager' },
+                            { key: 'cashier', label: '出納', statusKey: 'pending_cashier' },
+                            { key: 'boss', label: '放行主管（確認出帳）', statusKey: 'pending_boss' }
                           ];
 
                       return steps.map((step, idx) => {
@@ -794,8 +841,10 @@ export default function RequestDetail() {
                     <tr key={approval.id}>
                       <td className="border border-black p-2 text-[10pt] text-center">
                         {approval.approval_type === 'ceo' ? '總經理' :
-                         approval.approval_type === 'boss' ? '放行主管' :
+                         approval.approval_type === 'boss_preliminary' ? '放行主管（確認內容）' :
                          approval.approval_type === 'audit_manager' ? '審核主管' :
+                         approval.approval_type === 'cashier' ? '出納' :
+                         approval.approval_type === 'boss' ? '放行主管（確認出帳）' :
                          approval.approval_type}
                       </td>
                       <td className="border border-black p-2 text-[10pt] text-center">

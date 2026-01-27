@@ -16,6 +16,11 @@ import {
   Banknote,
   ChevronLeft,
   Loader2,
+  Paperclip,
+  UploadCloud,
+  Camera,
+  Image as ImageIcon,
+  X,
 } from 'lucide-react';
 
 // 員工代墊款系統的基礎路徑
@@ -47,6 +52,8 @@ export default function ApplyForm() {
   const [submitting, setSubmitting] = useState(false);
   const [userInfo, setUserInfo] = useState({ name: '', department: '', department_id: null });
   const [departments, setDepartments] = useState([]);
+  // 員工預設銀行帳戶（從 employees 表載入）
+  const [defaultBankInfo, setDefaultBankInfo] = useState(null);
 
   // 銀行與分行列表
   const [bankList, setBankList] = useState([]);
@@ -58,13 +65,20 @@ export default function ApplyForm() {
   const [formData, setFormData] = useState({
     application_date: new Date().toISOString().split('T')[0],
     department_id: null,
-    payment_method: 'transfer', // cash 或 transfer
+    // 移除領現功能，固定為匯款
     bank_name: '',
     bank_code: '',
     branch_name: '',
     branch_code: '',
     account_number: '',
+    // 附件功能
+    attachmentDesc: '',
   });
+
+  // 附件相關狀態
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [existingAttachments, setExistingAttachments] = useState([]);
+  const [isDragging, setIsDragging] = useState(false);
 
   // 費用明細（15行）
   const [items, setItems] = useState(
@@ -87,7 +101,7 @@ export default function ApplyForm() {
       try {
         const { data, error } = await supabase
           .from('employees')
-          .select('name, department_id, departments!employees_department_id_fkey(id, name)')
+          .select('name, department_id, bank_name, bank_code, branch_name, branch_code, bank_account, departments!employees_department_id_fkey(id, name)')
           .eq('user_id', user.id)
           .single();
 
@@ -99,9 +113,30 @@ export default function ApplyForm() {
             department: data.departments?.name || '',
             department_id: data.department_id,
           });
+
+          // 儲存員工預設銀行帳戶資訊
+          if (data.bank_name || data.bank_account) {
+            setDefaultBankInfo({
+              bank_name: data.bank_name || '',
+              bank_code: data.bank_code || '',
+              branch_name: data.branch_name || '',
+              branch_code: data.branch_code || '',
+              account_number: data.bank_account || '',
+            });
+          }
+
+          // 自動帶入員工預設銀行帳戶（如果有設定且非編輯模式）
           setFormData(prev => ({
             ...prev,
             department_id: data.department_id,
+            // 只有非編輯模式才自動帶入銀行資訊
+            ...(isEditMode ? {} : {
+              bank_name: data.bank_name || '',
+              bank_code: data.bank_code || '',
+              branch_name: data.branch_name || '',
+              branch_code: data.branch_code || '',
+              account_number: data.bank_account || '',
+            }),
           }));
         }
       } catch (err) {
@@ -110,7 +145,7 @@ export default function ApplyForm() {
     };
 
     fetchUserInfo();
-  }, [user]);
+  }, [user, isEditMode]);
 
   // 載入部門列表
   useEffect(() => {
@@ -316,7 +351,62 @@ export default function ApplyForm() {
     });
   };
 
-  // 移除草稿功能
+  // ==========================================
+  // 附件處理函數
+  // ==========================================
+
+  // 檔案拖曳處理
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    processFiles(files);
+  };
+
+  // 檔案選擇處理
+  const handleFileChange = (e) => {
+    const files = Array.from(e.target.files);
+    processFiles(files);
+    e.target.value = ''; // 清空以允許重複選擇同一檔案
+  };
+
+  // 處理檔案（驗證大小和類型）
+  const processFiles = (files) => {
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    const validFiles = files.filter(file => {
+      if (file.size > maxSize) {
+        alert(`檔案 "${file.name}" 超過 5MB 限制`);
+        return false;
+      }
+      if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+        alert(`檔案 "${file.name}" 格式不支援，請上傳圖片或 PDF`);
+        return false;
+      }
+      return true;
+    });
+
+    setSelectedFiles(prev => [...prev, ...validFiles]);
+  };
+
+  // 移除新選的檔案
+  const removeSelectedFile = (index) => {
+    setSelectedFiles(prev => prev.filter((_, idx) => idx !== index));
+  };
+
+  // 移除已存在的附件
+  const removeExistingAttachment = (index) => {
+    setExistingAttachments(prev => prev.filter((_, idx) => idx !== index));
+  };
 
   // 送出申請
   const handleSubmit = async () => {
@@ -347,14 +437,34 @@ export default function ApplyForm() {
         return;
       }
 
-      if (formData.payment_method === 'transfer') {
-        if (!formData.bank_name || !formData.account_number) {
-          alert('選擇匯款方式時，請填寫銀行名稱和帳號');
-          return;
-        }
+      // 驗證銀行資訊（固定為匯款）
+      if (!formData.bank_name || !formData.account_number) {
+        alert('請填寫銀行名稱和帳號');
+        return;
       }
 
       setSubmitting(true);
+
+      // 上傳新附件
+      let uploadedAttachments = [];
+      if (selectedFiles.length > 0) {
+        const uploadPromises = selectedFiles.map(async (file) => {
+          const fileName = `expense/${user.id}/${Date.now()}_${file.name}`;
+          const { error } = await supabase.storage.from('attachments').upload(fileName, file);
+          if (error) throw error;
+          const { data } = supabase.storage.from('attachments').getPublicUrl(fileName);
+          return { url: data.publicUrl, name: file.name, type: file.type };
+        });
+        uploadedAttachments = await Promise.all(uploadPromises);
+      }
+
+      // 合併現有和新上傳的附件
+      const finalAttachments = [...existingAttachments, ...uploadedAttachments];
+
+      // 決定初始狀態：
+      // 金額 >= 30000: pending_ceo → pending_audit_manager → pending_cashier → pending_boss → approved
+      // 金額 < 30000: pending_boss_preliminary（確認內容）→ pending_audit_manager → pending_cashier → pending_boss（確認出帳）→ approved
+      const initialStatus = totals.total >= 30000 ? 'pending_ceo' : 'pending_boss_preliminary';
 
       // 建立申請單
       const requestData = {
@@ -367,14 +477,18 @@ export default function ApplyForm() {
           六扇門: totals.六扇門,
           粥大福: totals.粥大福,
         }),
-        payment_method: formData.payment_method,
-        bank_name: formData.payment_method === 'transfer' ? formData.bank_name : null,
-        bank_code: formData.payment_method === 'transfer' ? formData.bank_code : null,
-        branch_name: formData.payment_method === 'transfer' ? formData.branch_name : null,
-        branch_code: formData.payment_method === 'transfer' ? formData.branch_code : null,
-        account_number: formData.payment_method === 'transfer' ? formData.account_number : null,
-        status: totals.total >= 30000 ? 'pending_ceo' : 'pending_boss',
+        payment_method: 'transfer', // 固定為匯款
+        bank_name: formData.bank_name,
+        bank_code: formData.bank_code,
+        branch_name: formData.branch_name,
+        branch_code: formData.branch_code,
+        account_number: formData.account_number,
+        status: initialStatus,
         submitted_at: new Date().toISOString(),
+        // 附件
+        has_attachment: finalAttachments.length > 0,
+        attachments: finalAttachments,
+        attachment_desc: formData.attachmentDesc || null,
       };
 
       // 準備明細資料
@@ -737,105 +851,208 @@ export default function ApplyForm() {
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
           <SectionTitle icon={CreditCard} title="撥款資訊" />
 
-          <div className="space-y-6">
-            {/* 撥款方式選擇 */}
-            <div>
-              <label className="block text-sm font-medium text-stone-700 mb-3">
-                撥款方式 *
-              </label>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="payment_method"
-                    value="cash"
-                    checked={formData.payment_method === 'cash'}
-                    onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
-                    className="w-4 h-4 text-amber-600 focus:ring-amber-500"
-                  />
-                  <span className="text-sm font-medium text-stone-700">領現</span>
+          <div className="bg-stone-50 rounded-lg p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="font-semibold text-stone-700 flex items-center gap-2">
+                <Banknote className="w-5 h-5 text-amber-600" />
+                匯款帳戶資訊
+                <span className="text-xs text-stone-500 font-normal ml-2">（次月12日撥款）</span>
+              </h4>
+              {/* 使用預設帳戶按鈕 */}
+              {defaultBankInfo && (
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({
+                    ...prev,
+                    bank_name: defaultBankInfo.bank_name,
+                    bank_code: defaultBankInfo.bank_code,
+                    branch_name: defaultBankInfo.branch_name,
+                    branch_code: defaultBankInfo.branch_code,
+                    account_number: defaultBankInfo.account_number,
+                  }))}
+                  className="px-3 py-1.5 text-sm bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-colors flex items-center gap-1.5"
+                >
+                  <User className="w-4 h-4" />
+                  使用預設帳戶
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-2">
+                  銀行 *
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="payment_method"
-                    value="transfer"
-                    checked={formData.payment_method === 'transfer'}
-                    onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
-                    className="w-4 h-4 text-amber-600 focus:ring-amber-500"
-                  />
-                  <span className="text-sm font-medium text-stone-700">匯款（次月12日）</span>
+                <SearchableSelect
+                  options={bankList.map(bank => ({
+                    value: bank.bank_code,
+                    label: bank.bank_name,
+                    subLabel: `(${bank.bank_code})`
+                  }))}
+                  value={formData.bank_code}
+                  onChange={handleBankChange}
+                  placeholder="請選擇銀行"
+                  disabled={fetchingBanks}
+                  loading={fetchingBanks}
+                  loadingText="載入銀行列表中..."
+                  emptyText="無可用銀行"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-2">
+                  分行
+                </label>
+                <SearchableSelect
+                  options={branchList.map(branch => ({
+                    value: branch.branch_code,
+                    label: branch.branch_name,
+                    subLabel: `(${branch.branch_code})`
+                  }))}
+                  value={formData.branch_code}
+                  onChange={handleBranchChange}
+                  placeholder="請選擇分行"
+                  disabled={!formData.bank_code || fetchingBranches}
+                  loading={fetchingBranches}
+                  loadingText="載入分行列表中..."
+                  emptyText={!formData.bank_code ? '請先選擇銀行' : '無可用分行'}
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-stone-700 mb-2">
+                  帳號 *
+                </label>
+                <input
+                  type="text"
+                  value={formData.account_number}
+                  onChange={(e) => setFormData({ ...formData, account_number: e.target.value })}
+                  className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  placeholder="請輸入完整帳號"
+                  required
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 附件上傳 */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+          <SectionTitle icon={Paperclip} title="附件上傳" />
+
+          {/* 上傳觸發區塊 */}
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`
+              border-2 border-dashed rounded-lg p-6 text-center transition-colors
+              ${isDragging ? 'border-amber-500 bg-amber-50' : 'border-stone-200 hover:border-amber-400 bg-white'}
+            `}
+          >
+            <div className="flex flex-col items-center gap-2">
+              <UploadCloud className={`h-10 w-10 ${isDragging ? 'text-amber-500' : 'text-gray-400'}`} />
+
+              <div className="text-sm text-gray-600">
+                <span className="font-semibold text-amber-600">點擊下方按鈕</span> 或將檔案拖曳至此
+              </div>
+
+              {/* 隱藏的 input: 一般檔案選取 (支援多選) */}
+              <input
+                id="file-upload"
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleFileChange}
+                accept="image/*,application/pdf"
+              />
+
+              {/* 隱藏的 input: 相機拍照 (手機專用) */}
+              <input
+                id="camera-upload"
+                type="file"
+                className="hidden"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFileChange}
+              />
+
+              {/* 按鈕群組 */}
+              <div className="flex gap-3 mt-2">
+                <label
+                  htmlFor="file-upload"
+                  className="cursor-pointer bg-white border border-stone-200 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-stone-50 flex items-center gap-2 shadow-sm transition-all"
+                >
+                  <FileText size={16} /> 瀏覽檔案
+                </label>
+
+                <label
+                  htmlFor="camera-upload"
+                  className="cursor-pointer bg-amber-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-amber-700 flex items-center gap-2 shadow-sm transition-all"
+                >
+                  <Camera size={16} /> 拍照上傳
                 </label>
               </div>
             </div>
+          </div>
 
-            {/* 匯款資訊（條件顯示） */}
-            {formData.payment_method === 'transfer' && (
-              <div className="bg-stone-50 rounded-lg p-4 space-y-4">
-                <h4 className="font-semibold text-stone-700 mb-3 flex items-center gap-2">
-                  <Banknote className="w-5 h-5 text-amber-600" />
-                  匯款帳戶資訊
-                </h4>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-stone-700 mb-2">
-                      銀行 *
-                    </label>
-                    <SearchableSelect
-                      options={bankList.map(bank => ({
-                        value: bank.bank_code,
-                        label: bank.bank_name,
-                        subLabel: `(${bank.bank_code})`
-                      }))}
-                      value={formData.bank_code}
-                      onChange={handleBankChange}
-                      placeholder="請選擇銀行"
-                      disabled={fetchingBanks}
-                      loading={fetchingBanks}
-                      loadingText="載入銀行列表中..."
-                      emptyText="無可用銀行"
-                      required={formData.payment_method === 'transfer'}
-                    />
+          {/* 檔案列表顯示區 */}
+          <div className="mt-4 space-y-2">
+            {/* A. 舊有檔案 (來自 DB) - 藍色樣式 */}
+            {existingAttachments.map((file, idx) => (
+              <div key={`old-${idx}`} className="bg-blue-50 border border-blue-100 rounded p-2 flex justify-between items-center">
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <div className="bg-blue-200 p-1.5 rounded text-blue-700">
+                    <FileText size={16} />
                   </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-stone-700 mb-2">
-                      分行
-                    </label>
-                    <SearchableSelect
-                      options={branchList.map(branch => ({
-                        value: branch.branch_code,
-                        label: branch.branch_name,
-                        subLabel: `(${branch.branch_code})`
-                      }))}
-                      value={formData.branch_code}
-                      onChange={handleBranchChange}
-                      placeholder="請選擇分行"
-                      disabled={!formData.bank_code || fetchingBranches}
-                      loading={fetchingBranches}
-                      loadingText="載入分行列表中..."
-                      emptyText={!formData.bank_code ? '請先選擇銀行' : '無可用分行'}
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-stone-700 mb-2">
-                      帳號 *
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.account_number}
-                      onChange={(e) => setFormData({ ...formData, account_number: e.target.value })}
-                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                      placeholder="請輸入完整帳號"
-                      required={formData.payment_method === 'transfer'}
-                    />
+                  <div className="min-w-0">
+                    <a href={file.url} target="_blank" rel="noreferrer" className="block text-sm text-blue-700 hover:underline truncate">
+                      {file.name || `附件 ${idx + 1}`}
+                    </a>
+                    <span className="text-xs text-blue-400">已儲存</span>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => removeExistingAttachment(idx)}
+                  className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                >
+                  <X size={18} />
+                </button>
               </div>
-            )}
+            ))}
+
+            {/* B. 新選檔案 (準備上傳) - 綠色樣式 */}
+            {selectedFiles.map((file, idx) => (
+              <div key={`new-${idx}`} className="bg-green-50 border border-green-100 rounded p-2 flex justify-between items-center">
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <div className="bg-green-200 p-1.5 rounded text-green-700">
+                    {file.type.startsWith('image/') ? <ImageIcon size={16} /> : <FileText size={16} />}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{file.name}</p>
+                    <p className="text-xs text-gray-500">{(file.size / 1024 / 1024).toFixed(2)} MB (準備上傳)</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeSelectedFile(idx)}
+                  className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            ))}
           </div>
+
+          <input
+            type="text"
+            value={formData.attachmentDesc}
+            onChange={(e) => setFormData({ ...formData, attachmentDesc: e.target.value })}
+            placeholder="附件備註說明 (選填)"
+            className="mt-3 w-full rounded-md border-stone-200 p-2 border text-sm focus:ring-amber-500 focus:border-amber-500"
+          />
         </div>
 
         {/* 送出按鈕 */}

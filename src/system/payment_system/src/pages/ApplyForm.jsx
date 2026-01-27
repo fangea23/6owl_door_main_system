@@ -102,6 +102,7 @@ export default function ApplyForm() {
         brandId: '',     // [新增] 存品牌 ID (給前端關聯查詢用)
         store: '',       // 存門店名稱
         paymentDate: '',
+        expectedPaymentDate: '', // [新增] 預期放款日
         payeeName: '',
         content: '',
         taxType: 'tax_included',
@@ -349,6 +350,7 @@ export default function ApplyForm() {
                 brand: old.brand,
                 store: old.store,
                 paymentDate: old.payment_date,
+                expectedPaymentDate: old.expected_payment_date || '',
                 payeeName: old.payee_name,
                 content: old.content,
                 taxType: old.tax_type,
@@ -595,6 +597,7 @@ export default function ApplyForm() {
                 brand: isMultiStore ? (paymentItems[0]?.brandName || '') : formData.brand,
                 store: isMultiStore ? (paymentItems[0]?.storeName || '') : formData.store,
                 payment_date: formData.paymentDate,
+                expected_payment_date: formData.expectedPaymentDate || null,
                 payee_name: formData.paymentMethod === 'transfer' ? formData.payeeName : '',
                 // 多門店模式下，content 由各項目組合（或使用共同說明）
                 content: isMultiStore
@@ -935,6 +938,21 @@ invoice_number: formData.invoiceNumber,
                                 />
                             </div>
 
+                            {/* 4. 預期放款日 */}
+                            <div className="col-span-1 flex flex-col">
+                                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                                    預期放款日 <span className="text-stone-400 text-xs font-normal">(選填)</span>
+                                </label>
+                                <input
+                                    type="date"
+                                    name="expectedPaymentDate"
+                                    value={formData.expectedPaymentDate}
+                                    onChange={handleChange}
+                                    className="w-full rounded-md border-stone-200 p-2.5 border bg-white focus:ring-2 focus:ring-red-500 outline-none shadow-sm"
+                                />
+                                <p className="text-xs text-stone-400 mt-1">您期望收到款項的日期</p>
+                            </div>
+
                             {/* ❌ Task 6: 移除這裡的「受款戶名」輸入框，移到下方第三區塊 */}
 
                             {/* 5. 付款內容說明 (跨兩欄) */}
@@ -1013,19 +1031,34 @@ invoice_number: formData.invoiceNumber,
                         ) : (
                             /* 多門店模式：使用 PaymentItemsInput 組件 */
                             <div className="space-y-4">
-                                {/* 付款日期 */}
-                                <div className="flex flex-col">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                                        付款日期 <span className="text-red-500">*</span>
-                                    </label>
-                                    <input
-                                        type="date"
-                                        name="paymentDate"
-                                        value={formData.paymentDate}
-                                        onChange={handleChange}
-                                        required
-                                        className="w-full md:w-1/2 rounded-md border-stone-200 p-2.5 border bg-white focus:ring-2 focus:ring-red-500 outline-none shadow-sm"
-                                    />
+                                {/* 付款日期與預期放款日 */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="flex flex-col">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                                            付款日期 <span className="text-red-500">*</span>
+                                        </label>
+                                        <input
+                                            type="date"
+                                            name="paymentDate"
+                                            value={formData.paymentDate}
+                                            onChange={handleChange}
+                                            required
+                                            className="w-full rounded-md border-stone-200 p-2.5 border bg-white focus:ring-2 focus:ring-red-500 outline-none shadow-sm"
+                                        />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                                            預期放款日 <span className="text-stone-400 text-xs font-normal">(選填)</span>
+                                        </label>
+                                        <input
+                                            type="date"
+                                            name="expectedPaymentDate"
+                                            value={formData.expectedPaymentDate}
+                                            onChange={handleChange}
+                                            className="w-full rounded-md border-stone-200 p-2.5 border bg-white focus:ring-2 focus:ring-red-500 outline-none shadow-sm"
+                                        />
+                                        <p className="text-xs text-stone-400 mt-1">您期望收到款項的日期</p>
+                                    </div>
                                 </div>
 
                                 {/* 多門店付款明細 */}
