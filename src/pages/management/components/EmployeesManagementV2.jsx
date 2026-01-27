@@ -166,6 +166,11 @@ export default function EmployeesManagementV2() {
         hire_date: formData.hire_date || null,
       };
 
+      // 編輯時移除 role 欄位，避免意外覆蓋（role 應透過權限管理頁面修改）
+      if (editingEmployee) {
+        delete cleanData.role;
+      }
+
       let result;
       if (editingEmployee) {
         result = await updateEmployee(editingEmployee.id, cleanData);

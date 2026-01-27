@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { Shield, Users, Key, Search, Plus, Edit2, Trash2, Save, X, Loader2, AlertCircle } from 'lucide-react';
+import { Shield, Users, Key, Search, Plus, Edit2, Trash2, Save, X, Loader2, AlertCircle, UserCheck, ChevronDown, ChevronUp } from 'lucide-react';
 import { usePermission } from '../../../hooks/usePermission';
 
 /**
@@ -11,7 +11,7 @@ export default function PermissionManagement() {
   // RBAC 權限檢查
   const { hasPermission: canManage, loading: permissionLoading } = usePermission('rbac.manage');
 
-  const [activeTab, setActiveTab] = useState('roles'); // roles, permissions, assignments
+  const [activeTab, setActiveTab] = useState('roles'); // roles, permissions, user-roles
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
 
@@ -19,6 +19,14 @@ export default function PermissionManagement() {
   const [roles, setRoles] = useState([]);
   const [permissions, setPermissions] = useState([]);
   const [rolePermissions, setRolePermissions] = useState([]);
+
+  // 用戶角色指派相關
+  const [employees, setEmployees] = useState([]);
+  const [userRoles, setUserRoles] = useState([]);
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [editingUserRoles, setEditingUserRoles] = useState(new Set());
+  const [employeeSearchTerm, setEmployeeSearchTerm] = useState('');
+  const [expandedCategories, setExpandedCategories] = useState(new Set(['level', 'approval', 'function_basic', 'function_admin', 'store']));
 
   // 搜尋
   const [searchTerm, setSearchTerm] = useState('');
@@ -30,6 +38,44 @@ export default function PermissionManagement() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'user-roles') {
+      fetchEmployeesAndUserRoles();
+    }
+  }, [activeTab]);
+
+  const fetchEmployeesAndUserRoles = async () => {
+    try {
+      // 獲取所有在職員工
+      const { data: employeesData, error: employeesError } = await supabase
+        .from('employees')
+        .select('id, user_id, employee_id, name, department:departments(name), position')
+        .eq('status', 'active')
+        .order('employee_id');
+
+      if (employeesError) throw employeesError;
+
+      // 獲取所有用戶角色關聯
+      const { data: userRolesData, error: userRolesError } = await supabase
+        .schema('rbac')
+        .from('user_roles')
+        .select(`
+          id,
+          user_id,
+          role_id,
+          roles!inner(id, code, name, category)
+        `);
+
+      if (userRolesError) throw userRolesError;
+
+      setEmployees(employeesData || []);
+      setUserRoles(userRolesData || []);
+    } catch (error) {
+      console.error('Error fetching employees and user roles:', error);
+      alert('載入員工資料失敗: ' + error.message);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -172,6 +218,133 @@ export default function PermissionManagement() {
     setEditingPermissions(new Set());
   };
 
+  // === 用戶角色指派相關函數 ===
+
+  // 獲取員工的角色ID列表
+  const getEmployeeRoleIds = (userId) => {
+    return userRoles
+      .filter(ur => ur.user_id === userId)
+      .map(ur => ur.role_id);
+  };
+
+  // 開始編輯員工角色
+  const startEditEmployeeRoles = (employee) => {
+    if (!employee.user_id) {
+      alert('此員工尚未綁定系統帳號，無法設定角色');
+      return;
+    }
+    setSelectedEmployee(employee);
+    const currentRoles = getEmployeeRoleIds(employee.user_id);
+    setEditingUserRoles(new Set(currentRoles));
+  };
+
+  // 切換角色選擇
+  const toggleUserRole = (roleId) => {
+    setEditingUserRoles(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(roleId)) {
+        newSet.delete(roleId);
+      } else {
+        newSet.add(roleId);
+      }
+      return newSet;
+    });
+  };
+
+  // 保存員工角色
+  const saveEmployeeRoles = async () => {
+    if (!selectedEmployee?.user_id) return;
+
+    setProcessing(true);
+    try {
+      // 1. 刪除該用戶的所有角色
+      const { error: deleteError } = await supabase
+        .schema('rbac')
+        .from('user_roles')
+        .delete()
+        .eq('user_id', selectedEmployee.user_id);
+
+      if (deleteError) throw deleteError;
+
+      // 2. 插入新的角色
+      if (editingUserRoles.size > 0) {
+        const insertData = Array.from(editingUserRoles).map(roleId => ({
+          user_id: selectedEmployee.user_id,
+          role_id: roleId
+        }));
+
+        const { error: insertError } = await supabase
+          .schema('rbac')
+          .from('user_roles')
+          .insert(insertData);
+
+        if (insertError) throw insertError;
+      }
+
+      alert(`✅ 已成功更新「${selectedEmployee.name}」的角色`);
+      setSelectedEmployee(null);
+      setEditingUserRoles(new Set());
+      await fetchEmployeesAndUserRoles();
+    } catch (error) {
+      console.error('Error saving user roles:', error);
+      alert('❌ 保存失敗: ' + error.message);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  // 取消編輯員工角色
+  const cancelEditEmployee = () => {
+    setSelectedEmployee(null);
+    setEditingUserRoles(new Set());
+  };
+
+  // 切換展開/收合分類
+  const toggleCategory = (category) => {
+    setExpandedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(category)) {
+        newSet.delete(category);
+      } else {
+        newSet.add(category);
+      }
+      return newSet;
+    });
+  };
+
+  // 篩選後的員工列表
+  const filteredEmployees = employees.filter(emp => {
+    if (!employeeSearchTerm) return true;
+    const searchLower = employeeSearchTerm.toLowerCase();
+    return (
+      emp.name?.toLowerCase().includes(searchLower) ||
+      emp.employee_id?.toLowerCase().includes(searchLower) ||
+      emp.department?.name?.toLowerCase().includes(searchLower) ||
+      emp.position?.toLowerCase().includes(searchLower)
+    );
+  });
+
+  // 按分類分組角色
+  const rolesByCategory = roles.reduce((acc, role) => {
+    const category = role.category || 'other';
+    if (!acc[category]) {
+      acc[category] = [];
+    }
+    acc[category].push(role);
+    return acc;
+  }, {});
+
+  // 角色分類名稱
+  const categoryNames = {
+    level: '🎯 職級角色（每人選一個）',
+    approval: '✅ 簽核角色（簽核流程權限）',
+    function_basic: '🔧 功能角色 - 基本（可複選）',
+    function_admin: '⚙️ 功能角色 - 管理（可複選）',
+    store: '🏪 門市角色（門市人員選用）',
+    system: '🔐 系統角色（最高權限）',
+    other: '📋 其他角色'
+  };
+
   // 按模組分組權限
   const permissionsByModule = permissions.reduce((acc, permission) => {
     if (!acc[permission.module]) {
@@ -282,7 +455,8 @@ export default function PermissionManagement() {
       {/* 分頁 */}
       <div className="flex gap-2 border-b border-gray-200">
         {[
-          { id: 'roles', label: '角色管理', icon: Users },
+          { id: 'user-roles', label: '用戶角色指派', icon: UserCheck },
+          { id: 'roles', label: '角色權限管理', icon: Users },
           { id: 'permissions', label: '權限列表', icon: Key },
         ].map(tab => (
           <button
@@ -520,6 +694,233 @@ export default function PermissionManagement() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 用戶角色指派 */}
+      {activeTab === 'user-roles' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* 左側：員工列表 */}
+          <div className="lg:col-span-1 space-y-4">
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <h3 className="font-bold text-gray-800 mb-4">員工列表</h3>
+
+              {/* 搜尋框 */}
+              <div className="relative mb-4">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  type="text"
+                  placeholder="搜尋員工姓名、編號、部門..."
+                  value={employeeSearchTerm}
+                  onChange={(e) => setEmployeeSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                />
+              </div>
+
+              <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                {filteredEmployees.map(employee => {
+                  const employeeRoleCount = employee.user_id ? getEmployeeRoleIds(employee.user_id).length : 0;
+                  const hasAccount = !!employee.user_id;
+                  return (
+                    <button
+                      key={employee.id}
+                      onClick={() => startEditEmployeeRoles(employee)}
+                      disabled={!hasAccount}
+                      className={`w-full text-left p-3 rounded-lg transition-colors ${
+                        selectedEmployee?.id === employee.id
+                          ? 'bg-blue-100 border-2 border-blue-500'
+                          : hasAccount
+                            ? 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
+                            : 'bg-gray-100 border-2 border-transparent opacity-50 cursor-not-allowed'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-gray-800 truncate">{employee.name}</div>
+                          <div className="text-xs text-gray-500 truncate">
+                            {employee.employee_id} · {employee.department?.name || '未設定'}
+                          </div>
+                          <div className="text-xs text-gray-400">{employee.position || ''}</div>
+                        </div>
+                        <div className="flex flex-col items-end ml-2">
+                          {hasAccount ? (
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              employeeRoleCount > 0
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-amber-100 text-amber-700'
+                            }`}>
+                              {employeeRoleCount} 個角色
+                            </span>
+                          ) : (
+                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-200 text-gray-500">
+                              無帳號
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 text-xs text-gray-500 text-center">
+                共 {filteredEmployees.length} 位員工
+                {employeeSearchTerm && ` (篩選自 ${employees.length} 位)`}
+              </div>
+            </div>
+          </div>
+
+          {/* 右側：角色選擇 */}
+          <div className="lg:col-span-2">
+            {selectedEmployee ? (
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-800">{selectedEmployee.name}</h3>
+                    <p className="text-sm text-gray-500">
+                      {selectedEmployee.employee_id} · {selectedEmployee.department?.name} · {selectedEmployee.position}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={saveEmployeeRoles}
+                      disabled={processing}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 disabled:opacity-50"
+                    >
+                      {processing ? (
+                        <><Loader2 size={16} className="animate-spin" /> 保存中...</>
+                      ) : (
+                        <><Save size={16} /> 保存角色</>
+                      )}
+                    </button>
+                    <button
+                      onClick={cancelEditEmployee}
+                      className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg flex items-center gap-2"
+                    >
+                      <X size={16} /> 取消
+                    </button>
+                  </div>
+                </div>
+
+                {/* 說明 */}
+                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="text-sm text-blue-800">
+                    <p className="font-medium mb-1">💡 多角色設計說明：</p>
+                    <ul className="list-disc list-inside space-y-1 text-blue-700">
+                      <li><strong>職級角色</strong>：決定基本權限等級，每人建議選一個</li>
+                      <li><strong>簽核角色</strong>：負責簽核流程的人員勾選對應角色</li>
+                      <li><strong>功能角色</strong>：依職務需要複選功能權限</li>
+                      <li><strong>門市角色</strong>：門市人員選用對應職位</li>
+                    </ul>
+                  </div>
+                </div>
+
+                {/* 已選角色摘要 */}
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                  <div className="text-sm font-medium text-gray-700 mb-2">
+                    已選擇 {editingUserRoles.size} 個角色：
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {editingUserRoles.size === 0 ? (
+                      <span className="text-gray-400 text-sm">尚未選擇任何角色</span>
+                    ) : (
+                      roles
+                        .filter(r => editingUserRoles.has(r.id))
+                        .map(role => (
+                          <span
+                            key={role.id}
+                            className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium"
+                          >
+                            {role.name}
+                          </span>
+                        ))
+                    )}
+                  </div>
+                </div>
+
+                {/* 按分類顯示角色 */}
+                <div className="space-y-4">
+                  {Object.entries(rolesByCategory).map(([category, categoryRoles]) => {
+                    const isExpanded = expandedCategories.has(category);
+                    const selectedInCategory = categoryRoles.filter(r => editingUserRoles.has(r.id)).length;
+
+                    return (
+                      <div key={category} className="border border-gray-200 rounded-lg overflow-hidden">
+                        <button
+                          onClick={() => toggleCategory(category)}
+                          className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="font-bold text-gray-800">
+                              {categoryNames[category] || category}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              selectedInCategory > 0
+                                ? 'bg-blue-100 text-blue-700'
+                                : 'bg-gray-200 text-gray-500'
+                            }`}>
+                              {selectedInCategory}/{categoryRoles.length}
+                            </span>
+                          </div>
+                          {isExpanded ? (
+                            <ChevronUp size={20} className="text-gray-400" />
+                          ) : (
+                            <ChevronDown size={20} className="text-gray-400" />
+                          )}
+                        </button>
+
+                        {isExpanded && (
+                          <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {categoryRoles.map(role => {
+                              const isSelected = editingUserRoles.has(role.id);
+                              return (
+                                <label
+                                  key={role.id}
+                                  className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-all ${
+                                    isSelected
+                                      ? 'bg-blue-50 border-2 border-blue-300'
+                                      : 'bg-gray-50 border-2 border-gray-200 hover:border-blue-200'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => toggleUserRole(role.id)}
+                                    className="mt-0.5 w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                                  />
+                                  <div className="flex-1">
+                                    <div className={`text-sm font-medium ${
+                                      isSelected ? 'text-blue-700' : 'text-gray-700'
+                                    }`}>
+                                      {role.name}
+                                    </div>
+                                    <div className="text-xs text-gray-500 mt-0.5">
+                                      {role.code}
+                                    </div>
+                                    {role.description && (
+                                      <div className="text-xs text-gray-400 mt-1">
+                                        {role.description}
+                                      </div>
+                                    )}
+                                  </div>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 p-12 text-center">
+                <UserCheck size={48} className="mx-auto text-gray-300 mb-3" />
+                <p className="text-gray-500 mb-2">請從左側選擇要設定角色的員工</p>
+                <p className="text-sm text-gray-400">員工需要有系統帳號才能設定角色</p>
+              </div>
+            )}
           </div>
         </div>
       )}

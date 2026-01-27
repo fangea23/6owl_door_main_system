@@ -34,11 +34,8 @@ import {
     Shield // 新增：權限提示圖示
 } from 'lucide-react';
 
-// ★ 設定：需要經過「單位主管」簽核的部門 (請依照你 DB 實際部門名稱修改)
-const DEPT_NEEDS_UNIT_MANAGER = 'SALES'; 
-
-// ★ 設定：視為「會計」角色的職稱關鍵字 (若申請人有這些字，會計關自動通過)
-const ACCOUNTANT_KEYWORDS = ['accountant'];
+// ★ 注意：單位主管判斷已改用部門設定 (departments.needs_unit_approval)
+// ★ 注意：會計判斷已改用 RBAC 權限 (payment.approve.accountant)
 
 const SectionTitle = ({ icon: Icon, title }) => (
     <div className="flex items-center gap-2 mb-4 pb-2 border-b border-stone-200 text-stone-700 font-bold text-lg">
@@ -70,7 +67,8 @@ export default function ApplyForm() {
     // --- 資料列表狀態 ---
     const [bankList, setBankList] = useState([]);
     const [branchList, setBranchList] = useState([]);
-    const [userInfo, setUserInfo] = useState({ name: '', department: '', role: '' });
+    const [userInfo, setUserInfo] = useState({ name: '', department: '', needsUnitApproval: false });
+    const [hasAccountantPermission, setHasAccountantPermission] = useState(false);
     // [新增] 品牌與門店列表狀態
     const [brandList, setBrandList] = useState([]);
     const [storeList, setStoreList] = useState([]);
@@ -145,28 +143,45 @@ export default function ApplyForm() {
             if (user) {
                 let finalName = user.user_metadata?.full_name || user.email?.split('@')[0] || '';
                 let dept = '';
-                let title = '';
-                let role = ''; // [新增] 角色變數
+                let needsUnitApproval = false;
 
                 try {
-                    // ✅ 修改：多抓取 'role' 欄位
+                    // 查詢員工資料和部門設定
                     const { data } = await supabase
-                        .from('employees_with_details') 
-                        .select('name, department_code, role') // <--- 這裡加上 role
+                        .from('employees_with_details')
+                        .select('name, department_code, department_id')
                         .eq('user_id', user.id)
                         .single();
-                    
+
                     if (data) {
                         finalName = data.name || finalName;
-                        dept = data.department_code || ''; 
-                        role = data.role || ''; // [新增] 存取 role
+                        dept = data.department_code || '';
+
+                        // 查詢部門是否需要單位主管簽核
+                        if (data.department_id) {
+                            const { data: deptData } = await supabase
+                                .from('departments')
+                                .select('needs_unit_approval')
+                                .eq('id', data.department_id)
+                                .single();
+                            needsUnitApproval = deptData?.needs_unit_approval || false;
+                        }
                     }
+
+                    // 檢查是否有會計簽核權限（用於自動跳過會計關卡）
+                    const { data: permData } = await supabase
+                        .schema('rbac')
+                        .rpc('user_has_permission', {
+                            p_user_id: user.id,
+                            p_permission_code: 'payment.approve.accountant'
+                        });
+                    setHasAccountantPermission(permData || false);
+
                 } catch (err) {
                     console.error('Error fetching employee info:', err);
                 }
 
-                // ✅ 修改：存入 state (請記得去 useState 補上 role 初始值，或者直接在這裡存)
-                setUserInfo({ name: finalName, department: dept, role: role });
+                setUserInfo({ name: finalName, department: dept, needsUnitApproval });
             }
         };
 
@@ -645,22 +660,18 @@ invoice_number: formData.invoiceNumber,
                 sign_boss_at: null, sign_boss_url: null,
                 current_step: 1
             };
-            const needsUnitManager = userInfo.department === DEPT_NEEDS_UNIT_MANAGER;
-            
+            // ✅ 改用部門設定判斷是否需要單位主管簽核
+            const needsUnitManager = userInfo.needsUnitApproval;
+
             // 設定初始狀態
             let initialStatus = needsUnitManager ? 'pending_unit_manager' : 'pending_accountant';
             let currentStep = needsUnitManager ? 1 : 2;
 
-            // ✅ 修正：轉小寫比對，避免大小寫問題
-            const isAccountant = ACCOUNTANT_KEYWORDS.some(k => 
-                userInfo.role?.toLowerCase().includes(k.toLowerCase())
-            );
-
-            // ✅ 邏輯：只有在「下一關是會計」且「我是會計」時才跳過
-            // 如果下一關是單位主管(initialStatus === 'pending_unit_manager')，則不跳過，必須先給主管簽
-            if (initialStatus === 'pending_accountant' && isAccountant) {
-                dbPayload.sign_accountant_at = new Date().toISOString(); 
-                initialStatus = 'pending_audit_manager'; 
+            // ✅ 改用 RBAC 權限判斷：申請人有會計簽核權限時，自動跳過會計關卡
+            // 只有在「下一關是會計」且「有會計簽核權限」時才跳過
+            if (initialStatus === 'pending_accountant' && hasAccountantPermission) {
+                dbPayload.sign_accountant_at = new Date().toISOString();
+                initialStatus = 'pending_audit_manager';
                 currentStep = 3;
             }
 

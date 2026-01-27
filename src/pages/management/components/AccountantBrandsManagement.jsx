@@ -21,16 +21,35 @@ export default function AccountantBrandsManagement() {
       setLoading(true);
       setError(null);
 
-      // 1. 獲取所有會計人員
-      const { data: accountantsData, error: accountantsError } = await supabase
-        .from('employees')
-        .select('id, employee_id, name, email')
-        .eq('role', 'accountant')
-        .eq('status', 'active')
-        .is('deleted_at', null)
-        .order('name');
+      // 1. 獲取所有擁有會計簽核權限的員工（透過 RBAC 角色 approval_accountant）
+      // 先取得擁有 approval_accountant 角色的 user_ids
+      const { data: accountantUsers, error: usersError } = await supabase
+        .schema('rbac')
+        .from('user_roles')
+        .select(`
+          user_id,
+          role:roles!inner(code)
+        `)
+        .eq('roles.code', 'approval_accountant');
 
-      if (accountantsError) throw accountantsError;
+      if (usersError) throw usersError;
+
+      const accountantUserIds = (accountantUsers || []).map(u => u.user_id);
+
+      // 再根據 user_ids 查詢員工資料
+      let accountantsData = [];
+      if (accountantUserIds.length > 0) {
+        const { data, error: accountantsError } = await supabase
+          .from('employees')
+          .select('id, employee_id, name, email, user_id')
+          .in('user_id', accountantUserIds)
+          .eq('status', 'active')
+          .is('deleted_at', null)
+          .order('name');
+
+        if (accountantsError) throw accountantsError;
+        accountantsData = data || [];
+      }
 
       // 2. 獲取所有品牌
       const { data: brandsData, error: brandsError } = await supabase
@@ -283,7 +302,7 @@ export default function AccountantBrandsManagement() {
           <Users size={48} className="mx-auto text-gray-300 mb-3" />
           <p className="text-gray-500 font-medium mb-2">目前沒有會計人員</p>
           <p className="text-sm text-gray-400">
-            請先在「員工管理」中新增角色為「會計」的員工
+            請先在「權限管理」中為員工指派「會計簽核」(approval_accountant) 角色
           </p>
         </div>
       ) : (

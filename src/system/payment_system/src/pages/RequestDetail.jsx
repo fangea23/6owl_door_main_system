@@ -69,7 +69,7 @@ export default function RequestDetail() {
     const { user, role } = useAuth();
     const [request, setRequest] = useState(null);
     const [paymentItems, setPaymentItems] = useState([]); // [新增] 多門店付款明細
-    const [applicantRole, setApplicantRole] = useState(null); // 用來判斷是否為會計申請
+    const [applicantHasAccountantPermission, setApplicantHasAccountantPermission] = useState(false); // 用來判斷申請人是否有會計權限
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState(false);
 
@@ -195,10 +195,15 @@ const handleSaveInvoice = async () => {
                 setPaymentItems([]);
             }
 
-            // 獲取申請人的角色 (用於判斷是否跳過會計關卡)
+            // 檢查申請人是否有會計簽核權限 (用於判斷是否跳過會計關卡)
             if (data.applicant_id) {
-                const { data: userData } = await supabase.from('employees').select('role').eq('user_id', data.applicant_id).single();
-                if (userData) setApplicantRole(userData.role);
+                const { data: permData } = await supabase
+                    .schema('rbac')
+                    .rpc('user_has_permission', {
+                        p_user_id: data.applicant_id,
+                        p_permission_code: 'payment.approve.accountant'
+                    });
+                setApplicantHasAccountantPermission(permData || false);
             }
 
             setRequest(data);
@@ -235,16 +240,16 @@ const handleSaveInvoice = async () => {
                 updatePayload.handling_fee = Number(cashierFee);
             }
 
-            // ★★★ 特殊邏輯：如果下一個關卡是「會計」，但申請人本身就是「會計」 ★★★
+            // ★★★ 特殊邏輯：如果下一個關卡是「會計」，但申請人有會計簽核權限 ★★★
             // 則自動跳過會計關卡，直接進入「審核主管」
-            if (nextStatus === 'pending_accountant' && applicantRole === 'accountant') {
+            if (nextStatus === 'pending_accountant' && applicantHasAccountantPermission) {
                 updatePayload.status = 'pending_audit_manager';
                 updatePayload.current_step = 4; // 對應 audit_manager 的 step
                 // 自動填寫會計的簽核欄位
                 updatePayload.sign_accountant_at = new Date().toISOString();
                 updatePayload.sign_accountant_url = 'AUTO_SKIPPED_SELF';
-                
-                alert('💡 檢測到申請人為會計，系統將自動跳過會計審核關卡。');
+
+                alert('💡 檢測到申請人具有會計簽核權限，系統將自動跳過會計審核關卡。');
             }
 
             const { error: dbError } = await supabase.from('payment_requests').update(updatePayload).eq('id', id);
