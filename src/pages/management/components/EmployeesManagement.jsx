@@ -48,6 +48,7 @@ export default function EmployeesManagement() {
 
   const [formData, setFormData] = useState({
     employee_id: '',
+    login_id: '', // 登入帳號（設定後不可修改）
     name: '',
     email: '',
     phone: '',
@@ -62,6 +63,7 @@ export default function EmployeesManagement() {
   const resetForm = () => {
     setFormData({
       employee_id: '',
+      login_id: '',
       name: '',
       email: '',
       phone: '',
@@ -100,8 +102,13 @@ export default function EmployeesManagement() {
     setProcessing(true);
 
     try {
+      // 新增員工時，若有設定 login_id，則同步到 login_id
+      // 若沒有設定 login_id，則使用 employee_id 作為 login_id
+      const loginId = formData.login_id || formData.employee_id;
+
       const cleanData = {
         ...formData,
+        login_id: loginId,
         department_id: formData.department_id || null,
         email: formData.email || null,
         phone: formData.phone || null,
@@ -137,17 +144,25 @@ export default function EmployeesManagement() {
     setProcessing(true);
 
     try {
-      // 🔧 移除內部使用的 _originalEmployeeId 欄位
-      const { _originalEmployeeId, ...formDataWithoutInternal } = formData;
+      // 🔧 移除內部使用的欄位
+      const { _hasLoginId, ...formDataWithoutInternal } = formData;
 
       const cleanData = {
-        ...formDataWithoutInternal,
-        department_id: formDataWithoutInternal.department_id || null,
+        employee_id: formDataWithoutInternal.employee_id,
+        name: formDataWithoutInternal.name,
         email: formDataWithoutInternal.email || null,
         phone: formDataWithoutInternal.phone || null,
         mobile: formDataWithoutInternal.mobile || null,
+        department_id: formDataWithoutInternal.department_id || null,
         position: formDataWithoutInternal.position || null,
+        role: formDataWithoutInternal.role,
+        status: formDataWithoutInternal.status,
       };
+
+      // 只有在尚未設定 login_id 時才更新它
+      if (!_hasLoginId) {
+        cleanData.login_id = formDataWithoutInternal.login_id || formDataWithoutInternal.employee_id;
+      }
 
       const result = await updateEmployee(editingId, cleanData);
 
@@ -167,7 +182,8 @@ export default function EmployeesManagement() {
   // 開始編輯
   const startEdit = (employee) => {
     setFormData({
-      employee_id: employee.employee_id || '', // 允許空值
+      employee_id: employee.employee_id || '', // 員工編號（可修改）
+      login_id: employee.login_id || '', // 登入帳號（不可修改）
       name: employee.name,
       email: employee.email || '',
       phone: employee.phone || '',
@@ -176,7 +192,7 @@ export default function EmployeesManagement() {
       position: employee.position || '',
       role: employee.role || 'user', // 確保有預設值
       status: employee.status,
-      _originalEmployeeId: employee.employee_id, // 記錄原始值
+      _hasLoginId: !!employee.login_id, // 記錄是否已有登入帳號
     });
     setEditingId(employee.id);
     setShowCreateForm(false);
@@ -331,28 +347,54 @@ const handleDelete = async (employeeId, employeeName, employeeRole) => { // 1. �
 
           <form onSubmit={editingId ? handleUpdate : handleCreate} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* 員工編號 (employee_id) - 永遠可修改 */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                   員工編號 *
-                  {editingId && !formData._originalEmployeeId && (
-                    <span className="ml-2 text-xs text-amber-600">(請填寫員工編號)</span>
-                  )}
-                  {editingId && formData._originalEmployeeId && (
-                    <span className="ml-2 text-xs text-gray-500">(已鎖定，無法修改)</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="A001"
+                  value={formData.employee_id}
+                  onChange={e => setFormData({ ...formData, employee_id: e.target.value })}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  行政用途，可隨時修改
+                </p>
+              </div>
+
+              {/* 登入帳號 (login_id) - 設定後不可修改 */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  登入帳號 *
+                  {editingId && formData._hasLoginId && (
+                    <span className="ml-2 text-xs text-gray-500">(已鎖定)</span>
                   )}
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="EMP001"
-                  value={formData.employee_id}
-                  onChange={e => setFormData({ ...formData, employee_id: e.target.value })}
-                  disabled={editingId && !!formData._originalEmployeeId}
+                  placeholder="A001"
+                  value={formData.login_id}
+                  onChange={e => setFormData({ ...formData, login_id: e.target.value })}
+                  disabled={editingId && formData._hasLoginId}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
-                {editingId && !formData._originalEmployeeId && (
+                {editingId && !formData._hasLoginId && (
                   <p className="mt-1 text-xs text-amber-600">
-                    此員工尚未設定員工編號，請在此輸入後保存。設定後將無法再修改。
+                    ⚠️ 尚未設定登入帳號，請設定後保存（設定後不可修改）
+                  </p>
+                )}
+                {editingId && formData._hasLoginId && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    用於系統登入，無法修改
+                  </p>
+                )}
+                {!editingId && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    用於系統登入，設定後不可修改
                   </p>
                 )}
               </div>
@@ -526,7 +568,10 @@ const handleDelete = async (employeeId, employeeName, employeeRole) => { // 1. �
                         </div>
                         <div>
                           <div className="font-bold text-gray-800">{employee.name}</div>
-                          <div className="text-xs text-gray-500">ID: {employee.employee_id}</div>
+                          <div className="text-xs text-gray-500">編號: {employee.employee_id}</div>
+                          {employee.login_id && employee.login_id !== employee.employee_id && (
+                            <div className="text-xs text-blue-500">登入: {employee.login_id}</div>
+                          )}
                         </div>
                       </div>
                     </td>

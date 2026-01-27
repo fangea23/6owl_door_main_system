@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfiles } from '../../../hooks/management/useProfiles';
+import { usePermission } from '../../../hooks/usePermission';
 import { supabase } from '../../../lib/supabase';
 import {
   UserPlus, Search, Loader2, Mail, Calendar, User, ChevronRight, Trash2, Shield, Save, BadgeCheck, Users
@@ -42,6 +43,11 @@ export default function ProfilesManagement() {
     updateProfileRole,
     deleteProfile,
   } = useProfiles();
+
+  // 細緻權限檢查
+  const { hasPermission: canCreate } = usePermission('profile.create');
+  const { hasPermission: canEdit } = usePermission('profile.edit');
+  const { hasPermission: canDelete } = usePermission('profile.delete');
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -197,18 +203,20 @@ export default function ProfilesManagement() {
           />
         </div>
 
-        {/* 新增按鈕 */}
-        <button
-          onClick={() => setShowCreateForm(!showCreateForm)}
-          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg transition-all flex items-center gap-2 whitespace-nowrap"
-        >
-          <UserPlus size={20} />
-          {showCreateForm ? '取消' : '新增帳號'}
-        </button>
+        {/* 新增按鈕 - 需要 profile.create 權限 */}
+        {canCreate && (
+          <button
+            onClick={() => setShowCreateForm(!showCreateForm)}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg transition-all flex items-center gap-2 whitespace-nowrap"
+          >
+            <UserPlus size={20} />
+            {showCreateForm ? '取消' : '新增帳號'}
+          </button>
+        )}
       </div>
 
       {/* 新增表單 */}
-      {showCreateForm && (
+      {showCreateForm && canCreate && (
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 animate-in fade-in slide-in-from-top-4 duration-300">
           <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
             <UserPlus size={20} />
@@ -417,32 +425,40 @@ export default function ProfilesManagement() {
                     {new Date(profile.created_at).toLocaleDateString('zh-TW')}
                   </td>
                   <td className="p-5 text-center">
-                    <select
-                      value={profile.role || ''}
-                      onChange={(e) => handleUpdateRole(profile.id, e.target.value)}
-                      disabled={isSelf || processing}
-                      className="bg-white border border-gray-300 text-gray-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <option value="">-- 請選擇 --</option>
-                      {roles.map(r => (
-                        <option key={r.code} value={r.code}>
-                          {r.name} (Lv.{r.level})
-                        </option>
-                      ))}
-                    </select>
+                    {canEdit ? (
+                      <select
+                        value={profile.role || ''}
+                        onChange={(e) => handleUpdateRole(profile.id, e.target.value)}
+                        disabled={isSelf || processing}
+                        className="bg-white border border-gray-300 text-gray-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <option value="">-- 請選擇 --</option>
+                        {roles.map(r => (
+                          <option key={r.code} value={r.code}>
+                            {r.name} (Lv.{r.level})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="text-gray-400 text-sm">-</span>
+                    )}
                   </td>
                   <td className="p-5 text-center">
-                    <button
-                      onClick={() => handleDeleteUser(profile.id, profile.full_name || profile.email, profile.role)}
-                      disabled={isSelf || processing || isAdmin}
-                      className={`p-2 rounded-full transition-colors ${isSelf || isAdmin
-                        ? 'text-gray-300 cursor-not-allowed'
-                        : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
-                        }`}
-                      title={isSelf ? "無法刪除自己" : isAdmin ? "系統管理員無法被刪除" : "刪除帳號"}
-                    >
-                      <Trash2 size={18} />
-                    </button>
+                    {canDelete ? (
+                      <button
+                        onClick={() => handleDeleteUser(profile.id, profile.full_name || profile.email, profile.role)}
+                        disabled={isSelf || processing || isAdmin}
+                        className={`p-2 rounded-full transition-colors ${isSelf || isAdmin
+                          ? 'text-gray-300 cursor-not-allowed'
+                          : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+                          }`}
+                        title={isSelf ? "無法刪除自己" : isAdmin ? "系統管理員無法被刪除" : "刪除帳號"}
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    ) : (
+                      <span className="text-gray-300">-</span>
+                    )}
                   </td>
                 </tr>
               );
@@ -478,7 +494,7 @@ export default function ProfilesManagement() {
                   </div>
                 </div>
 
-                {!isSelf && !isAdmin && (
+                {canDelete && !isSelf && !isAdmin && (
                   <button
                     onClick={() => handleDeleteUser(profile.id, profile.full_name || profile.email, profile.role)}
                     disabled={processing}
@@ -518,22 +534,24 @@ export default function ProfilesManagement() {
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-gray-100">
-                <label className="text-xs font-bold text-gray-500 mb-1 block">變更權限</label>
-                <select
-                  value={profile.role || ''}
-                  onChange={(e) => handleUpdateRole(profile.id, e.target.value)}
-                  disabled={isSelf || processing}
-                  className="w-full bg-white border border-gray-300 text-gray-700 py-2.5 px-3 rounded-lg focus:ring-2 focus:ring-blue-500 font-medium disabled:bg-gray-100"
-                >
-                  <option value="">-- 請選擇 --</option>
-                  {roles.map(r => (
-                    <option key={r.code} value={r.code}>
-                      {r.name} (Lv.{r.level})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {canEdit && (
+                <div className="pt-3 border-t border-gray-100">
+                  <label className="text-xs font-bold text-gray-500 mb-1 block">變更權限</label>
+                  <select
+                    value={profile.role || ''}
+                    onChange={(e) => handleUpdateRole(profile.id, e.target.value)}
+                    disabled={isSelf || processing}
+                    className="w-full bg-white border border-gray-300 text-gray-700 py-2.5 px-3 rounded-lg focus:ring-2 focus:ring-blue-500 font-medium disabled:bg-gray-100"
+                  >
+                    <option value="">-- 請選擇 --</option>
+                    {roles.map(r => (
+                      <option key={r.code} value={r.code}>
+                        {r.name} (Lv.{r.level})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           );
         })}

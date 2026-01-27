@@ -18,7 +18,7 @@ export default function SupervisorManagement() {
   const { stores, loading: storesLoading } = useStores();
   const { employees, loading: employeesLoading } = useEmployees();
   const { brands } = useBrands();
-  const { hasPermission: canEdit } = usePermission('employee.edit');
+  const { hasPermission: canManage } = usePermission('supervisor.manage');
 
   // 狀態
   const [supervisorAssignments, setSupervisorAssignments] = useState([]);
@@ -287,7 +287,7 @@ export default function SupervisorManagement() {
           />
         </div>
 
-        {canEdit && (
+        {canManage && (
           <select
             value=""
             onChange={(e) => e.target.value && handleQuickAssign(e.target.value)}
@@ -332,7 +332,7 @@ export default function SupervisorManagement() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {canEdit && (
+                  {canManage && (
                     <button
                       onClick={(e) => { e.stopPropagation(); openAssignModal(supervisor); }}
                       className="px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg flex items-center gap-1"
@@ -371,7 +371,7 @@ export default function SupervisorManagement() {
                             </div>
                           </div>
 
-                          {canEdit && (
+                          {canManage && (
                             <button
                               onClick={() => handleRemoveStore(store.assignment_id, store.name)}
                               disabled={processing}

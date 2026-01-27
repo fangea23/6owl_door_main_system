@@ -61,6 +61,7 @@ export const useEmployees = () => {
           email: employeeData.email,
           name: employeeData.name,
           employee_id: employeeData.employee_id,
+          login_id: employeeData.login_id, // 新增：登入帳號（設定後不可修改）
           department_id: employeeData.department_id,
           position: employeeData.position,
           role: employeeData.role,
