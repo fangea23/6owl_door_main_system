@@ -2,16 +2,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation} from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Loader2, Mail, Lock, X, CheckCircle, User, Building2 } from 'lucide-react';
+import { Loader2, Mail, X, CheckCircle, User } from 'lucide-react';
 import logoSrc from '../assets/logo.png';
 
 export default function Login() {
-  // 登入模式：'email' | 'employee'
-  const [loginMode, setLoginMode] = useState('employee');
-
+  // 統一帳號輸入（自動判斷員工編號或 Email）
   const [formData, setFormData] = useState({
-    email: '',
-    employeeId: '', // 員工編號
+    account: '', // 統一帳號欄位（員工編號或 Email）
     password: '',
   });
   const [error, setError] = useState('');
@@ -34,17 +31,10 @@ export default function Login() {
   // 載入時檢查是否有記住的帳號
   useEffect(() => {
     const rememberedAccount = localStorage.getItem('rememberedAccount');
-    const rememberedMode = localStorage.getItem('rememberedLoginMode');
     const isRemembered = localStorage.getItem('rememberMe') === 'true';
 
     if (isRemembered && rememberedAccount) {
-      if (rememberedMode === 'employee') {
-        setFormData(prev => ({ ...prev, employeeId: rememberedAccount }));
-        setLoginMode('employee');
-      } else {
-        setFormData(prev => ({ ...prev, email: rememberedAccount }));
-        setLoginMode('email');
-      }
+      setFormData(prev => ({ ...prev, account: rememberedAccount }));
       setRememberMe(true);
     }
   }, []);
@@ -64,24 +54,26 @@ export default function Login() {
     }
   }, [isAuthenticated, navigate, from]);
 
+  // 判斷輸入是否為 Email 格式
+  const isEmailFormat = (input) => {
+    return input.includes('@');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setIsSubmitting(true);
 
-    // 根據登入模式決定使用的帳號
-    let loginEmail;
-    let accountToRemember;
+    const accountInput = formData.account.trim();
 
-    if (loginMode === 'employee') {
-      // 員工編號模式：轉換為虛擬 email
-      const employeeId = formData.employeeId.toLowerCase().trim();
-      loginEmail = `${employeeId}@6owldoor.internal`;
-      accountToRemember = formData.employeeId;
+    // 自動判斷：含 @ 為 Email，否則為登入帳號 (login_id)
+    let loginEmail;
+    if (isEmailFormat(accountInput)) {
+      // Email 格式：直接使用
+      loginEmail = accountInput;
     } else {
-      // Email 模式：直接使用
-      loginEmail = formData.email;
-      accountToRemember = formData.email;
+      // 登入帳號格式：轉換為虛擬 email（使用 login_id）
+      loginEmail = `${accountInput.toLowerCase()}@6owldoor.internal`;
     }
 
     const result = await login({
@@ -92,12 +84,10 @@ export default function Login() {
     if (result.success) {
       // 處理記住我功能
       if (rememberMe) {
-        localStorage.setItem('rememberedAccount', accountToRemember);
-        localStorage.setItem('rememberedLoginMode', loginMode);
+        localStorage.setItem('rememberedAccount', accountInput);
         localStorage.setItem('rememberMe', 'true');
       } else {
         localStorage.removeItem('rememberedAccount');
-        localStorage.removeItem('rememberedLoginMode');
         localStorage.removeItem('rememberMe');
       }
 
@@ -106,9 +96,7 @@ export default function Login() {
       // 優化錯誤訊息
       let errorMsg = result.error || '登入失敗';
       if (errorMsg.includes('Invalid login credentials')) {
-        errorMsg = loginMode === 'employee'
-          ? '員工編號或密碼錯誤'
-          : '電子郵件或密碼錯誤';
+        errorMsg = '帳號或密碼錯誤';
       }
       setError(errorMsg);
     }
@@ -243,67 +231,28 @@ export default function Login() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
-              {/* 登入模式切換 */}
-              <div className="flex bg-stone-100 rounded-xl p-1">
-                <button
-                  type="button"
-                  onClick={() => setLoginMode('employee')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                    loginMode === 'employee'
-                      ? 'bg-white text-red-700 shadow-sm'
-                      : 'text-stone-500 hover:text-stone-700'
-                  }`}
-                >
-                  <User size={16} />
-                  員工編號
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLoginMode('email')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                    loginMode === 'email'
-                      ? 'bg-white text-red-700 shadow-sm'
-                      : 'text-stone-500 hover:text-stone-700'
-                  }`}
-                >
-                  <Mail size={16} />
-                  電子郵件
-                </button>
-              </div>
-
-              {/* 員工編號輸入（員工編號模式） */}
-              {loginMode === 'employee' && (
-                <div className="space-y-1 sm:space-y-1.5">
-                  <label className="text-xs sm:text-sm font-semibold text-stone-700 ml-1">員工編號</label>
+              {/* 統一帳號輸入 */}
+              <div className="space-y-1 sm:space-y-1.5">
+                <label className="text-xs sm:text-sm font-semibold text-stone-700 ml-1">帳號</label>
+                <div className="relative">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400">
+                    {isEmailFormat(formData.account) ? <Mail size={18} /> : <User size={18} />}
+                  </div>
                   <input
                     type="text"
-                    name="employeeId"
-                    value={formData.employeeId}
+                    name="account"
+                    value={formData.account}
                     onChange={handleInputChange}
-                    placeholder="例如：A001"
+                    placeholder="員工編號或 Email"
                     required
                     autoComplete="username"
-                    className="w-full px-4 sm:px-5 py-3 sm:py-3.5 text-sm sm:text-base bg-stone-50 border border-stone-200 rounded-xl text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all hover:bg-white"
+                    className="w-full pl-11 pr-4 sm:pr-5 py-3 sm:py-3.5 text-sm sm:text-base bg-stone-50 border border-stone-200 rounded-xl text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all hover:bg-white"
                   />
                 </div>
-              )}
-
-              {/* Email 輸入（Email 模式） */}
-              {loginMode === 'email' && (
-                <div className="space-y-1 sm:space-y-1.5">
-                  <label className="text-xs sm:text-sm font-semibold text-stone-700 ml-1">電子郵件</label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    placeholder="user@6owldoor.com"
-                    required
-                    autoComplete="email"
-                    className="w-full px-4 sm:px-5 py-3 sm:py-3.5 text-sm sm:text-base bg-stone-50 border border-stone-200 rounded-xl text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all hover:bg-white"
-                  />
-                </div>
-              )}
+                <p className="text-[10px] sm:text-xs text-stone-400 ml-1">
+                  例如：A001 或 user@company.com
+                </p>
+              </div>
 
               <div className="space-y-1 sm:space-y-1.5">
                 <label className="text-xs sm:text-sm font-semibold text-stone-700 ml-1">密碼</label>
@@ -397,9 +346,14 @@ export default function Login() {
               </div>
             ) : (
               <>
-                <p className="text-sm text-stone-600 mb-6 leading-relaxed">
+                <p className="text-sm text-stone-600 mb-4 leading-relaxed">
                   請輸入您的電子郵件地址，我們會將密碼重設連結發送至您的信箱。
                 </p>
+                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-xs text-amber-700">
+                    <strong>💡 提示：</strong>使用員工編號登入的同仁，如需重設密碼請聯繫 IT 部門。
+                  </p>
+                </div>
 
                 {forgotPasswordError && (
                   <div className="mb-5 p-3 sm:p-4 bg-red-50 border-l-4 border-red-500 rounded-r-lg flex items-start gap-2.5">

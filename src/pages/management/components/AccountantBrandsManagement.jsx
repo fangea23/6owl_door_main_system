@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
+import { usePermission } from '../../../hooks/usePermission';
 import { Briefcase, Users, Plus, X, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 
 /**
@@ -7,6 +8,9 @@ import { Briefcase, Users, Plus, X, Loader2, AlertCircle, CheckCircle } from 'lu
  * 管理會計人員負責的品牌分配
  */
 export default function AccountantBrandsManagement() {
+  // 細緻權限檢查
+  const { hasPermission: canManage } = usePermission('accountant_brand.manage');
+
   const [accountants, setAccountants] = useState([]);
   const [brands, setBrands] = useState([]);
   const [assignments, setAssignments] = useState([]);
@@ -360,14 +364,16 @@ export default function AccountantBrandsManagement() {
                           <span className="font-medium text-sm">
                             {String(brand.id).padStart(2, '0')} - {brand.name}
                           </span>
-                          <button
-                            onClick={() => handleRemoveBrand(accountant.id, brand.id)}
-                            disabled={processing}
-                            className="p-1 hover:bg-red-100 rounded transition-colors disabled:opacity-50"
-                            title="移除此品牌"
-                          >
-                            <X size={14} className="text-red-600" />
-                          </button>
+                          {canManage && (
+                            <button
+                              onClick={() => handleRemoveBrand(accountant.id, brand.id)}
+                              disabled={processing}
+                              className="p-1 hover:bg-red-100 rounded transition-colors disabled:opacity-50"
+                              title="移除此品牌"
+                            >
+                              <X size={14} className="text-red-600" />
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -377,8 +383,8 @@ export default function AccountantBrandsManagement() {
                     </div>
                   )}
 
-                  {/* 添加品牌 - 多選模式 */}
-                  {availableBrands.length > 0 && (
+                  {/* 添加品牌 - 多選模式 (需要 manage 權限) */}
+                  {canManage && availableBrands.length > 0 && (
                     <div className="pt-4 border-t border-gray-100">
                       <div className="flex items-center justify-between mb-3">
                         <label className="text-sm font-semibold text-gray-700">

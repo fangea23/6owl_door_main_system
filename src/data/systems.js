@@ -144,8 +144,8 @@ export const categories = [
       },
       {
         id: 'store-management',
-        name: '店舖管理系統',
-        description: '品牌與店舖資料管理',
+        name: '門店管理系統',
+        description: '品牌與門店資料管理，包含門市基本資料、證照資訊等',
         icon: '🏪',
         url: '/systems/store-management',
         status: 'active',

@@ -3,20 +3,24 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { supabase } from '../lib/supabase';
 import Header from '../components/Header';
-import { 
-  User, 
-  Shield, 
-  Bell, 
-  Camera, 
-  Lock, 
-  Eye, 
-  EyeOff, 
-  Check, 
+import {
+  User,
+  Shield,
+  Bell,
+  Camera,
+  Lock,
+  Eye,
+  EyeOff,
+  Check,
   AlertTriangle,
   Phone,
   Smartphone,
   Users,
-  Calendar
+  Calendar,
+  Landmark,
+  CreditCard,
+  Building2,
+  Loader2
 } from 'lucide-react';
 
 // ------------------------------------------------------------------
@@ -58,24 +62,82 @@ export default function Account() {
 
   // 表單狀態
   const [profileForm, setProfileForm] = useState({
-    name: '',           
-    phone: '',          
-    mobile: '',        
-    department: '',     
-    position: '',       
-    employeeId: '',     
-    hireDate: '',       
-    supervisor: '',     
-    emergencyName: '',  
-    emergencyPhone: '', 
-    emergencyRel: '',   
+    name: '',
+    phone: '',
+    mobile: '',
+    department: '',
+    position: '',
+    employeeId: '',
+    hireDate: '',
+    supervisor: '',
+    emergencyName: '',
+    emergencyPhone: '',
+    emergencyRel: '',
+    // 銀行帳戶資訊
+    bankCode: '',
+    bankName: '',
+    branchCode: '',
+    branchName: '',
+    bankAccount: '',
   });
+
+  // 銀行相關狀態
+  const [bankList, setBankList] = useState([]);
+  const [branchList, setBranchList] = useState([]);
+  const [fetchingBanks, setFetchingBanks] = useState(false);
+  const [fetchingBranches, setFetchingBranches] = useState(false);
 
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   });
+
+  // 載入銀行列表
+  useEffect(() => {
+    const fetchBanks = async () => {
+      setFetchingBanks(true);
+      try {
+        const { data, error } = await supabase
+          .schema('payment_approval')
+          .from('banks')
+          .select('bank_code, bank_name')
+          .order('bank_code', { ascending: true });
+
+        if (data) setBankList(data);
+        if (error) console.error('Error fetching banks:', error);
+      } finally {
+        setFetchingBanks(false);
+      }
+    };
+    fetchBanks();
+  }, []);
+
+  // 根據銀行代碼載入分行列表
+  useEffect(() => {
+    const fetchBranches = async () => {
+      if (!profileForm.bankCode) {
+        setBranchList([]);
+        return;
+      }
+
+      setFetchingBranches(true);
+      try {
+        const { data, error } = await supabase
+          .schema('payment_approval')
+          .from('branches')
+          .select('branch_code, branch_name')
+          .eq('bank_code', profileForm.bankCode)
+          .order('branch_code', { ascending: true });
+
+        if (data) setBranchList(data);
+        if (error) console.error('Error fetching branches:', error);
+      } finally {
+        setFetchingBranches(false);
+      }
+    };
+    fetchBranches();
+  }, [profileForm.bankCode]);
 
   // 初始化資料
   useEffect(() => {
@@ -92,6 +154,12 @@ export default function Account() {
         emergencyName: user.employee?.emergency_contact_name || '',
         emergencyPhone: user.employee?.emergency_contact_phone || '',
         emergencyRel: user.employee?.emergency_contact_relationship || '',
+        // 銀行帳戶資訊
+        bankCode: user.employee?.bank_code || '',
+        bankName: user.employee?.bank_name || '',
+        branchCode: user.employee?.branch_code || '',
+        branchName: user.employee?.branch_name || '',
+        bankAccount: user.employee?.bank_account || '',
       });
     }
   }, [user, loading]);
@@ -136,6 +204,12 @@ export default function Account() {
             emergency_contact_name: profileForm.emergencyName || null,
             emergency_contact_phone: profileForm.emergencyPhone || null,
             emergency_contact_relationship: profileForm.emergencyRel || null,
+            // 銀行帳戶資訊
+            bank_code: profileForm.bankCode || null,
+            bank_name: profileForm.bankName || null,
+            branch_code: profileForm.branchCode || null,
+            branch_name: profileForm.branchName || null,
+            bank_account: profileForm.bankAccount || null,
           })
           .eq('user_id', user.id);
         updates.push(employeeUpdate);
@@ -414,7 +488,113 @@ export default function Account() {
                       </div>
                     </div>
 
-                    {/* 第三區塊：公司資料 (唯讀) */}
+                    {/* 第三區塊：薪資帳戶 */}
+                    {user?.hasEmployeeRecord && (
+                      <div className="space-y-4 pt-4 border-t border-stone-100">
+                        <h4 className="text-sm font-bold text-stone-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                          <Landmark size={14} />
+                          薪資帳戶
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-stone-700 flex items-center gap-1">
+                              <Building2 size={14} /> 銀行
+                            </label>
+                            {isEditing ? (
+                              <div className="relative">
+                                <select
+                                  name="bankCode"
+                                  value={profileForm.bankCode}
+                                  onChange={(e) => {
+                                    const selectedBank = bankList.find(b => b.bank_code === e.target.value);
+                                    setProfileForm(prev => ({
+                                      ...prev,
+                                      bankCode: e.target.value,
+                                      bankName: selectedBank?.bank_name || '',
+                                      branchCode: '',
+                                      branchName: '',
+                                    }));
+                                  }}
+                                  className="w-full px-4 py-2.5 border border-stone-200 rounded-xl bg-stone-50 text-stone-800 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all appearance-none"
+                                >
+                                  <option value="">請選擇銀行</option>
+                                  {bankList.map(bank => (
+                                    <option key={bank.bank_code} value={bank.bank_code}>
+                                      {bank.bank_code} - {bank.bank_name}
+                                    </option>
+                                  ))}
+                                </select>
+                                {fetchingBanks && (
+                                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                    <Loader2 size={16} className="animate-spin text-stone-400" />
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="w-full px-4 py-2.5 border border-stone-200 rounded-xl bg-stone-50 text-stone-500">
+                                {profileForm.bankCode ? `${profileForm.bankCode} - ${profileForm.bankName}` : '未設定'}
+                              </div>
+                            )}
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-stone-700">分行</label>
+                            {isEditing ? (
+                              <div className="relative">
+                                <select
+                                  name="branchCode"
+                                  value={profileForm.branchCode}
+                                  onChange={(e) => {
+                                    const selectedBranch = branchList.find(b => b.branch_code === e.target.value);
+                                    setProfileForm(prev => ({
+                                      ...prev,
+                                      branchCode: e.target.value,
+                                      branchName: selectedBranch?.branch_name || '',
+                                    }));
+                                  }}
+                                  disabled={!profileForm.bankCode}
+                                  className="w-full px-4 py-2.5 border border-stone-200 rounded-xl bg-stone-50 text-stone-800 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all disabled:bg-stone-100 disabled:text-stone-400 appearance-none"
+                                >
+                                  <option value="">{profileForm.bankCode ? '請選擇分行' : '請先選擇銀行'}</option>
+                                  {branchList.map(branch => (
+                                    <option key={branch.branch_code} value={branch.branch_code}>
+                                      {branch.branch_code} - {branch.branch_name}
+                                    </option>
+                                  ))}
+                                </select>
+                                {fetchingBranches && (
+                                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                    <Loader2 size={16} className="animate-spin text-stone-400" />
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="w-full px-4 py-2.5 border border-stone-200 rounded-xl bg-stone-50 text-stone-500">
+                                {profileForm.branchCode ? `${profileForm.branchCode} - ${profileForm.branchName}` : '未設定'}
+                              </div>
+                            )}
+                          </div>
+                          <div className="space-y-1.5 md:col-span-2">
+                            <label className="text-sm font-semibold text-stone-700 flex items-center gap-1">
+                              <CreditCard size={14} /> 帳號
+                            </label>
+                            <input
+                              type="text"
+                              name="bankAccount"
+                              value={profileForm.bankAccount}
+                              onChange={handleProfileChange}
+                              disabled={!isEditing}
+                              placeholder="請輸入銀行帳號"
+                              className="w-full px-4 py-2.5 border border-stone-200 rounded-xl bg-stone-50 text-stone-800 disabled:bg-stone-50 disabled:text-stone-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-mono tracking-wider"
+                            />
+                          </div>
+                        </div>
+                        <p className="text-xs text-stone-400 mt-2">
+                          💡 請確認帳戶資訊正確，此帳戶將用於薪資撥款
+                        </p>
+                      </div>
+                    )}
+
+                    {/* 第四區塊：公司資料 (唯讀) */}
                     <div className="space-y-4 pt-4 border-t border-stone-100">
                        <h4 className="text-sm font-bold text-stone-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                          公司資料 <span className="text-xs font-normal text-stone-400 normal-case">(如需修改請聯繫 HR)</span>
@@ -480,6 +660,12 @@ export default function Account() {
                                     emergencyName: user.employee?.emergency_contact_name || '',
                                     emergencyPhone: user.employee?.emergency_contact_phone || '',
                                     emergencyRel: user.employee?.emergency_contact_relationship || '',
+                                    // 銀行帳戶資訊
+                                    bankCode: user.employee?.bank_code || '',
+                                    bankName: user.employee?.bank_name || '',
+                                    branchCode: user.employee?.branch_code || '',
+                                    branchName: user.employee?.branch_name || '',
+                                    bankAccount: user.employee?.bank_account || '',
                                 }));
                             }
                           }}

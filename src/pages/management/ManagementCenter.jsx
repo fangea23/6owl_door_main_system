@@ -2,14 +2,13 @@ import React, { useState, useEffect, useRef } from 'react'; // 1. 引入 useEffe
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useUserPermissions } from '../../hooks/usePermission'; // RBAC 權限系統
-import { Shield, Users, Building2, Briefcase, ChevronDown, Settings, LogOut, BadgeDollarSign, Key, Loader2, Store, UserCheck, Network } from 'lucide-react';
+import { Shield, Users, Building2, Briefcase, ChevronDown, Settings, LogOut, BadgeDollarSign, Key, Loader2, Store, UserCheck } from 'lucide-react';
 import ProfilesManagement from './components/ProfilesManagement';
 import EmployeesManagement from './components/EmployeesManagement';
 import EmployeesManagementV2 from './components/EmployeesManagementV2';
 import DepartmentsManagement from './components/DepartmentsManagement';
 import AccountantBrandsManagement from './components/AccountantBrandsManagement';
 import PermissionManagement from './components/PermissionManagement';
-import OrganizationManagement from './components/OrganizationManagement';
 import SupervisorManagement from './components/SupervisorManagement';
 import { supabase } from '../../lib/supabase.js'; // 2. 引入 supabase (請確認路徑是否正確，通常與 contexts 同層級或在 src 根目錄)
 import logoSrc from '../../assets/logo.png';
@@ -113,22 +112,17 @@ export default function ManagementCenter() {
   const permSet = new Set(permissions.map(p => p.permission_code));
 
   // 定義所有頁籤及其所需權限
+  // 注意：組織架構功能已移至「門店管理系統」，功能更完整
+  // 頁籤順序：常用功能在前，進階設定在後
+  // 權限說明：每個模組都有獨立的 view/create/edit/delete 權限
   const allTabs = [
     {
-      id: 'organization',
-      name: '組織架構',
-      icon: Network,
-      description: '管理品牌與門市組織架構，設定直營/加盟門市及聯絡資訊',
-      component: OrganizationManagement,
-      requiredPermission: 'employee.edit', // 需要編輯員工權限
-    },
-    {
-      id: 'supervisors',
-      name: '督導管理',
-      icon: UserCheck,
-      description: '管理區域督導與門市指派，設定督導負責的門市範圍',
-      component: SupervisorManagement,
-      requiredPermission: 'employee.edit', // 需要編輯員工權限
+      id: 'employees',
+      name: '員工資料',
+      icon: Briefcase,
+      description: '管理員工組織架構資訊，包含總部與門市人員',
+      component: EmployeesManagementV2,
+      requiredPermission: 'employee.view', // 只要能查看就能進入，內部再檢查 edit/delete
     },
     {
       id: 'profiles',
@@ -136,15 +130,7 @@ export default function ManagementCenter() {
       icon: Users,
       description: '管理系統登入帳號與權限',
       component: ProfilesManagement,
-      requiredPermission: 'employee.view', // 需要查看員工權限
-    },
-    {
-      id: 'employees',
-      name: '員工資料',
-      icon: Briefcase,
-      description: '管理員工組織架構資訊，包含總部與門市人員',
-      component: EmployeesManagementV2,
-      requiredPermission: 'employee.edit', // 需要編輯員工權限
+      requiredPermission: 'profile.view', // 獨立的用戶帳號權限
     },
     {
       id: 'departments',
@@ -152,7 +138,7 @@ export default function ManagementCenter() {
       icon: Building2,
       description: '管理公司部門架構',
       component: DepartmentsManagement,
-      requiredPermission: 'employee.edit', // 需要編輯員工權限
+      requiredPermission: 'department.view', // 獨立的部門權限
     },
     {
       id: 'accountant-brands',
@@ -160,7 +146,15 @@ export default function ManagementCenter() {
       icon: BadgeDollarSign,
       description: '管理會計人員負責的品牌分配，設定後會計只能處理所負責品牌的付款申請',
       component: AccountantBrandsManagement,
-      requiredPermission: 'employee.edit', // 需要編輯員工權限
+      requiredPermission: 'accountant_brand.view', // 獨立的會計品牌權限
+    },
+    {
+      id: 'supervisors',
+      name: '督導設定',
+      icon: UserCheck,
+      description: '管理區域督導與門市指派，設定督導負責的門市範圍',
+      component: SupervisorManagement,
+      requiredPermission: 'supervisor.view', // 獨立的督導權限
     },
     {
       id: 'permissions',
@@ -168,7 +162,7 @@ export default function ManagementCenter() {
       icon: Key,
       description: '管理系統角色和權限設定，控制不同角色可以存取的功能模組',
       component: PermissionManagement,
-      requiredPermission: 'rbac.manage', // 需要權限管理權限
+      requiredPermission: 'rbac.manage', // 權限管理權限
     },
   ];
 

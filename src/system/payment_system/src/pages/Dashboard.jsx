@@ -1,19 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  FileText, 
-  ArrowRight, 
-  Loader2, 
-  Wallet, 
-  Shield, 
-  ListFilter, 
-  CheckSquare, 
-  Building, 
-  ChevronRight, 
-  FileCheck, 
+import {
+  FileText,
+  ArrowRight,
+  Loader2,
+  Wallet,
+  Shield,
+  ListFilter,
+  CheckSquare,
+  Building,
+  ChevronRight,
+  FileCheck,
   FileX,
-  Check, 
-  XCircle 
+  Check,
+  XCircle,
+  Calendar,  // [新增] 預期放款日圖示
+  Filter,    // [新增] 篩選圖示
+  X          // [新增] 清除圖示
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import InstallPrompt from '../components/InstallPrompt';
@@ -119,6 +122,12 @@ export default function Dashboard() {
   // ✅ Task 1: 批量操作 State
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [batchProcessing, setBatchProcessing] = useState(false);
+
+  // ✅ 預期放款日篩選 State
+  const [showDateFilter, setShowDateFilter] = useState(false);
+  const [expectedDateFilterStart, setExpectedDateFilterStart] = useState('');
+  const [expectedDateFilterEnd, setExpectedDateFilterEnd] = useState('');
+  const [expectedDateFilterType, setExpectedDateFilterType] = useState('all'); // all, today, thisWeek, thisMonth, overdue, noDate, custom
 
   // --- Supabase 資料載入 & Realtime ---
   useEffect(() => {
@@ -240,23 +249,109 @@ export default function Dashboard() {
     }
   };
 
-  // --- 資料篩選邏輯 (使用 RBAC 權限) ---
+  // --- 預期放款日快速篩選邏輯 ---
+  const setQuickExpectedDateFilter = (type) => {
+    const today = new Date();
+    const formatDate = (d) => d.toISOString().split('T')[0];
+
+    setExpectedDateFilterType(type);
+
+    switch (type) {
+      case 'all':
+        setExpectedDateFilterStart('');
+        setExpectedDateFilterEnd('');
+        break;
+      case 'today':
+        setExpectedDateFilterStart(formatDate(today));
+        setExpectedDateFilterEnd(formatDate(today));
+        break;
+      case 'thisWeek': {
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - today.getDay()); // 週日
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6); // 週六
+        setExpectedDateFilterStart(formatDate(startOfWeek));
+        setExpectedDateFilterEnd(formatDate(endOfWeek));
+        break;
+      }
+      case 'thisMonth': {
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        setExpectedDateFilterStart(formatDate(startOfMonth));
+        setExpectedDateFilterEnd(formatDate(endOfMonth));
+        break;
+      }
+      case 'overdue': {
+        // 已逾期：預期放款日在今天之前
+        setExpectedDateFilterStart('');
+        setExpectedDateFilterEnd(formatDate(new Date(today.setDate(today.getDate() - 1))));
+        break;
+      }
+      case 'noDate':
+        // 無預期日期
+        setExpectedDateFilterStart('');
+        setExpectedDateFilterEnd('');
+        break;
+      case 'custom':
+        // 自訂範圍，不預設
+        break;
+      default:
+        break;
+    }
+  };
+
+  // 清除篩選
+  const clearExpectedDateFilter = () => {
+    setExpectedDateFilterType('all');
+    setExpectedDateFilterStart('');
+    setExpectedDateFilterEnd('');
+  };
+
+  // --- 資料篩選邏輯 (使用 RBAC 權限 + 預期放款日篩選) ---
   const filteredRequests = requests.filter(req => {
-    if (viewMode === 'all') return true;
+    // 第一層：視圖模式篩選
+    if (viewMode === 'todo') {
+      // 根據權限決定哪些狀態是我負責的
+      const myResponsibilities = [];
+      if (canApproveManager) myResponsibilities.push('pending_unit_manager');
+      if (canApproveAccountant) myResponsibilities.push('pending_accountant');
+      if (canApproveAudit) myResponsibilities.push('pending_audit_manager');
+      if (canApproveCashier) myResponsibilities.push('pending_cashier');
+      if (canApproveBoss) myResponsibilities.push('pending_boss');
 
-    // 根據權限決定哪些狀態是我負責的
-    const myResponsibilities = [];
-    if (canApproveManager) myResponsibilities.push('pending_unit_manager');
-    if (canApproveAccountant) myResponsibilities.push('pending_accountant');
-    if (canApproveAudit) myResponsibilities.push('pending_audit_manager');
-    if (canApproveCashier) myResponsibilities.push('pending_cashier');
-    if (canApproveBoss) myResponsibilities.push('pending_boss');
+      if (!myResponsibilities.includes(req.status)) return false;
+    }
 
-    return myResponsibilities.includes(req.status);
+    // 第二層：預期放款日篩選
+    if (expectedDateFilterType !== 'all') {
+      const expectedDate = req.expected_payment_date;
+
+      // 處理「無預期日期」篩選
+      if (expectedDateFilterType === 'noDate') {
+        return !expectedDate;
+      }
+
+      // 處理「已逾期」篩選
+      if (expectedDateFilterType === 'overdue') {
+        if (!expectedDate) return false;
+        const today = new Date().toISOString().split('T')[0];
+        return expectedDate < today;
+      }
+
+      // 處理日期範圍篩選
+      if (expectedDateFilterStart || expectedDateFilterEnd) {
+        if (!expectedDate) return false;
+
+        if (expectedDateFilterStart && expectedDate < expectedDateFilterStart) return false;
+        if (expectedDateFilterEnd && expectedDate > expectedDateFilterEnd) return false;
+      }
+    }
+
+    return true;
   });
 
+  // 計算待辦事項數量（不受篩選影響，顯示原始待辦數量）
   const todoCount = requests.filter(req => {
-    // 計算待辦事項數量
     const myResponsibilities = [];
     if (canApproveManager) myResponsibilities.push('pending_unit_manager');
     if (canApproveAccountant) myResponsibilities.push('pending_accountant');
@@ -266,6 +361,9 @@ export default function Dashboard() {
 
     return myResponsibilities.includes(req.status);
   }).length;
+
+  // 計算篩選是否啟用
+  const isFilterActive = expectedDateFilterType !== 'all';
 
   // ✅ Task 1: 批量選取邏輯
   const handleSelect = (id) => {
@@ -526,7 +624,7 @@ export default function Dashboard() {
 
       {/* ================= Tabs (分頁籤) ================= */}
       {viewMode && (
-        <div className="flex gap-6 border-b border-stone-200 mb-6 overflow-x-auto">
+        <div className="flex gap-6 border-b border-stone-200 mb-4 overflow-x-auto">
           <button
             onClick={() => { setViewMode('todo'); setSelectedIds(new Set()); }}
             className={`pb-3 px-1 text-sm font-bold transition-all flex items-center gap-2 relative whitespace-nowrap ${
@@ -555,6 +653,115 @@ export default function Dashboard() {
             <ListFilter size={18} />
             歷史紀錄
           </button>
+        </div>
+      )}
+
+      {/* ================= 預期放款日篩選區 ================= */}
+      {viewMode && (
+        <div className="mb-6">
+          {/* 篩選切換按鈕 */}
+          <div className="flex items-center justify-between mb-2">
+            <button
+              onClick={() => setShowDateFilter(!showDateFilter)}
+              className={`flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-lg transition-all ${
+                showDateFilter || expectedDateFilterType !== 'all'
+                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                  : 'bg-stone-50 text-stone-500 border border-stone-200 hover:bg-stone-100'
+              }`}
+            >
+              <Calendar size={16} />
+              預期放款日篩選
+              {expectedDateFilterType !== 'all' && (
+                <span className="bg-amber-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+                  啟用中
+                </span>
+              )}
+            </button>
+
+            {/* 顯示目前篩選狀態 */}
+            {expectedDateFilterType !== 'all' && (
+              <button
+                onClick={clearExpectedDateFilter}
+                className="flex items-center gap-1 text-xs text-stone-400 hover:text-red-500 transition-colors"
+              >
+                <X size={14} />
+                清除篩選
+              </button>
+            )}
+          </div>
+
+          {/* 篩選面板 */}
+          {showDateFilter && (
+            <div className="bg-white border border-stone-200 rounded-xl p-4 shadow-sm animate-in slide-in-from-top-2">
+              <div className="flex flex-wrap gap-2 mb-4">
+                {/* 快速篩選按鈕 */}
+                {[
+                  { key: 'all', label: '全部' },
+                  { key: 'today', label: '今天' },
+                  { key: 'thisWeek', label: '本週' },
+                  { key: 'thisMonth', label: '本月' },
+                  { key: 'overdue', label: '已逾期', color: 'red' },
+                  { key: 'noDate', label: '未設定' },
+                  { key: 'custom', label: '自訂範圍' },
+                ].map(({ key, label, color }) => (
+                  <button
+                    key={key}
+                    onClick={() => setQuickExpectedDateFilter(key)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      expectedDateFilterType === key
+                        ? color === 'red'
+                          ? 'bg-red-500 text-white shadow-sm'
+                          : 'bg-amber-500 text-white shadow-sm'
+                        : color === 'red'
+                          ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
+                          : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* 自訂日期範圍 */}
+              {expectedDateFilterType === 'custom' && (
+                <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-stone-100">
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-stone-500 font-medium">從</label>
+                    <input
+                      type="date"
+                      value={expectedDateFilterStart}
+                      onChange={(e) => setExpectedDateFilterStart(e.target.value)}
+                      className="px-3 py-1.5 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-stone-500 font-medium">到</label>
+                    <input
+                      type="date"
+                      value={expectedDateFilterEnd}
+                      onChange={(e) => setExpectedDateFilterEnd(e.target.value)}
+                      className="px-3 py-1.5 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* 篩選結果提示 */}
+              <div className="mt-3 text-xs text-stone-400">
+                {expectedDateFilterType === 'all' && '顯示所有申請單'}
+                {expectedDateFilterType === 'today' && '顯示預期今天放款的申請單'}
+                {expectedDateFilterType === 'thisWeek' && '顯示預期本週放款的申請單'}
+                {expectedDateFilterType === 'thisMonth' && '顯示預期本月放款的申請單'}
+                {expectedDateFilterType === 'overdue' && '顯示預期放款日已過但尚未完成的申請單'}
+                {expectedDateFilterType === 'noDate' && '顯示未設定預期放款日的申請單'}
+                {expectedDateFilterType === 'custom' && (
+                  expectedDateFilterStart || expectedDateFilterEnd
+                    ? `顯示預期放款日在 ${expectedDateFilterStart || '不限'} ~ ${expectedDateFilterEnd || '不限'} 的申請單`
+                    : '請選擇日期範圍'
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -620,6 +827,12 @@ export default function Dashboard() {
                               <FileText size={14} className="text-stone-400 shrink-0" />
                               <span className="truncate text-stone-500">{req.content || '無說明'}</span>
                             </div>
+                            {req.expected_payment_date && (
+                              <div className="flex items-center gap-1.5 overflow-hidden">
+                                <Calendar size={14} className="text-amber-500 shrink-0" />
+                                <span className="text-amber-600 font-medium">預期: {req.expected_payment_date}</span>
+                              </div>
+                            )}
                         </div>
                       </div>
 
@@ -682,6 +895,7 @@ export default function Dashboard() {
                   <th className="p-4 w-48">申請資訊</th>
                   <th className="p-4">受款 / 說明</th>
                   <th className="p-4 text-right w-32">金額</th>
+                  <th className="p-4 text-center w-28">預期放款</th>
                   <th className="p-4 text-center w-24">紙本</th>
                   <th className="p-4 text-center w-32">狀態</th>
                   <th className="p-4 text-center w-20"></th>
@@ -731,6 +945,17 @@ export default function Dashboard() {
                         </span>
                       </td>
 
+                      {/* 預期放款日 */}
+                      <td className="p-4 text-center">
+                        {req.expected_payment_date ? (
+                          <span className="text-sm text-amber-600 font-medium">
+                            {req.expected_payment_date}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-stone-300">--</span>
+                        )}
+                      </td>
+
                       <td className="p-4 text-center">
                         <button
                             onClick={() => togglePaperStatus(req.id, req.is_paper_received)}
@@ -774,7 +999,14 @@ export default function Dashboard() {
         </>
       )}
       <div className="mt-6 text-center text-xs text-stone-400 font-medium">
-        總計 {filteredRequests.length} 筆資料
+        {isFilterActive ? (
+          <span>
+            篩選結果：<span className="text-amber-600 font-bold">{filteredRequests.length}</span> 筆
+            {viewMode === 'todo' && ` / 待辦總計 ${todoCount} 筆`}
+          </span>
+        ) : (
+          `總計 ${filteredRequests.length} 筆資料`
+        )}
       </div>
       <InstallPrompt />
     </div>
