@@ -5,6 +5,17 @@
 
 ---
 
+## Supabase 專案資訊
+
+| 項目 | 值 |
+|------|-----|
+| **專案名稱** | 6owldoor_paper |
+| **專案 ID** | `kxgdbnhpqcvuifwunyid` |
+| **Region** | ap-south-1 |
+| **Database Host** | db.kxgdbnhpqcvuifwunyid.supabase.co |
+
+---
+
 ## 目錄
 
 1. [系統概述](#系統概述)
@@ -314,18 +325,57 @@ const enriched = requests.map(r => ({
 - expense.create           # 建立代墊款申請
 ```
 
-### 常見角色
+### 角色分類設計
 
+系統採用**組合式角色設計**，分為以下類別：
+
+#### 1. 職級角色 (Level)
+決定簽核層級和基本權限範圍：
 | 角色代碼 | 名稱 | 說明 |
 |---------|------|------|
-| `ceo` | 總經理 | 負責高金額簽核 |
-| `boss` | 放行主管 | 最終決行 |
-| `audit_manager` | 審核主管 | 審核簽核 |
-| `accountant` | 會計 | 會計審核 |
-| `cashier` | 出納 | 出納處理 |
-| `unit_manager` | 單位主管 | 部門主管 |
-| `store_manager` | 店長 | 店舖管理 |
-| `employee` | 一般員工 | 基本權限 |
+| `level_executive` | 高階主管 | 董事長、總經理、副總 - 最高簽核權 |
+| `level_manager` | 部門主管 | 經理、副理 - 中階簽核 |
+| `level_supervisor` | 基層主管 | 主任、督導 - 初階簽核 |
+| `level_staff` | 一般員工 | 專員、助理、計時 - 基本功能 |
+
+#### 2. 功能角色 (Function)
+授予特定業務功能的存取權限：
+| 角色代碼 | 名稱 | 說明 |
+|---------|------|------|
+| `func_hr` | 人資功能 | 員工查詢、基本人事操作 |
+| `func_hr_admin` | 人資管理 | 員工審核、薪資管理（人資經理） |
+| `func_finance` | 財務功能 | 帳務查詢、基本財務操作 |
+| `func_finance_admin` | 財務管理 | 付款審核、薪資審核（財務經理） |
+| `func_it` | 資訊功能 | 授權管理、叫修處理 |
+| `func_it_admin` | 資訊管理 | 系統管理、權限管理（資訊主管） |
+| `func_admin` | 行政功能 | 車輛租借、會議室預約 |
+| `func_ops` | 營運功能 | 門市督導、營業管理 |
+
+#### 3. 簽核角色 (Approval)
+用於簽核流程的專用角色：
+| 角色代碼 | 名稱 | 說明 |
+|---------|------|------|
+| `approval_unit_manager` | 單位主管簽核 | 部門初審 |
+| `approval_accountant` | 會計簽核 | 會計審核 |
+| `approval_audit` | 審核主管 | 財務審核 |
+| `approval_cashier` | 出納 | 撥款確認 |
+| `approval_boss` | 放行主管 | 最終放行 |
+| `approval_ceo` | 總經理簽核 | 大額簽核（≥30,000） |
+
+#### 4. 門市角色 (Store)
+門市人員專用：
+| 角色代碼 | 名稱 | 說明 |
+|---------|------|------|
+| `store_manager` | 店長 | 門市最高管理者 |
+| `assistant_manager` | 副店長 | 代理店長職務 |
+| `store_staff` | 正職人員 | 門市正職 |
+| `store_parttime` | 計時人員 | 門市兼職 |
+| `area_supervisor` | 區域督導 | 管理指定門市群 |
+
+#### 5. 系統角色
+| 角色代碼 | 名稱 | 說明 |
+|---------|------|------|
+| `super_admin` | 超級管理員 | 系統最高權限 |
 
 ### 前端權限檢查
 
@@ -387,6 +437,78 @@ SELECT rbac.user_has_permission('user-uuid', 'payment.approve.boss');
 SELECT * FROM rbac.get_user_permissions('user-uuid');
 ```
 
+### Edge Function 權限檢查
+
+**重要原則**：Edge Function 不應該寫死角色名單，而是使用 RBAC 權限檢查。
+
+#### 正確做法（使用 RBAC）
+```typescript
+// 建立 Admin Client
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
+
+// 使用 RBAC 權限檢查
+const { data: hasPermission } = await supabaseAdmin
+  .schema('rbac')
+  .rpc('user_has_permission', {
+    p_user_id: caller.id,
+    p_permission_code: 'employee.create'
+  });
+
+if (!hasPermission) {
+  throw new Error('權限不足：您沒有此操作的權限');
+}
+```
+
+#### 錯誤做法（寫死角色）
+```typescript
+// ❌ 不要這樣做 - 寫死角色會導致新增角色時需要修改程式碼
+const allowedRoles = ['admin', 'hr'];
+if (!allowedRoles.includes(callerRole)) {
+  throw new Error('權限不足');
+}
+```
+
+#### 目前的 Edge Functions
+
+| Function | 版本 | 權限檢查 | 說明 |
+|----------|------|----------|------|
+| `create-employee-account` | v4 | `employee.create` 或 `profile.create` | 建立員工帳號（免 Email 驗證） |
+| `invite-employee` | v8 | `employee.create` 或 `profile.create` | 發送邀請信（需 Email 驗證） |
+| `reset-user-password` | v2 | `profile.edit` | 管理員重設他人密碼 |
+
+### 直屬主管設計
+
+#### 員工表 manager_id 欄位
+```sql
+-- employees 表新增直屬主管欄位
+ALTER TABLE public.employees
+ADD COLUMN manager_id UUID REFERENCES public.employees(id);
+```
+
+#### 主管查詢邏輯
+```sql
+-- 取得員工的主管（優先直屬主管，否則依組織類型決定）
+CREATE FUNCTION public.get_employee_manager(p_employee_id UUID)
+RETURNS UUID AS $$
+  -- 1. 若有設定直屬主管，直接回傳
+  -- 2. 總部人員 → 回傳部門主管 (department.manager_id)
+  -- 3. 門市人員 → 回傳店長 (position_code = 'store_manager')
+$$;
+
+-- 取得主管的 user_id（用於簽核流程）
+CREATE FUNCTION public.get_employee_manager_user_id(p_employee_id UUID)
+RETURNS UUID;
+
+-- 取得某主管管理的所有員工 user_id 清單（用於付款系統單位主管簽核）
+CREATE FUNCTION public.get_managed_employee_user_ids(p_manager_user_id UUID)
+RETURNS UUID[];
+```
+
+#### 前端設定
+在「員工資料」編輯表單中，可選擇直屬主管：
+- 若未指定：總部人員預設為部門主管，門市人員預設為店長
+- 若有指定：優先使用直屬主管
+
 ---
 
 ## 子系統詳解
@@ -406,6 +528,27 @@ pending_unit_manager → pending_accountant → pending_audit_manager
 - 狀態驅動流程
 - 自動跳過邏輯（申請人是會計時跳過會計關卡）
 - 每個關卡都有時間戳記錄
+- **單位主管驗證**：只有申請人的直屬主管才能簽核（使用 `get_managed_employee_user_ids` 函數）
+
+**單位主管簽核邏輯**：
+```javascript
+// Dashboard.jsx - 過濾只顯示我管理的員工的申請
+if (req.status === 'pending_unit_manager' && canApproveManager) {
+  if (!managedEmployeeUserIds.includes(req.applicant_id)) {
+    return false;
+  }
+}
+
+// RequestDetail.jsx - 驗證簽核者是申請人的主管
+const canApprove =
+  (request.status === 'pending_unit_manager' && canApproveManager && isApplicantManager) || ...
+```
+
+**匯出銀行媒體檔**：
+- 權限：`payment.export`
+- 支援格式：台新銀行 (Tab分隔)、國泰銀行 (固定長度 351 bytes)
+- 功能位置：Dashboard 批量匯出、RequestDetail 單筆匯出
+- 相關檔案：`src/system/payment_system/src/utils/bankExport.js`、`ExportModal.jsx`
 
 ### 2. 員工代墊款系統 (Expense Reimbursement)
 
@@ -423,6 +566,12 @@ pending_unit_manager → pending_accountant → pending_audit_manager
 - 最多 15 行明細
 - 品項必填驗證（有金額時）
 - 多品牌分帳（六扇門、粥大福）
+
+**匯出銀行媒體檔**：
+- 權限：`expense.export`
+- 支援格式：台新銀行 (Tab分隔)、國泰銀行 (固定長度 351 bytes)
+- 功能位置：Dashboard 批量匯出、RequestDetail 單筆匯出
+- 相關檔案：`src/system/expense_reimbursement_system/src/utils/bankExport.js`、`ExportModal.jsx`
 
 ### 3. 教育訓練系統 (Training)
 
@@ -454,23 +603,29 @@ pending_unit_manager → pending_accountant → pending_audit_manager
 
 | 頁籤 | 組件 | 權限 | 說明 |
 |------|------|------|------|
-| 員工資料 | `EmployeesManagementV2` | `employee.view/create/edit/delete` | 管理員工組織架構（總部/門市） |
-| 用戶帳號 | `ProfilesManagement` | `profile.view/create/edit/delete` | 管理系統登入帳號 |
-| 部門管理 | `DepartmentsManagement` | `department.view/create/edit/delete` | 管理公司部門架構 |
+| 員工資料 | `EmployeesManagementV2` | `employee.view/create/edit/delete` | 管理員工、帳號建立、密碼重設 |
+| 部門管理 | `DepartmentsManagement` | `department.view/create/edit/delete` | 管理公司部門架構、部門主管 |
 | 會計品牌分配 | `AccountantBrandsManagement` | `accountant_brand.view/edit` | 指派會計負責品牌 |
 | 督導設定 | `SupervisorManagement` | `supervisor.view/edit` | 區域督導與門市指派 |
 | 權限管理 | `PermissionManagement` | `rbac.manage` | 角色與權限設定 |
 
-**帳號建立模式**（ProfilesManagement）：
-- **員工編號模式**：適合門市員工，不需要真實 Email，使用 `{login_id}@6owldoor.internal` 作為虛擬 email
-- **Email 模式**：適合總部人員，使用真實 Email 登入
+**員工資料整合功能**（EmployeesManagementV2）：
+- 新增員工時可勾選「同時建立登入帳號」
+- 編輯員工時可重設密碼、停用帳號
+- 設定直屬主管（若未設定則使用預設主管）
+- 設定銀行帳戶（用於代墊款匯款）
+
+**帳號建立模式**：
+- **員工編號模式**：使用 `{login_id}@6owldoor.internal` 作為虛擬 email，適合門市員工
+- **Email 模式**：使用真實 Email 登入，適合總部人員
 
 **相關 Edge Functions**：
 
-| Function | 用途 |
-|----------|------|
-| `create-employee-account` | 建立已確認的員工帳號（免 Email 驗證） |
-| `invite-employee` | 發送邀請信給員工（需 Email 驗證） |
+| Function | 權限 | 用途 |
+|----------|------|------|
+| `create-employee-account` | `employee.create` 或 `profile.create` | 建立員工帳號（免 Email 驗證） |
+| `invite-employee` | `employee.create` 或 `profile.create` | 發送邀請信（需 Email 驗證） |
+| `reset-user-password` | `profile.edit` | 管理員重設他人密碼 |
 
 ---
 
@@ -808,6 +963,7 @@ WHERE email LIKE '%@6owldoor.internal';
 
 | 日期 | 變更內容 |
 |------|----------|
+| 2026-01-27 | 新增直屬主管設計、Edge Function RBAC 權限檢查、角色分類設計、管理中心整合說明 |
 | 2026-01-27 | 新增 `login_id` 欄位設計說明、管理中心文檔、故障排除更新 |
 | 2026-01-23 | 初版建立 |
 

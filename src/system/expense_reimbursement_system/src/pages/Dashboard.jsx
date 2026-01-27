@@ -20,11 +20,13 @@ import {
   Clock,
   Check,
   ThumbsUp,
-  ThumbsDown
+  ThumbsDown,
+  Download  // [新增] 匯出圖示
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../AuthContext';
 import { usePermission, PermissionGuard } from '../../../../hooks/usePermission';
+import ExportModal from '../components/ExportModal'; // [新增] 匯出 Modal
 
 // 員工代墊款系統的基礎路徑
 const BASE_PATH = '/systems/expense-reimbursement';
@@ -94,6 +96,10 @@ export default function Dashboard() {
   // 批量操作 State
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [batchProcessing, setBatchProcessing] = useState(false);
+
+  // ✅ 匯出媒體檔 Modal State
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportRequests, setExportRequests] = useState([]);
 
   // 日期區間過濾 State
   const [dateFilterStart, setDateFilterStart] = useState('');
@@ -703,6 +709,22 @@ export default function Dashboard() {
               {batchProcessing ? <Loader2 className="animate-spin" size={16} /> : <ThumbsUp size={16} />}
               批量核准
             </button>
+
+            {/* 🟢 批量匯出按鈕 (需要 expense.export 權限) */}
+            {canExport && (
+              <button
+                onClick={() => {
+                  const selected = requests.filter(r => selectedIds.has(r.id));
+                  setExportRequests(selected);
+                  setShowExportModal(true);
+                }}
+                disabled={batchProcessing}
+                className="bg-emerald-600 text-white px-4 py-2 rounded-lg shadow-md shadow-emerald-500/20 hover:bg-emerald-700 text-sm font-bold flex items-center gap-2 transition-all disabled:opacity-50"
+              >
+                <Download size={16}/>
+                匯出媒體檔
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -921,6 +943,17 @@ export default function Dashboard() {
       <div className="mt-6 text-center text-xs text-stone-400 font-medium">
         總計 {filteredRequests.length} 筆資料
       </div>
+
+      {/* 匯出媒體檔 Modal */}
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => {
+          setShowExportModal(false);
+          setExportRequests([]);
+        }}
+        requests={exportRequests}
+        systemType="expense"
+      />
     </div>
   );
 }

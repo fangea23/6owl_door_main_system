@@ -16,10 +16,12 @@ import {
   XCircle,
   Calendar,  // [新增] 預期放款日圖示
   Filter,    // [新增] 篩選圖示
-  X          // [新增] 清除圖示
+  X,         // [新增] 清除圖示
+  Download   // [新增] 匯出圖示
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import InstallPrompt from '../components/InstallPrompt';
+import ExportModal from '../components/ExportModal'; // [新增] 匯出 Modal
 import { useAuth } from '../../../../contexts/AuthContext'; // 修正引用路徑以配合您的檔案結構
 import { usePermission, PermissionGuard } from '../../../../hooks/usePermission'; // RBAC 權限系統
 
@@ -68,6 +70,7 @@ export default function Dashboard() {
 
   // 操作權限（細粒度）
   const { hasPermission: canManagePaper } = usePermission('payment.paper.manage');
+  const { hasPermission: canExport } = usePermission('payment.export'); // [新增] 匯出權限
 
   // 檢查權限是否都載入完成
   const permissionsLoading = loadingViewAll || loadingViewOwn || loadingAccountant || loadingManager || loadingAudit || loadingCashier || loadingBoss; 
@@ -99,6 +102,27 @@ export default function Dashboard() {
   const displayName = employeeName || user?.user_metadata?.full_name || user?.email;
   // -------------------------------------
 
+  // --- 2. 新增：取得我管理的員工清單（用於單位主管簽核過濾）---
+  const [managedEmployeeUserIds, setManagedEmployeeUserIds] = useState([]);
+
+  useEffect(() => {
+    const fetchManagedEmployees = async () => {
+      if (!user?.id || !canApproveManager) return;
+      try {
+        const { data, error } = await supabase.rpc('get_managed_employee_user_ids', {
+          p_manager_user_id: user.id
+        });
+        if (error) throw error;
+        setManagedEmployeeUserIds(data || []);
+      } catch (err) {
+        console.error('Error fetching managed employees:', err);
+        setManagedEmployeeUserIds([]);
+      }
+    };
+    fetchManagedEmployees();
+  }, [user, canApproveManager]);
+  // -------------------------------------
+
   // --- 視圖狀態 (基於權限) ---
   const [viewMode, setViewMode] = useState(null);
   const [viewModeInitialized, setViewModeInitialized] = useState(false);
@@ -122,6 +146,10 @@ export default function Dashboard() {
   // ✅ Task 1: 批量操作 State
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [batchProcessing, setBatchProcessing] = useState(false);
+
+  // ✅ 匯出媒體檔 Modal State
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportRequests, setExportRequests] = useState([]);
 
   // ✅ 預期放款日篩選 State
   const [showDateFilter, setShowDateFilter] = useState(false);
@@ -307,7 +335,7 @@ export default function Dashboard() {
     setExpectedDateFilterEnd('');
   };
 
-  // --- 資料篩選邏輯 (使用 RBAC 權限 + 預期放款日篩選) ---
+  // --- 資料篩選邏輯 (使用 RBAC 權限 + 預期放款日篩選 + 直屬主管過濾) ---
   const filteredRequests = requests.filter(req => {
     // 第一層：視圖模式篩選
     if (viewMode === 'todo') {
@@ -320,6 +348,14 @@ export default function Dashboard() {
       if (canApproveBoss) myResponsibilities.push('pending_boss');
 
       if (!myResponsibilities.includes(req.status)) return false;
+
+      // ★★★ 單位主管特殊過濾：只顯示我管理的員工的申請 ★★★
+      if (req.status === 'pending_unit_manager' && canApproveManager) {
+        // 如果我有主管簽核權限，只顯示我管理的員工的申請
+        if (!managedEmployeeUserIds.includes(req.applicant_id)) {
+          return false;
+        }
+      }
     }
 
     // 第二層：預期放款日篩選
@@ -350,7 +386,7 @@ export default function Dashboard() {
     return true;
   });
 
-  // 計算待辦事項數量（不受篩選影響，顯示原始待辦數量）
+  // 計算待辦事項數量（不受篩選影響，顯示原始待辦數量，但單位主管需過濾）
   const todoCount = requests.filter(req => {
     const myResponsibilities = [];
     if (canApproveManager) myResponsibilities.push('pending_unit_manager');
@@ -359,7 +395,16 @@ export default function Dashboard() {
     if (canApproveCashier) myResponsibilities.push('pending_cashier');
     if (canApproveBoss) myResponsibilities.push('pending_boss');
 
-    return myResponsibilities.includes(req.status);
+    if (!myResponsibilities.includes(req.status)) return false;
+
+    // ★★★ 單位主管特殊過濾：只計算我管理的員工的申請 ★★★
+    if (req.status === 'pending_unit_manager' && canApproveManager) {
+      if (!managedEmployeeUserIds.includes(req.applicant_id)) {
+        return false;
+      }
+    }
+
+    return true;
   }).length;
 
   // 計算篩選是否啟用
@@ -618,6 +663,22 @@ export default function Dashboard() {
                {batchProcessing ? <Loader2 className="animate-spin" size={16}/> : <Check size={16}/>}
                批量核准
              </button>
+
+             {/* 🟢 批量匯出按鈕 (需要 payment.export 權限) */}
+             {canExport && (
+               <button
+                 onClick={() => {
+                   const selected = requests.filter(r => selectedIds.has(r.id));
+                   setExportRequests(selected);
+                   setShowExportModal(true);
+                 }}
+                 disabled={batchProcessing}
+                 className="bg-emerald-600 text-white px-4 py-2 rounded-lg shadow-md shadow-emerald-500/20 hover:bg-emerald-700 text-sm font-bold flex items-center gap-2 transition-all disabled:opacity-50"
+               >
+                 <Download size={16}/>
+                 匯出媒體檔
+               </button>
+             )}
           </div>
         </div>
       )}
@@ -1009,6 +1070,17 @@ export default function Dashboard() {
         )}
       </div>
       <InstallPrompt />
+
+      {/* 匯出媒體檔 Modal */}
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => {
+          setShowExportModal(false);
+          setExportRequests([]);
+        }}
+        requests={exportRequests}
+        systemType="payment"
+      />
     </div>
   );
 }

@@ -48,9 +48,10 @@ export default function PermissionManagement() {
   const fetchEmployeesAndUserRoles = async () => {
     try {
       // 獲取所有在職員工
+      // 使用明確的外鍵名稱來避免多重關聯錯誤
       const { data: employeesData, error: employeesError } = await supabase
         .from('employees')
-        .select('id, user_id, employee_id, name, department:departments(name), position')
+        .select('id, user_id, employee_id, name, department:departments!employees_department_id_fkey(name), position')
         .eq('status', 'active')
         .order('employee_id');
 

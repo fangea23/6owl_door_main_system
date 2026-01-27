@@ -4,14 +4,19 @@ import { useDepartments } from '../../../hooks/management/useDepartments';
 import { useStores } from '../../../hooks/management/useStores';
 import { useBrands } from '../../../hooks/management/useBrands';
 import { usePermission } from '../../../hooks/usePermission';
+import { useProfiles } from '../../../hooks/management/useProfiles';
 import { supabase } from '../../../lib/supabase';
 import Badge, { StatusBadge, statusBadgeMap } from '../../../components/ui/Badge';
 import Modal from '../../../components/ui/Modal';
 import SearchableSelect from '../../../components/ui/SearchableSelect';
 import {
   UserPlus, Search, Loader2, Mail, Phone, Briefcase, Building2, User, Save, X,
-  Edit2, Trash2, Link as LinkIcon, Shield, Store, Filter, ChevronDown, Users, Landmark
+  Edit2, Trash2, Link as LinkIcon, Shield, Store, Filter, ChevronDown, Users, Landmark, Key, Eye, EyeOff, RefreshCw, MoreVertical
 } from 'lucide-react';
+
+// 取得環境變數（用於密碼重設 API）
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 
 // 組織類型
 const ORG_TYPES = [
@@ -60,12 +65,16 @@ export default function EmployeesManagementV2() {
   const { departments } = useDepartments();
   const { stores } = useStores();
   const { brands } = useBrands();
+  const { createProfile } = useProfiles(); // 用於建立系統帳號
 
   // 權限檢查
   const { hasPermission: canView, loading: viewLoading } = usePermission('employee.view');
   const { hasPermission: canCreate } = usePermission('employee.create');
   const { hasPermission: canEdit } = usePermission('employee.edit');
   const { hasPermission: canDelete } = usePermission('employee.delete');
+  const { hasPermission: canCreateProfile } = usePermission('profile.create'); // 建立帳號權限
+  const { hasPermission: canEditProfile } = usePermission('profile.edit'); // 重設密碼權限
+  const { hasPermission: canDeleteProfile } = usePermission('profile.delete'); // 刪除帳號權限
 
   // 狀態
   const [searchTerm, setSearchTerm] = useState('');
@@ -78,6 +87,19 @@ export default function EmployeesManagementV2() {
   // Modal 狀態
   const [showModal, setShowModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
+
+  // 帳號建立相關狀態
+  const [createAccount, setCreateAccount] = useState(false);
+  const [accountPassword, setAccountPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  // 密碼重設 Modal 狀態
+  const [resetPasswordModal, setResetPasswordModal] = useState(null); // { odayuserId, userName, employeeId }
+  const [newPassword, setNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+
+  // 操作選單狀態
+  const [openActionMenu, setOpenActionMenu] = useState(null); // employee.id
 
   // 銀行資料狀態
   const [bankList, setBankList] = useState([]);
@@ -100,6 +122,7 @@ export default function EmployeesManagementV2() {
     employment_type_new: 'fulltime',
     status: 'active',
     hire_date: '',
+    manager_id: '', // 直屬主管
     // 銀行帳戶資訊
     bank_name: '',
     bank_code: '',
@@ -173,6 +196,7 @@ export default function EmployeesManagementV2() {
       employment_type_new: 'fulltime',
       status: 'active',
       hire_date: '',
+      manager_id: '', // 直屬主管
       // 銀行帳戶資訊
       bank_name: '',
       bank_code: '',
@@ -182,6 +206,10 @@ export default function EmployeesManagementV2() {
       _hasLoginId: false,
     });
     setEditingEmployee(null);
+    // 重置帳號建立狀態
+    setCreateAccount(false);
+    setAccountPassword('');
+    setShowPassword(false);
   };
 
   // 開啟 Modal
@@ -202,6 +230,7 @@ export default function EmployeesManagementV2() {
         employment_type_new: employee.employment_type_new || 'fulltime',
         status: employee.status || 'active',
         hire_date: employee.hire_date || '',
+        manager_id: employee.manager_id || '', // 直屬主管
         // 銀行帳戶資訊
         bank_name: employee.bank_name || '',
         bank_code: employee.bank_code || '',
@@ -228,6 +257,13 @@ export default function EmployeesManagementV2() {
       return alert('您沒有新增員工的權限');
     }
 
+    // 驗證帳號建立
+    if (!editingEmployee && createAccount) {
+      if (!accountPassword || accountPassword.length < 6) {
+        return alert('請設定至少 6 位數的密碼');
+      }
+    }
+
     setProcessing(true);
     try {
       // 根據 store_id 找到對應的 store_code
@@ -252,6 +288,7 @@ export default function EmployeesManagementV2() {
         employment_type_new: formDataWithoutInternal.employment_type_new,
         status: formDataWithoutInternal.status,
         hire_date: formDataWithoutInternal.hire_date || null,
+        manager_id: formDataWithoutInternal.manager_id || null, // 直屬主管
         // 銀行帳戶資訊
         bank_name: formDataWithoutInternal.bank_name || null,
         bank_code: formDataWithoutInternal.bank_code || null,
@@ -274,11 +311,35 @@ export default function EmployeesManagementV2() {
         result = await createEmployee(cleanData);
       }
 
-      if (result.success) {
+      if (!result.success) {
+        alert('❌ 操作失敗: ' + result.error);
+        return;
+      }
+
+      // 新增員工且勾選建立帳號
+      if (!editingEmployee && createAccount && result.success) {
+        const loginId = formDataWithoutInternal.login_id || formDataWithoutInternal.employee_id;
+        const accountResult = await createProfile({
+          employee_id: loginId,
+          password: accountPassword,
+          full_name: formDataWithoutInternal.name,
+          role: 'user', // 預設角色，之後在權限管理頁面設定
+        });
+
+        if (accountResult.success) {
+          // 建立帳號成功後，需要將 user_id 關聯到員工
+          // Edge Function 會自動處理這個關聯
+          setShowModal(false);
+          alert(`✅ 員工建立成功！\n\n已同時建立系統帳號：\n登入帳號：${loginId}\n預設密碼：${accountPassword}\n\n請至「權限管理」設定角色權限。`);
+          refetch(); // 重新載入員工列表
+        } else {
+          // 員工建立成功但帳號建立失敗
+          setShowModal(false);
+          alert(`⚠️ 員工資料已建立，但帳號建立失敗：${accountResult.error}\n\n請稍後至「用戶帳號」頁面重新建立帳號。`);
+        }
+      } else if (result.success) {
         setShowModal(false);
         alert(editingEmployee ? '✅ 員工資料更新成功' : '✅ 員工建立成功');
-      } else {
-        alert('❌ 操作失敗: ' + result.error);
       }
     } finally {
       setProcessing(false);
@@ -347,6 +408,80 @@ export default function EmployeesManagementV2() {
       } else {
         alert('❌ 刪除失敗: ' + result.error);
       }
+    }
+  };
+
+  // 處理密碼重設
+  const handleResetPassword = async () => {
+    if (!resetPasswordModal || !newPassword || newPassword.length < 6) {
+      return alert('請輸入至少 6 位數的新密碼');
+    }
+
+    setProcessing(true);
+    try {
+      // 取得當前 session token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('請先登入');
+      }
+
+      // 呼叫 Edge Function 重設密碼
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/reset-user-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': SUPABASE_KEY,
+        },
+        body: JSON.stringify({
+          user_id: resetPasswordModal.userId,
+          new_password: newPassword,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || '密碼重設失敗');
+      }
+
+      alert(`✅ 密碼重設成功！\n\n員工：${resetPasswordModal.userName}\n新密碼：${newPassword}\n\n請告知員工新密碼。`);
+      setResetPasswordModal(null);
+      setNewPassword('');
+      setShowNewPassword(false);
+    } catch (error) {
+      alert('❌ 密碼重設失敗: ' + error.message);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  // 刪除帳號（僅刪除登入帳號，保留員工資料）
+  const handleDeleteAccount = async (employee) => {
+    if (!employee.user_id) {
+      return alert('此員工沒有系統帳號');
+    }
+
+    const confirmDelete = window.confirm(
+      `⚠️ 警告！\n\n確定要刪除員工「${employee.name}」的登入帳號嗎？\n\n刪除後該員工將無法登入系統，但員工資料會保留。`
+    );
+    if (!confirmDelete) return;
+
+    setProcessing(true);
+    try {
+      const { error } = await supabase.rpc('delete_user_by_admin', {
+        target_user_id: employee.user_id
+      });
+
+      if (error) throw error;
+
+      alert(`✅ 帳號已刪除\n\n員工「${employee.name}」的登入帳號已停用，員工資料保留。`);
+      refetch(); // 重新載入列表
+    } catch (error) {
+      alert('❌ 刪除帳號失敗: ' + error.message);
+    } finally {
+      setProcessing(false);
+      setOpenActionMenu(null);
     }
   };
 
@@ -635,21 +770,65 @@ export default function EmployeesManagementV2() {
                       )}
                     </td>
                     <td className="p-4">
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-center gap-1">
                         {canEdit && (
                           <button
                             onClick={() => openModal(employee)}
                             className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                            title="編輯"
+                            title="編輯資料"
                           >
                             <Edit2 size={16} />
                           </button>
                         )}
+
+                        {/* 更多操作選單 */}
+                        {(employee.user_id && (canEditProfile || canDeleteProfile)) && (
+                          <div className="relative">
+                            <button
+                              onClick={() => setOpenActionMenu(openActionMenu === employee.id ? null : employee.id)}
+                              className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition"
+                              title="更多操作"
+                            >
+                              <MoreVertical size={16} />
+                            </button>
+
+                            {openActionMenu === employee.id && (
+                              <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                                {canEditProfile && (
+                                  <button
+                                    onClick={() => {
+                                      setResetPasswordModal({
+                                        userId: employee.user_id,
+                                        userName: employee.name,
+                                        employeeId: employee.employee_id
+                                      });
+                                      setOpenActionMenu(null);
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                  >
+                                    <RefreshCw size={14} />
+                                    重設密碼
+                                  </button>
+                                )}
+                                {canDeleteProfile && (
+                                  <button
+                                    onClick={() => handleDeleteAccount(employee)}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                                  >
+                                    <Key size={14} />
+                                    停用帳號
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         {canDelete && (
                           <button
                             onClick={() => handleDelete(employee)}
                             className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                            title="刪除"
+                            title="刪除員工"
                           >
                             <Trash2 size={16} />
                           </button>
@@ -893,6 +1072,31 @@ export default function EmployeesManagementV2() {
             </div>
           </div>
 
+          {/* 直屬主管 */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">直屬主管</label>
+            <select
+              value={formData.manager_id}
+              onChange={(e) => setFormData({ ...formData, manager_id: e.target.value })}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            >
+              <option value="">未指定（使用預設主管）</option>
+              {employees
+                .filter(emp =>
+                  emp.status === 'active' &&
+                  emp.id !== editingEmployee?.id // 排除自己
+                )
+                .map(emp => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.name} ({emp.employee_id}) - {getPositionName(emp.position_code)}
+                  </option>
+                ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              若未指定，總部人員預設為部門主管，門市人員預設為店長
+            </p>
+          </div>
+
           {/* 銀行帳戶資訊 */}
           <div className="border-t border-gray-200 pt-4 mt-4">
             <div className="flex items-center gap-2 mb-3">
@@ -999,6 +1203,93 @@ export default function EmployeesManagementV2() {
             </p>
           </div>
 
+          {/* 系統帳號建立（僅新增時顯示） */}
+          {!editingEmployee && canCreateProfile && (
+            <div className="border-t border-gray-200 pt-4 mt-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Key size={18} className="text-blue-600" />
+                  <h3 className="font-semibold text-gray-700">系統帳號</h3>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={createAccount}
+                    onChange={(e) => setCreateAccount(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-600">同時建立登入帳號</span>
+                </label>
+              </div>
+
+              {createAccount && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                  <div className="text-sm text-blue-800 mb-3">
+                    <p>將使用「登入帳號」欄位作為帳號名稱，員工可使用該帳號登入系統。</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                      預設密碼 *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        required={createAccount}
+                        minLength={6}
+                        placeholder="至少 6 位數"
+                        value={accountPassword}
+                        onChange={(e) => setAccountPassword(e.target.value)}
+                        className="w-full p-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">建議設定後請員工自行修改密碼</p>
+                  </div>
+
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                    <p className="font-medium">💡 提醒：</p>
+                    <ul className="list-disc list-inside mt-1 space-y-1 text-amber-700">
+                      <li>帳號建立後，請至「權限管理」設定員工角色</li>
+                      <li>預設角色為「一般用戶」，需手動調整權限</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {!createAccount && (
+                <p className="text-sm text-gray-500">
+                  若需要讓此員工登入系統，請勾選「同時建立登入帳號」。
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* 已有帳號提示（編輯時顯示） */}
+          {editingEmployee && editingEmployee.user_id && (
+            <div className="border-t border-gray-200 pt-4 mt-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Key size={18} className="text-green-600" />
+                <h3 className="font-semibold text-gray-700">系統帳號</h3>
+              </div>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
+                <p className="flex items-center gap-2">
+                  <LinkIcon size={14} />
+                  此員工已有系統登入帳號
+                </p>
+                <p className="text-green-600 mt-1">
+                  如需修改角色權限，請至「權限管理」頁面設定
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* 操作按鈕 */}
           <div className="flex gap-3 pt-4">
             <button
@@ -1020,6 +1311,80 @@ export default function EmployeesManagementV2() {
           </div>
         </form>
       </Modal>
+
+      {/* 密碼重設 Modal */}
+      {resetPasswordModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Key size={20} className="text-blue-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-800">重設密碼</h3>
+                <p className="text-sm text-gray-500">{resetPasswordModal.userName} ({resetPasswordModal.employeeId})</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  新密碼 *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    required
+                    minLength={6}
+                    placeholder="至少 6 位數"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full p-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">請告知員工新密碼，建議員工登入後自行修改</p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleResetPassword}
+                  disabled={processing || !newPassword || newPassword.length < 6}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {processing ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
+                  確認重設
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetPasswordModal(null);
+                    setNewPassword('');
+                    setShowNewPassword(false);
+                  }}
+                  className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 點擊外部關閉操作選單 */}
+      {openActionMenu && (
+        <div
+          className="fixed inset-0 z-10"
+          onClick={() => setOpenActionMenu(null)}
+        />
+      )}
     </div>
   );
 }

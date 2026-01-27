@@ -10,6 +10,7 @@ import {
     Image as ImageIcon, Ticket, SkipForward,
     Save, X // ✅ [新增] 引入這兩個圖示
 } from 'lucide-react';
+import ExportModal from '../components/ExportModal'; // [新增] 匯出 Modal
 
 const BASE_PATH = '/systems/payment-approval';
 
@@ -70,6 +71,7 @@ export default function RequestDetail() {
     const [request, setRequest] = useState(null);
     const [paymentItems, setPaymentItems] = useState([]); // [新增] 多門店付款明細
     const [applicantHasAccountantPermission, setApplicantHasAccountantPermission] = useState(false); // 用來判斷申請人是否有會計權限
+    const [isApplicantManager, setIsApplicantManager] = useState(false); // ★★★ 新增：我是否為申請人的直屬主管
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState(false);
 
@@ -92,6 +94,11 @@ export default function RequestDetail() {
     const { hasPermission: canManageInvoice } = usePermission('payment.invoice.manage');
     const { hasPermission: canViewInvoice } = usePermission('payment.invoice.view');
     const { hasPermission: canEditExpectedDate } = usePermission('payment.expected_date.edit'); // [新增] 預期放款日編輯權限
+    const { hasPermission: canExport } = usePermission('payment.export'); // [新增] 匯出權限
+
+    // ✅ [新增] 匯出 Modal State
+    const [showExportModal, setShowExportModal] = useState(false);
+
     // ✅ [新增] 會計補登發票用的 State
     const [accountantInvoice, setAccountantInvoice] = useState({
         hasInvoice: 'no_yet',
@@ -234,6 +241,14 @@ const handleSaveInvoice = async () => {
                         p_permission_code: 'payment.approve.accountant'
                     });
                 setApplicantHasAccountantPermission(permData || false);
+
+                // ★★★ 新增：檢查目前用戶是否為申請人的直屬主管 ★★★
+                if (user?.id) {
+                    const { data: managedIds } = await supabase.rpc('get_managed_employee_user_ids', {
+                        p_manager_user_id: user.id
+                    });
+                    setIsApplicantManager((managedIds || []).includes(data.applicant_id));
+                }
             }
 
             setRequest(data);
@@ -363,8 +378,9 @@ const handleSaveInvoice = async () => {
     const currentConfig = WORKFLOW_CONFIG[request.status];
 
     // 使用 RBAC 權限檢查是否可以審核當前狀態
+    // ★★★ 修改：單位主管簽核需額外檢查「是否為申請人的直屬主管」★★★
     const canApprove = currentConfig && (
-        (request.status === 'pending_unit_manager' && canApproveManager) ||
+        (request.status === 'pending_unit_manager' && canApproveManager && isApplicantManager) ||
         (request.status === 'pending_accountant' && canApproveAccountant) ||
         (request.status === 'pending_audit_manager' && canApproveAudit) ||
         (request.status === 'pending_cashier' && canApproveCashier) ||
@@ -423,9 +439,20 @@ const handleSaveInvoice = async () => {
                         </div>
                     </div>
 
-                    <button onClick={handlePrint} className="no-print bg-white border border-stone-200 hover:bg-stone-50 text-stone-600 hover:text-gray-800 px-3 py-1.5 rounded flex items-center gap-2 text-sm font-bold">
-                        <Printer size={16} /> 列印 / PDF
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {/* 匯出媒體檔按鈕 (需要 payment.export 權限) */}
+                        {canExport && (
+                            <button
+                                onClick={() => setShowExportModal(true)}
+                                className="no-print bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded flex items-center gap-2 text-sm font-bold shadow-sm"
+                            >
+                                <Download size={16} /> 匯出媒體檔
+                            </button>
+                        )}
+                        <button onClick={handlePrint} className="no-print bg-white border border-stone-200 hover:bg-stone-50 text-stone-600 hover:text-gray-800 px-3 py-1.5 rounded flex items-center gap-2 text-sm font-bold">
+                            <Printer size={16} /> 列印 / PDF
+                        </button>
+                    </div>
                 </div>
 
                 <div className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden print-container">
@@ -1097,6 +1124,14 @@ const handleSaveInvoice = async () => {
                     </div>
                 </div>
             )}
+
+            {/* 匯出媒體檔 Modal */}
+            <ExportModal
+                isOpen={showExportModal}
+                onClose={() => setShowExportModal(false)}
+                requests={request ? [request] : []}
+                systemType="payment"
+            />
         </div>
     );
 }

@@ -2,9 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'; // 1. 引入 useEffe
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useUserPermissions } from '../../hooks/usePermission'; // RBAC 權限系統
-import { Shield, Users, Building2, Briefcase, ChevronDown, Settings, LogOut, BadgeDollarSign, Key, Loader2, Store, UserCheck } from 'lucide-react';
-import ProfilesManagement from './components/ProfilesManagement';
-import EmployeesManagement from './components/EmployeesManagement';
+import { Shield, Building2, Briefcase, ChevronDown, Settings, LogOut, BadgeDollarSign, Key, Loader2, UserCheck } from 'lucide-react';
 import EmployeesManagementV2 from './components/EmployeesManagementV2';
 import DepartmentsManagement from './components/DepartmentsManagement';
 import AccountantBrandsManagement from './components/AccountantBrandsManagement';
@@ -120,17 +118,9 @@ export default function ManagementCenter() {
       id: 'employees',
       name: '員工資料',
       icon: Briefcase,
-      description: '管理員工組織架構資訊，包含總部與門市人員',
+      description: '管理員工組織架構、系統帳號、密碼重設等，包含總部與門市人員',
       component: EmployeesManagementV2,
       requiredPermission: 'employee.view', // 只要能查看就能進入，內部再檢查 edit/delete
-    },
-    {
-      id: 'profiles',
-      name: '用戶帳號',
-      icon: Users,
-      description: '管理系統登入帳號與權限',
-      component: ProfilesManagement,
-      requiredPermission: 'profile.view', // 獨立的用戶帳號權限
     },
     {
       id: 'departments',

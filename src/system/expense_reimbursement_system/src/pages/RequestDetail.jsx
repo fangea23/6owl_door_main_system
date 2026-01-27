@@ -27,8 +27,10 @@ import {
   SkipForward,
   Paperclip,
   Image as ImageIcon,
-  ExternalLink
+  ExternalLink,
+  Download  // [新增] 匯出圖示
 } from 'lucide-react';
+import ExportModal from '../components/ExportModal'; // [新增] 匯出 Modal
 
 const BASE_PATH = '/systems/expense-reimbursement';
 
@@ -127,6 +129,10 @@ export default function RequestDetail() {
   const { hasPermission: canCancel } = usePermission('expense.cancel');
   const { hasPermission: canPrint } = usePermission('expense.print');
   const { hasPermission: canCreate } = usePermission('expense.create');
+  const { hasPermission: canExport } = usePermission('expense.export'); // [新增] 匯出權限
+
+  // [新增] 匯出 Modal State
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const [employeeName, setEmployeeName] = useState('');
 
@@ -478,14 +484,25 @@ export default function RequestDetail() {
             </div>
           </div>
 
-          {canPrint && (
-            <button
-              onClick={handlePrint}
-              className="no-print bg-white border border-stone-200 hover:bg-stone-50 text-stone-600 hover:text-gray-800 px-3 py-1.5 rounded flex items-center gap-2 text-sm font-bold"
-            >
-              <Printer size={16} /> 列印 / PDF
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {/* 匯出媒體檔按鈕 (需要 expense.export 權限) */}
+            {canExport && (
+              <button
+                onClick={() => setShowExportModal(true)}
+                className="no-print bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded flex items-center gap-2 text-sm font-bold shadow-sm"
+              >
+                <Download size={16} /> 匯出媒體檔
+              </button>
+            )}
+            {canPrint && (
+              <button
+                onClick={handlePrint}
+                className="no-print bg-white border border-stone-200 hover:bg-stone-50 text-stone-600 hover:text-gray-800 px-3 py-1.5 rounded flex items-center gap-2 text-sm font-bold"
+              >
+                <Printer size={16} /> 列印 / PDF
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden print-container">
@@ -869,6 +886,21 @@ export default function RequestDetail() {
         </div>
 
       </div>
+
+      {/* 匯出媒體檔 Modal */}
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        requests={request ? [{
+          ...request,
+          applicant_name: request.applicant?.name,
+          bank_code: request.bank_code,
+          branch_code: request.branch_code,
+          account_number: request.account_number,
+          payee_name: request.applicant?.name
+        }] : []}
+        systemType="expense"
+      />
     </div>
   );
 }
