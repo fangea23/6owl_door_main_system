@@ -88,6 +88,7 @@ export default function EmployeesManagementV2() {
   // 表單資料
   const [formData, setFormData] = useState({
     employee_id: '',
+    login_id: '', // 登入帳號（設定後不可修改）
     name: '',
     email: '',
     phone: '',
@@ -105,6 +106,8 @@ export default function EmployeesManagementV2() {
     branch_name: '',
     branch_code: '',
     bank_account: '',
+    // 內部標記
+    _hasLoginId: false, // 記錄是否已有登入帳號
   });
 
   // 載入銀行列表（從 payment_approval schema）
@@ -158,6 +161,7 @@ export default function EmployeesManagementV2() {
   const resetForm = () => {
     setFormData({
       employee_id: '',
+      login_id: '',
       name: '',
       email: '',
       phone: '',
@@ -175,6 +179,7 @@ export default function EmployeesManagementV2() {
       branch_name: '',
       branch_code: '',
       bank_account: '',
+      _hasLoginId: false,
     });
     setEditingEmployee(null);
   };
@@ -185,6 +190,7 @@ export default function EmployeesManagementV2() {
       setEditingEmployee(employee);
       setFormData({
         employee_id: employee.employee_id || '',
+        login_id: employee.login_id || '',
         name: employee.name || '',
         email: employee.email || '',
         phone: employee.phone || '',
@@ -202,6 +208,8 @@ export default function EmployeesManagementV2() {
         branch_name: employee.branch_name || '',
         branch_code: employee.branch_code || '',
         bank_account: employee.bank_account || '',
+        // 內部標記
+        _hasLoginId: !!employee.login_id,
       });
     } else {
       resetForm();
@@ -227,27 +235,42 @@ export default function EmployeesManagementV2() {
         ? stores.find(s => s.id === parseInt(formData.store_id) || s.id === formData.store_id)
         : null;
 
+      // 移除內部標記欄位
+      const { _hasLoginId, ...formDataWithoutInternal } = formData;
+
       const cleanData = {
-        ...formData,
-        department_id: formData.department_id || null,
-        store_id: formData.store_id || null,
-        store_code: selectedStore?.code || null,  // 同步更新 store_code
-        email: formData.email || null,
-        phone: formData.phone || null,
-        mobile: formData.mobile || null,
-        hire_date: formData.hire_date || null,
+        employee_id: formDataWithoutInternal.employee_id,
+        name: formDataWithoutInternal.name,
+        email: formDataWithoutInternal.email || null,
+        phone: formDataWithoutInternal.phone || null,
+        mobile: formDataWithoutInternal.mobile || null,
+        org_type: formDataWithoutInternal.org_type,
+        department_id: formDataWithoutInternal.department_id || null,
+        store_id: formDataWithoutInternal.store_id || null,
+        store_code: selectedStore?.code || null,
+        position_code: formDataWithoutInternal.position_code || null,
+        employment_type_new: formDataWithoutInternal.employment_type_new,
+        status: formDataWithoutInternal.status,
+        hire_date: formDataWithoutInternal.hire_date || null,
         // 銀行帳戶資訊
-        bank_name: formData.bank_name || null,
-        bank_code: formData.bank_code || null,
-        branch_name: formData.branch_name || null,
-        branch_code: formData.branch_code || null,
-        bank_account: formData.bank_account || null,
+        bank_name: formDataWithoutInternal.bank_name || null,
+        bank_code: formDataWithoutInternal.bank_code || null,
+        branch_name: formDataWithoutInternal.branch_name || null,
+        branch_code: formDataWithoutInternal.branch_code || null,
+        bank_account: formDataWithoutInternal.bank_account || null,
       };
+
+      // 只有在尚未設定 login_id 時才更新它
+      if (!_hasLoginId) {
+        cleanData.login_id = formDataWithoutInternal.login_id || formDataWithoutInternal.employee_id;
+      }
 
       let result;
       if (editingEmployee) {
         result = await updateEmployee(editingEmployee.id, cleanData);
       } else {
+        // 新增時，若沒有設定 login_id，使用 employee_id
+        cleanData.login_id = formDataWithoutInternal.login_id || formDataWithoutInternal.employee_id;
         result = await createEmployee(cleanData);
       }
 
@@ -265,16 +288,65 @@ export default function EmployeesManagementV2() {
   // 刪除員工
   const handleDelete = async (employee) => {
     if (!canDelete) return alert('您沒有刪除員工的權限');
-    if (!window.confirm(`確定要刪除員工「${employee.name}」嗎？`)) return;
 
-    setProcessing(true);
-    const result = await deleteEmployee(employee.id);
-    setProcessing(false);
+    // 檢查是否有關聯的用戶帳號
+    const hasUserAccount = !!employee.user_id;
 
-    if (result.success) {
-      alert('✅ 員工已刪除');
+    if (hasUserAccount) {
+      // 有關聯帳號，詢問是否一併刪除
+      const choice = window.confirm(
+        `員工「${employee.name}」有關聯的系統登入帳號。\n\n` +
+        `按「確定」= 同時刪除員工資料和登入帳號（該員工將無法登入系統）\n` +
+        `按「取消」= 僅刪除員工資料（保留登入帳號）`
+      );
+
+      setProcessing(true);
+
+      if (choice) {
+        // 同時刪除帳號：呼叫 delete_user_by_admin RPC
+        const { data, error } = await supabase.rpc('delete_user_by_admin', {
+          target_user_id: employee.user_id
+        });
+
+        if (error) {
+          setProcessing(false);
+          return alert('❌ 刪除帳號失敗: ' + error.message);
+        }
+
+        // 再軟刪除員工資料
+        const result = await deleteEmployee(employee.id);
+        setProcessing(false);
+
+        if (result.success) {
+          alert('✅ 員工資料和登入帳號已一併刪除');
+          refetch(); // 重新載入列表
+        } else {
+          alert('⚠️ 帳號已刪除，但員工資料刪除失敗: ' + result.error);
+        }
+      } else {
+        // 僅刪除員工資料
+        const result = await deleteEmployee(employee.id);
+        setProcessing(false);
+
+        if (result.success) {
+          alert('✅ 員工資料已刪除（登入帳號保留）');
+        } else {
+          alert('❌ 刪除失敗: ' + result.error);
+        }
+      }
     } else {
-      alert('❌ 刪除失敗: ' + result.error);
+      // 沒有關聯帳號，直接刪除員工資料
+      if (!window.confirm(`確定要刪除員工「${employee.name}」嗎？`)) return;
+
+      setProcessing(true);
+      const result = await deleteEmployee(employee.id);
+      setProcessing(false);
+
+      if (result.success) {
+        alert('✅ 員工已刪除');
+      } else {
+        alert('❌ 刪除失敗: ' + result.error);
+      }
     }
   };
 
@@ -510,7 +582,10 @@ export default function EmployeesManagementV2() {
                         </div>
                         <div>
                           <div className="font-bold text-gray-800">{employee.name}</div>
-                          <div className="text-xs text-gray-500">{employee.employee_id || '無編號'}</div>
+                          <div className="text-xs text-gray-500">編號: {employee.employee_id || '無編號'}</div>
+                          {employee.login_id && employee.login_id !== employee.employee_id && (
+                            <div className="text-xs text-blue-500">登入: {employee.login_id}</div>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -614,18 +689,44 @@ export default function EmployeesManagementV2() {
       >
         <form onSubmit={handleSave} className="space-y-4">
           {/* 基本資訊 */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">員工編號 *</label>
               <input
                 type="text"
                 required
-                placeholder="EMP001"
+                placeholder="A001"
                 value={formData.employee_id}
                 onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
-                disabled={editingEmployee && editingEmployee.employee_id}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
               />
+              <p className="mt-1 text-xs text-gray-500">行政用途，可隨時修改</p>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                登入帳號 *
+                {editingEmployee && formData._hasLoginId && (
+                  <span className="ml-2 text-xs text-gray-500">(已鎖定)</span>
+                )}
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="A001"
+                value={formData.login_id}
+                onChange={(e) => setFormData({ ...formData, login_id: e.target.value })}
+                disabled={editingEmployee && formData._hasLoginId}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+              />
+              {editingEmployee && !formData._hasLoginId && (
+                <p className="mt-1 text-xs text-amber-600">⚠️ 尚未設定，設定後不可修改</p>
+              )}
+              {editingEmployee && formData._hasLoginId && (
+                <p className="mt-1 text-xs text-gray-500">用於系統登入，無法修改</p>
+              )}
+              {!editingEmployee && (
+                <p className="mt-1 text-xs text-gray-500">設定後不可修改</p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">姓名 *</label>
