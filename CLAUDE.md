@@ -1,7 +1,7 @@
 # CLAUDE.md - 六扇門主系統完整開發指南
 
 > **專為 AI 助手設計的項目指南文檔**
-> 最後更新：2026-01-23
+> 最後更新：2026-01-27
 
 ---
 
@@ -196,9 +196,10 @@ rbac.user_roles               -- 用戶角色關聯
 CREATE TABLE public.employees (
   id UUID PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id),  -- 關聯認證用戶
-  employee_id TEXT UNIQUE NOT NULL,         -- 員工編號
+  employee_id TEXT NOT NULL,                -- 員工編號（行政用途，可修改）
+  login_id VARCHAR(50) UNIQUE,              -- 登入帳號（設定後不可修改）⭐
   name TEXT NOT NULL,
-  email TEXT UNIQUE,
+  email TEXT,                               -- 聯絡用 Email（可修改）
   department_id UUID REFERENCES public.departments(id),
   position TEXT,                            -- 職位
   role TEXT,                                -- 業務角色
@@ -208,6 +209,29 @@ CREATE TABLE public.employees (
   hire_date DATE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+```
+
+**重要設計決策 - 登入帳號與員工編號分離**：
+
+| 欄位 | 用途 | 可否修改 | 說明 |
+|------|------|---------|------|
+| `login_id` | 系統登入 | ❌ 設定後不可修改 | 用於 Supabase Auth 登入，轉換為 `{login_id}@6owldoor.internal` |
+| `employee_id` | 行政識別 | ✅ 可隨時修改 | 人資用途，如員工調動、編號重整 |
+| `email` | 聯絡用途 | ✅ 可隨時修改 | 純聯絡用，不影響登入 |
+
+**登入流程**：
+```javascript
+// Login.jsx - 統一登入入口
+const accountInput = formData.account.trim();
+
+// 自動判斷：含 @ 為 Email，否則為登入帳號 (login_id)
+let loginEmail;
+if (isEmailFormat(accountInput)) {
+  loginEmail = accountInput;  // Email 直接使用
+} else {
+  // 登入帳號轉換為虛擬 email
+  loginEmail = `${accountInput.toLowerCase()}@6owldoor.internal`;
+}
 ```
 
 #### departments (部門表)
@@ -421,6 +445,32 @@ pending_unit_manager → pending_accountant → pending_audit_manager
 | 店舖管理 | `store_management_system/` | 品牌與店舖管理 |
 | 叫修服務 | `ticketing_system/` | 設備報修工單 |
 | 企業入口網 | `eip_km_system/` | 文件、公告、知識管理 |
+
+### 5. 管理中心 (Management Center)
+
+**路徑**: `src/pages/management/`
+
+**功能模組**：
+
+| 頁籤 | 組件 | 權限 | 說明 |
+|------|------|------|------|
+| 員工資料 | `EmployeesManagementV2` | `employee.view/create/edit/delete` | 管理員工組織架構（總部/門市） |
+| 用戶帳號 | `ProfilesManagement` | `profile.view/create/edit/delete` | 管理系統登入帳號 |
+| 部門管理 | `DepartmentsManagement` | `department.view/create/edit/delete` | 管理公司部門架構 |
+| 會計品牌分配 | `AccountantBrandsManagement` | `accountant_brand.view/edit` | 指派會計負責品牌 |
+| 督導設定 | `SupervisorManagement` | `supervisor.view/edit` | 區域督導與門市指派 |
+| 權限管理 | `PermissionManagement` | `rbac.manage` | 角色與權限設定 |
+
+**帳號建立模式**（ProfilesManagement）：
+- **員工編號模式**：適合門市員工，不需要真實 Email，使用 `{login_id}@6owldoor.internal` 作為虛擬 email
+- **Email 模式**：適合總部人員，使用真實 Email 登入
+
+**相關 Edge Functions**：
+
+| Function | 用途 |
+|----------|------|
+| `create-employee-account` | 建立已確認的員工帳號（免 Email 驗證） |
+| `invite-employee` | 發送邀請信給員工（需 Email 驗證） |
 
 ---
 
@@ -694,6 +744,38 @@ FOR UPDATE USING (
 );
 ```
 
+#### 5. 員工編號與登入帳號混淆
+
+**問題**: 員工編號已修改但無法登入
+
+**原因**: `login_id` 才是登入帳號，`employee_id` 只是行政用途
+
+**排查**:
+```sql
+-- 檢查員工的登入帳號
+SELECT employee_id, login_id, name
+FROM employees
+WHERE employee_id = 'A001';
+
+-- 檢查 auth.users 中的 email
+SELECT id, email
+FROM auth.users
+WHERE email LIKE '%@6owldoor.internal';
+```
+
+**設計原則**:
+- `login_id` 對應 `auth.users.email` 的 `@` 前面部分
+- 修改 `employee_id` 不會影響登入
+- 修改 `login_id` 後需要同步更新 `auth.users.email`（目前設計為不可修改）
+
+#### 6. 前端欄位顯示 disabled 但不應該
+
+**排查步驟**:
+1. 確認使用的是哪個組件版本（如 `EmployeesManagement.jsx` vs `EmployeesManagementV2.jsx`）
+2. 檢查 `ManagementCenter.jsx` 中的 import 和 component 引用
+3. 確認本地代碼已保存並被 Vite 熱更新
+4. 如果是部署環境，確認已 commit 並 push 到 Vercel
+
 ---
 
 ## 重要提醒 (For AI Assistants)
@@ -705,6 +787,7 @@ FOR UPDATE USING (
 5. **RLS**: 所有新表格必須啟用 Row Level Security
 6. **設計**: 遵循現有設計系統（紅色主色、Stone 中性色）
 7. **模式**: 遵循現有組件模式和目錄結構
+8. **登入帳號**: `login_id` 設定後不可修改，`employee_id` 可自由修改
 
 ---
 
@@ -721,5 +804,14 @@ FOR UPDATE USING (
 
 ---
 
+## 版本歷史
+
+| 日期 | 變更內容 |
+|------|----------|
+| 2026-01-27 | 新增 `login_id` 欄位設計說明、管理中心文檔、故障排除更新 |
+| 2026-01-23 | 初版建立 |
+
+---
+
 **文檔維護**: Claude AI Assistant
-**最後更新**: 2026-01-23
+**最後更新**: 2026-01-27

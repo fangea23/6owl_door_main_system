@@ -66,13 +66,13 @@ export default function Login() {
 
     const accountInput = formData.account.trim();
 
-    // 自動判斷：含 @ 為 Email，否則為員工編號
+    // 自動判斷：含 @ 為 Email，否則為登入帳號 (login_id)
     let loginEmail;
     if (isEmailFormat(accountInput)) {
       // Email 格式：直接使用
       loginEmail = accountInput;
     } else {
-      // 員工編號格式：轉換為虛擬 email
+      // 登入帳號格式：轉換為虛擬 email（使用 login_id）
       loginEmail = `${accountInput.toLowerCase()}@6owldoor.internal`;
     }
 

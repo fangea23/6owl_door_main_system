@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useDepartments } from '../../../hooks/management/useDepartments';
 import { useEmployees } from '../../../hooks/management/useEmployees';
+import { usePermission } from '../../../hooks/usePermission';
 import {
   Building2, Plus, Search, Loader2, Edit2, Trash2, Save, X, Users, MapPin
 } from 'lucide-react';
@@ -15,6 +16,11 @@ export default function DepartmentsManagement() {
   } = useDepartments();
 
   const { employees } = useEmployees();
+
+  // 細緻權限檢查
+  const { hasPermission: canCreate } = usePermission('department.create');
+  const { hasPermission: canEdit } = usePermission('department.edit');
+  const { hasPermission: canDelete } = usePermission('department.delete');
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -175,21 +181,23 @@ export default function DepartmentsManagement() {
           />
         </div>
 
-        {/* 新增按鈕 */}
-        <button
-          onClick={() => {
-            resetForm();
-            setShowCreateForm(!showCreateForm);
-          }}
-          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg transition flex items-center gap-2 whitespace-nowrap"
-        >
-          <Plus size={20} />
-          {showCreateForm ? '取消' : '新增部門'}
-        </button>
+        {/* 新增按鈕 - 需要 department.create 權限 */}
+        {canCreate && (
+          <button
+            onClick={() => {
+              resetForm();
+              setShowCreateForm(!showCreateForm);
+            }}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg transition flex items-center gap-2 whitespace-nowrap"
+          >
+            <Plus size={20} />
+            {showCreateForm ? '取消' : '新增部門'}
+          </button>
+        )}
       </div>
 
       {/* 表單 (新增或編輯) */}
-      {(showCreateForm || editingId) && (
+      {((showCreateForm && canCreate) || (editingId && canEdit)) && (
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 animate-in fade-in">
           <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
             {editingId ? <Edit2 size={20} /> : <Plus size={20} />}
@@ -395,25 +403,31 @@ export default function DepartmentsManagement() {
                 </div>
               </div>
 
-              {/* 操作按鈕 */}
-              <div className="flex gap-2 pt-4 border-t border-gray-100">
-                <button
-                  onClick={() => startEdit(department)}
-                  disabled={processing}
-                  className="flex-1 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition flex items-center justify-center gap-1"
-                >
-                  <Edit2 size={16} />
-                  編輯
-                </button>
-                <button
-                  onClick={() => handleDelete(department.id, department.name)}
-                  disabled={processing}
-                  className="flex-1 py-2 text-red-600 hover:bg-red-50 rounded-lg transition flex items-center justify-center gap-1"
-                >
-                  <Trash2 size={16} />
-                  刪除
-                </button>
-              </div>
+              {/* 操作按鈕 - 需要對應權限 */}
+              {(canEdit || canDelete) && (
+                <div className="flex gap-2 pt-4 border-t border-gray-100">
+                  {canEdit && (
+                    <button
+                      onClick={() => startEdit(department)}
+                      disabled={processing}
+                      className="flex-1 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition flex items-center justify-center gap-1"
+                    >
+                      <Edit2 size={16} />
+                      編輯
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button
+                      onClick={() => handleDelete(department.id, department.name)}
+                      disabled={processing}
+                      className="flex-1 py-2 text-red-600 hover:bg-red-50 rounded-lg transition flex items-center justify-center gap-1"
+                    >
+                      <Trash2 size={16} />
+                      刪除
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

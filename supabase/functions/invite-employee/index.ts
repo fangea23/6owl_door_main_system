@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => null)
     if (!body) throw new Error('Request body is empty')
     
-    const { email, name, employee_id, department_id, position, role, phone, mobile } = body
+    const { email, name, employee_id, login_id, department_id, position, role, phone, mobile } = body
 
     // ==========================================
     // ✅ 2. 安全性檢查：驗證呼叫者權限
@@ -93,10 +93,14 @@ Deno.serve(async (req) => {
     if (inviteError) throw inviteError
 
     // 5. 更新員工資料 (寫入新角色)
+    // login_id 用於登入帳號（設定後不可修改），若未提供則使用 employee_id
+    const finalLoginId = login_id || employee_id;
+
     const { error: updateError } = await supabaseAdmin
       .from('employees')
       .update({
         employee_id: employee_id,
+        login_id: finalLoginId, // 登入帳號（設定後不可修改）
         department_id: department_id || null,
         position: position,
         role: targetRole, // 這裡寫入正確的角色 (如 accountant)
