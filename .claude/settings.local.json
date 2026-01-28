@@ -8,7 +8,8 @@
       "Bash(grep:*)",
       "Bash(find:*)",
       "mcp__812c4665-47b2-4627-9842-da8f24776497__list_tables",
-      "mcp__812c4665-47b2-4627-9842-da8f24776497__list_projects"
+      "mcp__812c4665-47b2-4627-9842-da8f24776497__list_projects",
+      "Bash(tree:*)"
     ]
   }
 }
