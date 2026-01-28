@@ -1,12 +1,23 @@
 /**
  * 匯出媒體檔 Modal (代墊款系統版)
  * 用於選擇銀行格式、設定匯出選項
+ * 支援從門市銀行帳戶自動帶入付款方資訊
  */
 import React, { useState, useEffect } from 'react';
 import {
-  X, Download, Building, Calendar, FileText, AlertCircle, CheckCircle, Loader2
+  X, Download, Building, Calendar, FileText, AlertCircle, Loader2, Store
 } from 'lucide-react';
-import { BANK_OPTIONS, exportBankFile, downloadFile, generateFilename } from '../utils/bankExport';
+import {
+  BANK_OPTIONS,
+  TRANSACTION_TYPE_OPTIONS,
+  FEE_TYPE_OPTIONS,
+  PAYER_ID_TYPE_OPTIONS,
+  exportBankFile,
+  downloadFile,
+  downloadFileAsAnsi,
+  generateFilename
+} from '../utils/bankExport';
+import { supabase } from '../supabaseClient';
 
 export default function ExportModal({
   isOpen,
@@ -16,16 +27,121 @@ export default function ExportModal({
 }) {
   const [bankType, setBankType] = useState('taishin');
   const [paymentDate, setPaymentDate] = useState('');
-  const [includeHeader, setIncludeHeader] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
 
-  // 國泰銀行需要的公司資訊
+  // 門市銀行帳戶相關 state
+  const [stores, setStores] = useState([]);
+  const [storeBankAccounts, setStoreBankAccounts] = useState([]);
+  const [selectedStoreCode, setSelectedStoreCode] = useState('');
+  const [selectedAccountId, setSelectedAccountId] = useState('');
+  const [loadingStores, setLoadingStores] = useState(false);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+
+  // 共用的公司付款資訊
   const [companyInfo, setCompanyInfo] = useState({
+    // 台新銀行欄位
+    payerBankCode: '812',
+    payerBranchCode: '1019',
     payerAccountNo: '',
     payerTaxId: '',
-    payerName: '六扇門餐飲事業有限公司',
+    payerName: '',
+    payerIdType: '58',
+    payerContact: '',
+    payerPhone: '',
+    payerFax: '',
   });
+
+  // 國泰銀行選項
+  const [transactionType, setTransactionType] = useState('SPU');
+  const [feeType, setFeeType] = useState('15');
+
+  // 載入門市列表
+  useEffect(() => {
+    const fetchStores = async () => {
+      setLoadingStores(true);
+      try {
+        const { data, error } = await supabase
+          .from('stores')
+          .select('code, name')
+          .eq('is_active', true)
+          .order('code');
+
+        if (error) throw error;
+        setStores(data || []);
+      } catch (err) {
+        console.error('載入門市失敗:', err);
+      } finally {
+        setLoadingStores(false);
+      }
+    };
+
+    if (isOpen) {
+      fetchStores();
+    }
+  }, [isOpen]);
+
+  // 當選擇門市時載入該門市的銀行帳戶
+  useEffect(() => {
+    const fetchBankAccounts = async () => {
+      if (!selectedStoreCode) {
+        setStoreBankAccounts([]);
+        setSelectedAccountId('');
+        return;
+      }
+
+      setLoadingAccounts(true);
+      try {
+        const { data, error } = await supabase
+          .from('store_bank_accounts')
+          .select('*')
+          .eq('store_id', selectedStoreCode)
+          .eq('is_active', true)
+          .order('is_default', { ascending: false });
+
+        if (error) throw error;
+        setStoreBankAccounts(data || []);
+
+        // 自動選擇預設帳戶
+        const defaultAccount = data?.find(a => a.is_default);
+        if (defaultAccount) {
+          setSelectedAccountId(defaultAccount.id);
+          applyBankAccountToForm(defaultAccount);
+        } else if (data?.length > 0) {
+          setSelectedAccountId(data[0].id);
+          applyBankAccountToForm(data[0]);
+        }
+      } catch (err) {
+        console.error('載入銀行帳戶失敗:', err);
+      } finally {
+        setLoadingAccounts(false);
+      }
+    };
+
+    fetchBankAccounts();
+  }, [selectedStoreCode]);
+
+  // 當選擇帳戶改變時套用到表單
+  useEffect(() => {
+    if (selectedAccountId && storeBankAccounts.length > 0) {
+      const account = storeBankAccounts.find(a => a.id === selectedAccountId);
+      if (account) {
+        applyBankAccountToForm(account);
+      }
+    }
+  }, [selectedAccountId]);
+
+  // 將銀行帳戶資訊套用到表單
+  const applyBankAccountToForm = (account) => {
+    setCompanyInfo(prev => ({
+      ...prev,
+      payerBankCode: account.bank_code || prev.payerBankCode,
+      payerBranchCode: account.branch_code || prev.payerBranchCode,
+      payerAccountNo: account.account_number || '',
+      payerTaxId: account.tax_id || '',
+      payerName: account.account_name || '',
+    }));
+  };
 
   // 重置狀態
   useEffect(() => {
@@ -33,12 +149,16 @@ export default function ExportModal({
       setError('');
       // 預設付款日期為今天
       setPaymentDate(new Date().toISOString().slice(0, 10));
+      // 重置門市選擇
+      setSelectedStoreCode('');
+      setSelectedAccountId('');
+      setStoreBankAccounts([]);
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  // 驗證資料
+  // 驗證資料 - 代墊款版本：收款人是員工
   const validateRequests = () => {
     const errors = [];
     for (const req of requests) {
@@ -66,10 +186,34 @@ export default function ExportModal({
         return;
       }
 
-      // 國泰銀行需要驗證公司資訊
+      // 台新銀行驗證
+      if (bankType === 'taishin') {
+        if (!companyInfo.payerAccountNo) {
+          setError('台新銀行格式需要填寫付款帳號');
+          setExporting(false);
+          return;
+        }
+        if (!companyInfo.payerName) {
+          setError('台新銀行格式需要填寫付款戶名');
+          setExporting(false);
+          return;
+        }
+      }
+
+      // 國泰銀行驗證
       if (bankType === 'cathay') {
         if (!companyInfo.payerAccountNo) {
           setError('國泰銀行格式需要填寫付款帳號');
+          setExporting(false);
+          return;
+        }
+        if (!companyInfo.payerTaxId) {
+          setError('國泰銀行格式需要填寫公司統編');
+          setExporting(false);
+          return;
+        }
+        if (!companyInfo.payerName) {
+          setError('國泰銀行格式需要填寫公司戶名');
           setExporting(false);
           return;
         }
@@ -78,13 +222,17 @@ export default function ExportModal({
       // 產生檔案內容
       const content = exportBankFile(bankType, requests, {
         paymentDate,
-        includeHeader,
         companyInfo,
+        transactionType,
+        feeType,
       });
 
       // 下載檔案
       const filename = generateFilename(bankType, systemType);
-      downloadFile(content, filename);
+
+      // 兩家銀行都需要 ANSI/Big5 編碼
+      const hint = await downloadFileAsAnsi(content, filename);
+      alert(hint);
 
       // 關閉 Modal
       onClose();
@@ -103,9 +251,9 @@ export default function ExportModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] overflow-y-auto">
         {/* 標題 */}
-        <div className="flex items-center justify-between p-5 border-b border-stone-200 bg-gradient-to-r from-red-600 to-red-700">
+        <div className="flex items-center justify-between p-5 border-b border-stone-200 bg-gradient-to-r from-red-600 to-red-700 sticky top-0 z-10">
           <div className="flex items-center gap-3 text-white">
             <Download size={24} />
             <h2 className="text-lg font-bold">匯出銀行媒體檔</h2>
@@ -164,6 +312,65 @@ export default function ExportModal({
             </div>
           </div>
 
+          {/* 門市銀行帳戶快速選擇 */}
+          <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
+            <div className="text-sm font-bold text-emerald-800 mb-3 flex items-center gap-2">
+              <Store size={16} />
+              從門市帶入付款方資訊 (選填)
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-stone-600 mb-1">
+                  選擇門市
+                </label>
+                <select
+                  value={selectedStoreCode}
+                  onChange={(e) => setSelectedStoreCode(e.target.value)}
+                  disabled={loadingStores}
+                  className="w-full p-2 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                >
+                  <option value="">-- 手動輸入 --</option>
+                  {stores.map((store) => (
+                    <option key={store.code} value={store.code}>
+                      {store.code} - {store.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-stone-600 mb-1">
+                  選擇帳戶
+                </label>
+                <select
+                  value={selectedAccountId}
+                  onChange={(e) => setSelectedAccountId(e.target.value)}
+                  disabled={!selectedStoreCode || loadingAccounts || storeBankAccounts.length === 0}
+                  className="w-full p-2 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none disabled:bg-stone-100"
+                >
+                  {!selectedStoreCode ? (
+                    <option value="">請先選擇門市</option>
+                  ) : loadingAccounts ? (
+                    <option value="">載入中...</option>
+                  ) : storeBankAccounts.length === 0 ? (
+                    <option value="">此門市無銀行帳戶</option>
+                  ) : (
+                    storeBankAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.bank_code} - {account.account_name}
+                        {account.is_default ? ' ⭐' : ''}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+            </div>
+            {selectedStoreCode && storeBankAccounts.length === 0 && !loadingAccounts && (
+              <p className="text-xs text-amber-600 mt-2">
+                💡 此門市尚未設定銀行帳戶，請至「門店管理」新增或手動輸入下方欄位。
+              </p>
+            )}
+          </div>
+
           {/* 付款日期 */}
           <div>
             <label className="block text-sm font-bold text-stone-700 mb-2">
@@ -178,29 +385,198 @@ export default function ExportModal({
             />
           </div>
 
-          {/* 台新銀行選項 */}
+          {/* 台新銀行欄位 */}
           {bankType === 'taishin' && (
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="includeHeader"
-                checked={includeHeader}
-                onChange={(e) => setIncludeHeader(e.target.checked)}
-                className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
-              />
-              <label htmlFor="includeHeader" className="text-sm text-stone-600">
-                包含標題列
-              </label>
+            <div className="space-y-4 bg-blue-50 p-4 rounded-xl border border-blue-200">
+              <div className="text-sm font-bold text-blue-800">
+                <AlertCircle size={16} className="inline mr-1" />
+                台新銀行付款方資訊
+              </div>
+
+              {/* 付款銀行 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">
+                    付款總行 *
+                  </label>
+                  <input
+                    type="text"
+                    value={companyInfo.payerBankCode}
+                    onChange={(e) => setCompanyInfo({ ...companyInfo, payerBankCode: e.target.value })}
+                    placeholder="3碼，如 812"
+                    maxLength={3}
+                    className="w-full p-2 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">
+                    付款分行 *
+                  </label>
+                  <input
+                    type="text"
+                    value={companyInfo.payerBranchCode}
+                    onChange={(e) => setCompanyInfo({ ...companyInfo, payerBranchCode: e.target.value })}
+                    placeholder="4碼，如 1019"
+                    maxLength={4}
+                    className="w-full p-2 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* 付款帳號 & 戶名 */}
+              <div>
+                <label className="block text-xs font-medium text-stone-600 mb-1">
+                  付款帳號 *
+                </label>
+                <input
+                  type="text"
+                  value={companyInfo.payerAccountNo}
+                  onChange={(e) => setCompanyInfo({ ...companyInfo, payerAccountNo: e.target.value })}
+                  placeholder="公司帳號"
+                  maxLength={17}
+                  className="w-full p-2 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-stone-600 mb-1">
+                  付款戶名 *
+                </label>
+                <input
+                  type="text"
+                  value={companyInfo.payerName}
+                  onChange={(e) => setCompanyInfo({ ...companyInfo, payerName: e.target.value })}
+                  placeholder="公司全名"
+                  className="w-full p-2 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              {/* 統編 & 識別碼類型 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">
+                    付款人識別碼 (統編)
+                  </label>
+                  <input
+                    type="text"
+                    value={companyInfo.payerTaxId}
+                    onChange={(e) => setCompanyInfo({ ...companyInfo, payerTaxId: e.target.value })}
+                    placeholder="8位統編"
+                    maxLength={17}
+                    className="w-full p-2 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">
+                    識別碼類型
+                  </label>
+                  <select
+                    value={companyInfo.payerIdType}
+                    onChange={(e) => setCompanyInfo({ ...companyInfo, payerIdType: e.target.value })}
+                    className="w-full p-2 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  >
+                    {PAYER_ID_TYPE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* 手續費 */}
+              <div>
+                <label className="block text-xs font-medium text-stone-600 mb-1">
+                  手續費負擔
+                </label>
+                <select
+                  value={feeType}
+                  onChange={(e) => setFeeType(e.target.value)}
+                  className="w-full p-2 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  {FEE_TYPE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 聯絡資訊 (選填) */}
+              <details className="text-sm">
+                <summary className="cursor-pointer text-stone-500 hover:text-stone-700">
+                  聯絡資訊 (選填)
+                </summary>
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-stone-600 mb-1">付款聯絡人</label>
+                    <input
+                      type="text"
+                      value={companyInfo.payerContact}
+                      onChange={(e) => setCompanyInfo({ ...companyInfo, payerContact: e.target.value })}
+                      className="w-full p-2 text-sm border border-stone-300 rounded-lg"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-stone-600 mb-1">聯絡電話</label>
+                      <input
+                        type="text"
+                        value={companyInfo.payerPhone}
+                        onChange={(e) => setCompanyInfo({ ...companyInfo, payerPhone: e.target.value })}
+                        className="w-full p-2 text-sm border border-stone-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-stone-600 mb-1">傳真號碼</label>
+                      <input
+                        type="text"
+                        value={companyInfo.payerFax}
+                        onChange={(e) => setCompanyInfo({ ...companyInfo, payerFax: e.target.value })}
+                        className="w-full p-2 text-sm border border-stone-300 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </details>
             </div>
           )}
 
-          {/* 國泰銀行需要額外資訊 */}
+          {/* 國泰銀行欄位 */}
           {bankType === 'cathay' && (
-            <div className="space-y-3 bg-amber-50 p-4 rounded-xl border border-amber-200">
-              <div className="text-sm font-bold text-amber-800 mb-2">
+            <div className="space-y-4 bg-amber-50 p-4 rounded-xl border border-amber-200">
+              <div className="text-sm font-bold text-amber-800">
                 <AlertCircle size={16} className="inline mr-1" />
-                國泰銀行需要以下資訊
+                國泰銀行付款方資訊
               </div>
+
+              {/* 付款銀行 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">
+                    付款銀行代碼 *
+                  </label>
+                  <input
+                    type="text"
+                    value={companyInfo.payerBankCode}
+                    onChange={(e) => setCompanyInfo({ ...companyInfo, payerBankCode: e.target.value })}
+                    placeholder="3碼，如 013"
+                    maxLength={3}
+                    className="w-full p-2 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">
+                    付款分行代碼 *
+                  </label>
+                  <input
+                    type="text"
+                    value={companyInfo.payerBranchCode}
+                    onChange={(e) => setCompanyInfo({ ...companyInfo, payerBranchCode: e.target.value })}
+                    placeholder="4碼，如 0017"
+                    maxLength={4}
+                    className="w-full p-2 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* 付款帳號 */}
               <div>
                 <label className="block text-xs font-medium text-stone-600 mb-1">
                   付款帳號 *
@@ -213,31 +589,75 @@ export default function ExportModal({
                   className="w-full p-2 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-stone-600 mb-1">
-                  公司統編
-                </label>
-                <input
-                  type="text"
-                  value={companyInfo.payerTaxId}
-                  onChange={(e) => setCompanyInfo({ ...companyInfo, payerTaxId: e.target.value })}
-                  placeholder="8 位統編"
-                  className="w-full p-2 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none"
-                />
+
+              {/* 公司統編 & 戶名 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">
+                    公司統編 *
+                  </label>
+                  <input
+                    type="text"
+                    value={companyInfo.payerTaxId}
+                    onChange={(e) => setCompanyInfo({ ...companyInfo, payerTaxId: e.target.value })}
+                    placeholder="8 位統編"
+                    maxLength={10}
+                    className="w-full p-2 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">
+                    公司戶名 *
+                  </label>
+                  <input
+                    type="text"
+                    value={companyInfo.payerName}
+                    onChange={(e) => setCompanyInfo({ ...companyInfo, payerName: e.target.value })}
+                    placeholder="公司全名"
+                    className="w-full p-2 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-stone-600 mb-1">
-                  公司戶名
-                </label>
-                <input
-                  type="text"
-                  value={companyInfo.payerName}
-                  onChange={(e) => setCompanyInfo({ ...companyInfo, payerName: e.target.value })}
-                  className="w-full p-2 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none"
-                />
+
+              {/* 交易類別 & 手續費 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">
+                    交易類別
+                  </label>
+                  <select
+                    value={transactionType}
+                    onChange={(e) => setTransactionType(e.target.value)}
+                    className="w-full p-2 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none"
+                  >
+                    {TRANSACTION_TYPE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">
+                    手續費負擔
+                  </label>
+                  <select
+                    value={feeType}
+                    onChange={(e) => setFeeType(e.target.value)}
+                    className="w-full p-2 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none"
+                  >
+                    {FEE_TYPE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
           )}
+
+          {/* 編碼提醒 */}
+          <div className="bg-green-50 p-3 rounded-lg border border-green-200 text-sm text-green-800">
+            <AlertCircle size={14} className="inline mr-1" />
+            檔案將自動轉換為 <strong>Big5/ANSI</strong> 編碼，可直接上傳至銀行系統。
+          </div>
 
           {/* 錯誤訊息 */}
           {error && (
@@ -249,7 +669,7 @@ export default function ExportModal({
         </div>
 
         {/* 按鈕 */}
-        <div className="flex gap-3 p-5 border-t border-stone-200 bg-stone-50">
+        <div className="flex gap-3 p-5 border-t border-stone-200 bg-stone-50 sticky bottom-0">
           <button
             onClick={onClose}
             className="flex-1 py-3 px-4 bg-white border border-stone-300 text-stone-700 rounded-xl font-bold hover:bg-stone-100 transition-colors"

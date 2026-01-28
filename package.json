@@ -13,6 +13,7 @@
     "@supabase/supabase-js": "^2.45.0",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/react-query": "^5.90.18",
+    "@vscode/iconv-lite-umd": "^0.7.1",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.562.0",
     "react": "^19.2.0",

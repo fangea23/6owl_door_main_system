@@ -34,8 +34,10 @@ export default function SearchableSelect({
   const [searchTerm, setSearchTerm] = useState('');
   const [isManualMode, setIsManualMode] = useState(false);
   const [manualValue, setManualValue] = useState('');
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const containerRef = useRef(null);
   const inputRef = useRef(null);
+  const listRef = useRef(null);
 
   // 篩選選項
   const filteredOptions = options.filter(option => {
@@ -80,6 +82,71 @@ export default function SearchableSelect({
       inputRef.current.focus();
     }
   }, [isOpen]);
+
+  // 搜尋字變化時重置 highlighted index
+  useEffect(() => {
+    setHighlightedIndex(0);
+  }, [searchTerm]);
+
+  // 自動捲動到高亮項目
+  useEffect(() => {
+    if (isOpen && listRef.current) {
+      const highlightedItem = listRef.current.querySelector(`[data-index="${highlightedIndex}"]`);
+      if (highlightedItem) {
+        highlightedItem.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [highlightedIndex, isOpen]);
+
+  // 鍵盤導航處理
+  const handleKeyDown = (e) => {
+    if (!isOpen) {
+      // 下拉選單關閉時，按任意鍵或向下鍵開啟
+      if (e.key === 'ArrowDown' || e.key === 'Enter' || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
+        setIsOpen(true);
+        return;
+      }
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setHighlightedIndex(prev => {
+          const maxIndex = allowManualInput ? filteredOptions.length : filteredOptions.length - 1;
+          return prev < maxIndex ? prev + 1 : prev;
+        });
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setHighlightedIndex(prev => (prev > 0 ? prev - 1 : 0));
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (filteredOptions.length > 0) {
+          if (highlightedIndex < filteredOptions.length) {
+            handleSelect(filteredOptions[highlightedIndex].value);
+          } else if (allowManualInput && highlightedIndex === filteredOptions.length) {
+            handleSelect('__manual__');
+          }
+        }
+        break;
+      case 'Tab':
+        // Tab 選擇當前項目並移到下一個欄位
+        if (filteredOptions.length > 0 && highlightedIndex < filteredOptions.length) {
+          handleSelect(filteredOptions[highlightedIndex].value);
+        } else if (allowManualInput && highlightedIndex === filteredOptions.length) {
+          handleSelect('__manual__');
+        } else {
+          setIsOpen(false);
+          setSearchTerm('');
+        }
+        break;
+      case 'Escape':
+        setIsOpen(false);
+        setSearchTerm('');
+        break;
+    }
+  };
 
   // 處理選擇
   const handleSelect = (optionValue) => {
@@ -186,6 +253,7 @@ export default function SearchableSelect({
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={handleKeyDown}
                 placeholder="輸入關鍵字搜尋..."
                 className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
@@ -199,10 +267,17 @@ export default function SearchableSelect({
                 </button>
               )}
             </div>
+            {/* 鍵盤操作提示 */}
+            <div className="flex items-center gap-3 mt-1.5 px-1 text-xs text-gray-400">
+              <span>↑↓ 選擇</span>
+              <span>Enter 確認</span>
+              <span>Tab 選擇並下一欄</span>
+              <span>Esc 關閉</span>
+            </div>
           </div>
 
           {/* 選項列表 */}
-          <div className="max-h-60 overflow-y-auto">
+          <div ref={listRef} className="max-h-60 overflow-y-auto">
             {filteredOptions.length === 0 ? (
               <div className="px-4 py-3 text-sm text-gray-500 text-center">
                 {searchTerm ? '找不到符合的項目' : emptyText}
@@ -210,13 +285,17 @@ export default function SearchableSelect({
             ) : (
               filteredOptions.map((option, index) => {
                 const isSelected = String(option.value) === String(value);
+                const isHighlighted = index === highlightedIndex;
                 return (
                   <button
                     key={`${option.value}-${index}`}
                     type="button"
+                    data-index={index}
                     onClick={() => handleSelect(option.value)}
+                    onMouseEnter={() => setHighlightedIndex(index)}
                     className={`
                       w-full px-4 py-2.5 text-left flex items-center justify-between text-sm
+                      ${isHighlighted ? 'bg-blue-100' : ''}
                       ${isSelected ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'}
                       transition-colors
                     `}
@@ -239,8 +318,10 @@ export default function SearchableSelect({
             {allowManualInput && (
               <button
                 type="button"
+                data-index={filteredOptions.length}
                 onClick={() => handleSelect('__manual__')}
-                className="w-full px-4 py-2.5 text-left text-sm text-gray-600 hover:bg-gray-50 border-t border-gray-100 flex items-center gap-2"
+                onMouseEnter={() => setHighlightedIndex(filteredOptions.length)}
+                className={`w-full px-4 py-2.5 text-left text-sm text-gray-600 border-t border-gray-100 flex items-center gap-2 ${highlightedIndex === filteredOptions.length ? 'bg-blue-100' : 'hover:bg-gray-50'}`}
               >
                 <span className="text-gray-400">其他 /</span>
                 <span>手動輸入</span>

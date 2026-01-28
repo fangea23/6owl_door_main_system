@@ -1,7 +1,7 @@
 # CLAUDE.md - 六扇門主系統完整開發指南
 
 > **專為 AI 助手設計的項目指南文檔**
-> 最後更新：2026-01-27
+> 最後更新：2026-01-28
 
 ---
 
@@ -95,11 +95,13 @@
 
 #### 2. Schema 隔離
 不同業務模組使用不同的 database schema：
-- `public`: 共用資料（員工、部門、品牌、店舖）
+- `public`: 共用資料（員工、部門、品牌、店舖、銀行資料、門市銀行帳戶）
 - `rbac`: 權限系統
 - `payment_approval`: 付款簽核專用
 - `training`: 教育訓練系統
 - 其他 schema 依業務需求建立
+
+**重要**：銀行相關資料表（`banks`, `bank_branches`, `store_bank_accounts`）已統一遷移至 `public` schema，供所有子系統共用。
 
 #### 3. RLS 優先安全模型
 - 前端 RBAC：功能可見性控制
@@ -192,6 +194,11 @@ public.employees              -- 員工資料 ⭐
 public.departments            -- 部門
 public.brands                 -- 品牌 (六扇門、粥大福)
 public.stores                 -- 店舖資料
+
+-- 銀行資料（共用）
+public.banks                  -- 銀行總行資料
+public.bank_branches          -- 銀行分行資料
+public.store_bank_accounts    -- 門市銀行帳戶（用於匯出媒體檔）
 
 -- RBAC 權限系統
 rbac.roles                    -- 角色
@@ -547,8 +554,10 @@ const canApprove =
 **匯出銀行媒體檔**：
 - 權限：`payment.export`
 - 支援格式：台新銀行 (Tab分隔)、國泰銀行 (固定長度 351 bytes)
+- 編碼：Big5/ANSI（台灣銀行系統標準）
 - 功能位置：Dashboard 批量匯出、RequestDetail 單筆匯出
 - 相關檔案：`src/system/payment_system/src/utils/bankExport.js`、`ExportModal.jsx`
+- **自動帶入門市銀行帳戶**：若申請單都來自同一門市，會自動從 `store_bank_accounts` 帶入付款方資訊
 
 ### 2. 員工代墊款系統 (Expense Reimbursement)
 
@@ -570,8 +579,10 @@ const canApprove =
 **匯出銀行媒體檔**：
 - 權限：`expense.export`
 - 支援格式：台新銀行 (Tab分隔)、國泰銀行 (固定長度 351 bytes)
+- 編碼：Big5/ANSI（台灣銀行系統標準）
 - 功能位置：Dashboard 批量匯出、RequestDetail 單筆匯出
 - 相關檔案：`src/system/expense_reimbursement_system/src/utils/bankExport.js`、`ExportModal.jsx`
+- **門市銀行帳戶快速選擇**：可從門市的預設銀行帳戶帶入付款方資訊
 
 ### 3. 教育訓練系統 (Training)
 
@@ -796,6 +807,66 @@ xl: 1280px  /* 大桌面 */
 - [ ] 按鈕添加 touch-manipulation
 - [ ] 陰影使用 shadow-red-500/20
 
+### SearchableSelect 元件
+
+系統中有多個 SearchableSelect 元件，支援搜尋和**鍵盤導航**功能：
+
+| 元件位置 | 色系 | 用途 |
+|---------|------|------|
+| `src/components/ui/SearchableSelect.jsx` | Blue/Gray | 共用元件 |
+| `src/system/payment_system/src/components/SearchableSelect.jsx` | Red/Stone | 付款系統 |
+| `src/system/expense_reimbursement_system/src/components/SearchableSelect.jsx` | Amber/Stone | 代墊款系統 |
+| `src/system/store_management_system/src/components/BankAccountManagement.jsx` | Green/Stone | 門市銀行帳戶（內嵌） |
+
+**鍵盤導航功能**：
+- `↑` `↓`：上下選擇選項
+- `Enter`：確認選擇
+- `Tab`：選擇當前高亮項目並移至下一欄位
+- `Esc`：關閉下拉選單
+- 輸入文字：即時搜尋過濾（支援代碼、名稱搜尋）
+
+**使用範例**（快速選擇銀行）：
+```jsx
+// 使用者輸入 "812" 後按 Enter，即可快速選擇台新銀行
+<SearchableSelect
+  options={bankOptions}
+  value={selectedBank}
+  onChange={setSelectedBank}
+  placeholder="請選擇銀行"
+/>
+```
+
+**核心實作邏輯**：
+```javascript
+// 鍵盤導航處理
+const handleKeyDown = (e) => {
+  switch (e.key) {
+    case 'ArrowDown':
+      e.preventDefault();
+      setHighlightedIndex(prev => Math.min(prev + 1, filteredOptions.length - 1));
+      break;
+    case 'ArrowUp':
+      e.preventDefault();
+      setHighlightedIndex(prev => Math.max(prev - 1, 0));
+      break;
+    case 'Enter':
+      e.preventDefault();
+      if (filteredOptions[highlightedIndex]) {
+        handleSelect(filteredOptions[highlightedIndex].value);
+      }
+      break;
+    case 'Tab':
+      if (filteredOptions[highlightedIndex]) {
+        handleSelect(filteredOptions[highlightedIndex].value);
+      }
+      break;
+    case 'Escape':
+      setIsOpen(false);
+      break;
+  }
+};
+```
+
 ---
 
 ## 開發指南
@@ -824,19 +895,39 @@ src/system/new_system/
 // src/system/new_system/src/supabaseClient.js
 import { supabase as mainClient } from '../../../lib/supabase';
 
-const NEW_SYSTEM_TABLES = ['table1', 'table2'];
+// 定義哪些表在 public schema（共用資料）
+const PUBLIC_TABLES = [
+  'brands', 'stores', 'profiles', 'employees', 'employees_with_details',
+  'departments', 'banks', 'bank_branches', 'store_bank_accounts'
+];
+
+// 定義哪些表在此系統專用 schema
+const SYSTEM_TABLES = ['table1', 'table2'];
 
 export const supabase = {
   auth: mainClient.auth,
+  storage: mainClient.storage,
+  channel: (name, config) => mainClient.channel(name, config),
+  removeChannel: (channel) => mainClient.removeChannel(channel),
+
+  // 暴露 schema 方法供跨 schema 查詢使用（如 RBAC）
+  schema: (schemaName) => mainClient.schema(schemaName),
+
   from: (table) => {
-    if (NEW_SYSTEM_TABLES.includes(table)) {
-      return mainClient.schema('new_system').from(table);
+    if (PUBLIC_TABLES.includes(table)) {
+      return mainClient.from(table); // public schema
     }
-    return mainClient.from(table); // public schema
+    // 系統專用表使用專用 schema
+    return mainClient.schema('new_system').from(table);
   },
   rpc: (fn, args) => mainClient.rpc(fn, args),
 };
 ```
+
+**重要**：確保 `PUBLIC_TABLES` 包含所有共用資料表，特別是：
+- `banks`, `bank_branches`, `store_bank_accounts`（銀行相關，用於匯出功能）
+- `brands`, `stores`（品牌門市）
+- `employees`, `profiles`（人員資料）
 
 #### Step 3: 註冊到 Portal
 
@@ -961,9 +1052,38 @@ WHERE rp.role_id = 'role-uuid';
 
 #### 2. 跨 Schema 查詢失敗
 
-**錯誤**: `Could not find the table` 或 `Could not find a relationship`
+**錯誤**: `Could not find the table 'schema_name.table_name' in the schema cache`
 
-**解決**: 使用分別查詢 + 前端組合，避免嵌套跨 schema 查詢
+**常見原因**：
+- 子系統的 `supabaseClient.js` 未將該表加入 `PUBLIC_TABLES` 陣列
+- 表已遷移到不同 schema，但前端配置未更新
+
+**解決方案**：
+
+1. 檢查並更新 `supabaseClient.js` 的 `PUBLIC_TABLES` 陣列：
+```javascript
+// 確保包含所有 public schema 的表
+const PUBLIC_TABLES = [
+  'brands', 'stores', 'profiles', 'employees', 'employees_with_details',
+  'departments', 'banks', 'bank_branches', 'store_bank_accounts'  // 銀行相關表
+];
+```
+
+2. 如果需要嵌套查詢，使用分別查詢 + 前端組合：
+```javascript
+// ❌ 錯誤：跨 schema 嵌套查詢
+const { data } = await supabase
+  .from('requests')
+  .select('*, employee:employees(name)');  // 可能失敗
+
+// ✅ 正確：分別查詢後組合
+const { data: requests } = await supabase.from('requests').select('*');
+const { data: employees } = await supabase.from('employees').select('*');
+const enriched = requests.map(r => ({
+  ...r,
+  employee: employees.find(e => e.id === r.employee_id)
+}));
+```
 
 #### 3. 簽核流程卡住
 
@@ -1053,6 +1173,7 @@ WHERE email LIKE '%@6owldoor.internal';
 
 | 日期 | 變更內容 |
 |------|----------|
+| 2026-01-28 | 新增 SearchableSelect 鍵盤導航功能文檔（↑↓選擇、Enter確認、Tab跳轉）；銀行資料表遷移至 public schema；ExportModal 自動帶入門市銀行帳戶；更新 supabaseClient 跨 schema 配置指南 |
 | 2026-01-28 | 新增薪資管理系統文檔：薪資計算規則、請假扣款/加給邏輯、總部手動輸入欄位、勞健保計算說明 |
 | 2026-01-27 | 新增直屬主管設計、Edge Function RBAC 權限檢查、角色分類設計、管理中心整合說明 |
 | 2026-01-27 | 新增 `login_id` 欄位設計說明、管理中心文檔、故障排除更新 |
@@ -1062,3 +1183,48 @@ WHERE email LIKE '%@6owldoor.internal';
 
 **文檔維護**: Claude AI Assistant
 **最後更新**: 2026-01-28
+
+---
+
+## 附錄：子系統 supabaseClient 配置參考
+
+### payment_system/src/supabaseClient.js
+```javascript
+// brands 和 stores 已遷移到 public schema
+// store_bank_accounts, banks, bank_branches 也在 public schema（用於銀行媒體檔匯出）
+const PUBLIC_TABLES = [
+  'brands', 'stores', 'profiles', 'employees', 'employees_with_details',
+  'store_bank_accounts', 'banks', 'bank_branches'
+];
+
+export const supabase = {
+  auth: mainClient.auth,
+  storage: mainClient.storage,
+  schema: (schemaName) => mainClient.schema(schemaName),
+  from: (table) => {
+    if (PUBLIC_TABLES.includes(table)) {
+      return mainClient.from(table);  // public schema
+    }
+    return mainClient.schema('payment_approval').from(table);  // 系統專用
+  },
+  rpc: (fn, args) => mainClient.rpc(fn, args),
+};
+```
+
+### expense_reimbursement_system/src/supabaseClient.js
+```javascript
+// 代墊款系統所有表都在 public schema
+const PUBLIC_TABLES = [
+  'brands', 'stores', 'profiles', 'employees', 'employees_with_details',
+  'departments', 'banks', 'bank_branches', 'store_bank_accounts',
+  'expense_reimbursement_requests', 'expense_reimbursement_items', 'expense_approvals'
+];
+
+export const supabase = {
+  auth: mainClient.auth,
+  storage: mainClient.storage,
+  schema: (schemaName) => mainClient.schema(schemaName),
+  from: (table) => mainClient.from(table),  // 全部使用 public schema
+  rpc: (fn, args) => mainClient.rpc(fn, args),
+};
+```

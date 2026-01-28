@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'; // 1. 引入 useEffect, useRef
 import { Link, useNavigate } from 'react-router-dom';
-import { Store, Plus, Edit2, Trash2, Search, Building2, ToggleLeft, ToggleRight, AlertCircle, User, LogOut, ChevronDown, Settings, FileText, Shield } from 'lucide-react';
+import { Store, Plus, Edit2, Trash2, Search, Building2, ToggleLeft, ToggleRight, AlertCircle, User, LogOut, ChevronDown, Settings, FileText, Shield, CreditCard } from 'lucide-react';
 import { useBrands } from '../hooks/useBrands';
 import { useStores } from '../hooks/useStores';
 import { useAuth } from '../AuthContext';
@@ -8,6 +8,7 @@ import { supabase } from '../supabaseClient'; // 2. 引入 supabase
 import { usePermission } from '../../../../hooks/usePermission'; // 3. 引入權限 hook
 import LeaseManagement from '../components/LeaseManagement';
 import InsuranceManagement from '../components/InsuranceManagement';
+import BankAccountManagement from '../components/BankAccountManagement';
 import logoSrc from '../../../../assets/logo.png';
 
 // 六扇門 Logo 組件
@@ -31,7 +32,6 @@ export default function Dashboard() {
   const [showBrandModal, setShowBrandModal] = useState(false);
   const [showStoreModal, setShowStoreModal] = useState(false);
   const [editingBrand, setEditingBrand] = useState(null);
-  const [editingStore, setEditingStore] = useState(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showStoreDetail, setShowStoreDetail] = useState(null);
   const userMenuRef = useRef(null);
@@ -189,7 +189,6 @@ export default function Dashboard() {
       alert('請先選擇品牌');
       return;
     }
-    setEditingStore(null);
     setShowStoreModal(true);
   };
 
@@ -198,8 +197,8 @@ export default function Dashboard() {
       alert('⚠️ 權限不足\n\n您沒有編輯店舖的權限（store.edit）。');
       return;
     }
-    setEditingStore(store);
-    setShowStoreModal(true);
+    // 改為開啟整合後的 StoreDetailModal，並直接進入編輯模式
+    setShowStoreDetail({ ...store, startInEditMode: true });
   };
 
   const handleDeleteStore = async (store) => {
@@ -603,17 +602,14 @@ export default function Dashboard() {
         />
       )}
 
-      {/* 店舖 Modal */}
+      {/* 新增店舖 Modal（編輯功能已整合至 StoreDetailModal） */}
       {showStoreModal && (
         <StoreModal
-          store={editingStore}
+          store={null}
           brandId={selectedBrand?.id}
           onClose={() => setShowStoreModal(false)}
           onSave={async (data) => {
-            const result = editingStore
-              ? await updateStore(editingStore.code, data)
-              : await addStore(data);
-
+            const result = await addStore(data);
             if (result.success) {
               setShowStoreModal(false);
             } else {
@@ -623,13 +619,17 @@ export default function Dashboard() {
         />
       )}
 
-      {/* 店舖詳細資訊 Modal */}
+      {/* 店舖詳細資訊 Modal（整合基本資訊編輯、銀行帳戶、租約、保險） */}
       {showStoreDetail && (
         <StoreDetailModal
           store={showStoreDetail}
           onClose={() => setShowStoreDetail(null)}
           canEditStore={canEditStore}
           canDeleteStore={canDeleteStore}
+          onSave={async (storeCode, data) => {
+            const result = await updateStore(storeCode, data);
+            return result;
+          }}
         />
       )}
     </div>
@@ -901,17 +901,93 @@ function StoreModal({ store, brandId, onClose, onSave }) {
   );
 }
 
-// 店舖詳細資訊 Modal 組件（含租約與保險頁籤）
-function StoreDetailModal({ store, onClose, canEditStore, canDeleteStore }) {
+// 店舖詳細資訊 Modal 組件（整合基本資訊編輯、銀行帳戶、租約、保險）
+function StoreDetailModal({ store, onClose, canEditStore, canDeleteStore, onSave }) {
   const [activeTab, setActiveTab] = useState('info');
+  // 若 store.startInEditMode 為 true，則預設進入編輯模式
+  const [isEditing, setIsEditing] = useState(store?.startInEditMode || false);
+  const [saving, setSaving] = useState(false);
+
+  // 表單狀態
+  const [formData, setFormData] = useState({
+    name: store?.name || '',
+    store_type: store?.store_type || 'franchise',
+    is_active: store?.is_active ?? true,
+    opening_date: store?.opening_date || '',
+    closing_date: store?.closing_date || '',
+    labor_insurance_number: store?.labor_insurance_number || '',
+    health_insurance_number: store?.health_insurance_number || '',
+    food_safety_certificate_number: store?.food_safety_certificate_number || '',
+  });
+
+  // 當 store 改變時更新表單
+  useEffect(() => {
+    if (store) {
+      setFormData({
+        name: store.name || '',
+        store_type: store.store_type || 'franchise',
+        is_active: store.is_active ?? true,
+        opening_date: store.opening_date || '',
+        closing_date: store.closing_date || '',
+        labor_insurance_number: store.labor_insurance_number || '',
+        health_insurance_number: store.health_insurance_number || '',
+        food_safety_certificate_number: store.food_safety_certificate_number || '',
+      });
+      // 若有 startInEditMode 則進入編輯模式，否則維持檢視模式
+      setIsEditing(store.startInEditMode || false);
+    }
+  }, [store]);
 
   if (!store) return null;
 
   const tabs = [
     { id: 'info', label: '基本資訊', icon: Store },
+    { id: 'bank', label: '銀行帳戶', icon: CreditCard },
     { id: 'lease', label: '租約管理', icon: FileText },
     { id: 'insurance', label: '保險管理', icon: Shield },
   ];
+
+  // 儲存基本資訊
+  const handleSaveInfo = async () => {
+    if (!formData.name.trim()) {
+      alert('請輸入店舖名稱');
+      return;
+    }
+
+    setSaving(true);
+    const result = await onSave(store.code, {
+      name: formData.name.trim(),
+      store_type: formData.store_type,
+      is_active: formData.is_active,
+      opening_date: formData.opening_date || null,
+      closing_date: formData.closing_date || null,
+      labor_insurance_number: formData.labor_insurance_number.trim() || null,
+      health_insurance_number: formData.health_insurance_number.trim() || null,
+      food_safety_certificate_number: formData.food_safety_certificate_number.trim() || null,
+    });
+    setSaving(false);
+
+    if (result.success) {
+      setIsEditing(false);
+    } else {
+      alert(`儲存失敗：${result.error}`);
+    }
+  };
+
+  // 取消編輯
+  const handleCancelEdit = () => {
+    setFormData({
+      name: store.name || '',
+      store_type: store.store_type || 'franchise',
+      is_active: store.is_active ?? true,
+      opening_date: store.opening_date || '',
+      closing_date: store.closing_date || '',
+      labor_insurance_number: store.labor_insurance_number || '',
+      health_insurance_number: store.health_insurance_number || '',
+      food_safety_certificate_number: store.food_safety_certificate_number || '',
+    });
+    setIsEditing(false);
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4">
@@ -924,7 +1000,7 @@ function StoreDetailModal({ store, onClose, canEditStore, canDeleteStore }) {
             </h3>
             <p className="text-sm text-white/90 mt-1">
               {store.code && <code className="bg-white/20 px-2 py-0.5 rounded text-xs mr-2">{store.code}</code>}
-              門店詳細資訊
+              門店管理
             </p>
           </div>
           <button
@@ -939,14 +1015,14 @@ function StoreDetailModal({ store, onClose, canEditStore, canDeleteStore }) {
 
         {/* Tab 導航 */}
         <div className="border-b border-stone-200 bg-stone-50 flex-shrink-0">
-          <div className="flex gap-1 p-2">
+          <div className="flex gap-1 p-2 overflow-x-auto">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                     activeTab === tab.id
                       ? 'bg-white text-amber-700 shadow-sm border border-amber-200'
                       : 'text-stone-500 hover:text-stone-700 hover:bg-white/50'
@@ -962,29 +1038,88 @@ function StoreDetailModal({ store, onClose, canEditStore, canDeleteStore }) {
 
         {/* 內容區域 */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-          {/* 基本資訊頁籤 */}
+          {/* 基本資訊頁籤 - 可編輯 */}
           {activeTab === 'info' && (
-            <div className="space-y-6">
-              {/* 基本資訊 */}
+            <div className="space-y-4">
+              {/* 編輯/檢視模式切換 */}
+              {canEditStore && !isEditing && (
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-colors text-sm font-medium"
+                  >
+                    <Edit2 size={16} />
+                    編輯基本資訊
+                  </button>
+                </div>
+              )}
+
+              {/* 基本資訊區塊 */}
               <div className="bg-stone-50 rounded-lg p-4">
-                <h4 className="font-bold text-stone-800 mb-3 flex items-center gap-2">
+                <h4 className="font-bold text-stone-800 mb-4 flex items-center gap-2">
                   <Store className="w-5 h-5 text-amber-600" />
                   基本資訊
                 </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <div className="text-xs text-stone-500 mb-1">店舖名稱</div>
-                    <div className="font-medium text-stone-900">{store.name}</div>
+
+                {isEditing ? (
+                  // 編輯模式
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-stone-700 mb-1">店舖名稱 *</label>
+                        <input
+                          type="text"
+                          value={formData.name}
+                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                          className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                          placeholder="請輸入店舖名稱"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-stone-700 mb-1">店舖代碼</label>
+                        <code className="block bg-amber-50 px-3 py-2 rounded-lg text-amber-700 font-bold">
+                          {store.code}
+                        </code>
+                        <p className="text-xs text-stone-400 mt-1">代碼不可修改</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-stone-700 mb-1">店家類型</label>
+                        <select
+                          value={formData.store_type}
+                          onChange={(e) => setFormData({ ...formData, store_type: e.target.value })}
+                          className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                        >
+                          <option value="franchise">加盟店</option>
+                          <option value="direct">直營店</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-stone-700 mb-1">狀態</label>
+                        <label className="flex items-center gap-2 cursor-pointer mt-2">
+                          <input
+                            type="checkbox"
+                            checked={formData.is_active}
+                            onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                            className="w-4 h-4 text-amber-600 border-stone-300 rounded focus:ring-amber-500"
+                          />
+                          <span className="text-sm text-stone-700">啟用此店舖</span>
+                        </label>
+                      </div>
+                    </div>
                   </div>
-                  {store.code && (
+                ) : (
+                  // 檢視模式
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-xs text-stone-500 mb-1">店舖名稱</div>
+                      <div className="font-medium text-stone-900">{store.name}</div>
+                    </div>
                     <div>
                       <div className="text-xs text-stone-500 mb-1">店舖代碼</div>
                       <code className="bg-amber-50 px-3 py-1 rounded text-sm text-amber-700 font-bold">
                         {store.code}
                       </code>
                     </div>
-                  )}
-                  {store.store_type && (
                     <div>
                       <div className="text-xs text-stone-500 mb-1">店家類型</div>
                       <span className={`inline-block px-3 py-1 rounded text-sm font-medium ${
@@ -995,74 +1130,151 @@ function StoreDetailModal({ store, onClose, canEditStore, canDeleteStore }) {
                         {store.store_type === 'direct' ? '直營店' : '加盟店'}
                       </span>
                     </div>
-                  )}
-                  <div>
-                    <div className="text-xs text-stone-500 mb-1">狀態</div>
-                    <span className={`inline-block px-3 py-1 rounded text-sm font-medium ${
-                      store.is_active
-                        ? 'bg-green-50 text-green-700'
-                        : 'bg-stone-100 text-stone-600'
-                    }`}>
-                      {store.is_active ? '✓ 啟用中' : '✗ 已停用'}
-                    </span>
+                    <div>
+                      <div className="text-xs text-stone-500 mb-1">狀態</div>
+                      <span className={`inline-block px-3 py-1 rounded text-sm font-medium ${
+                        store.is_active
+                          ? 'bg-green-50 text-green-700'
+                          : 'bg-stone-100 text-stone-600'
+                      }`}>
+                        {store.is_active ? '✓ 啟用中' : '✗ 已停用'}
+                      </span>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
-              {/* 日期資訊 */}
-              {(store.opening_date || store.closing_date) && (
-                <div className="bg-blue-50 rounded-lg p-4">
-                  <h4 className="font-bold text-stone-800 mb-3">營業日期</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {store.opening_date && (
-                      <div>
-                        <div className="text-xs text-stone-500 mb-1">開店日期</div>
-                        <div className="font-medium text-stone-900">{store.opening_date}</div>
-                      </div>
-                    )}
-                    {store.closing_date && (
-                      <div>
-                        <div className="text-xs text-stone-500 mb-1">關店日期</div>
-                        <div className="font-medium text-red-600">{store.closing_date}</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+              {/* 營業日期區塊 */}
+              <div className="bg-blue-50 rounded-lg p-4">
+                <h4 className="font-bold text-stone-800 mb-4">營業日期</h4>
 
-              {/* 證號資訊 */}
-              {(store.labor_insurance_number || store.health_insurance_number || store.food_safety_certificate_number) && (
-                <div className="bg-green-50 rounded-lg p-4">
-                  <h4 className="font-bold text-stone-800 mb-3">證照資訊</h4>
-                  <div className="space-y-3">
-                    {store.labor_insurance_number && (
-                      <div>
-                        <div className="text-xs text-stone-500 mb-1">勞保證號</div>
-                        <code className="bg-white border border-blue-200 px-3 py-2 rounded text-sm text-blue-700 font-mono block">
-                          {store.labor_insurance_number}
-                        </code>
-                      </div>
-                    )}
-                    {store.health_insurance_number && (
-                      <div>
-                        <div className="text-xs text-stone-500 mb-1">健保證號</div>
-                        <code className="bg-white border border-green-200 px-3 py-2 rounded text-sm text-green-700 font-mono block">
-                          {store.health_insurance_number}
-                        </code>
-                      </div>
-                    )}
-                    {store.food_safety_certificate_number && (
-                      <div>
-                        <div className="text-xs text-stone-500 mb-1">食品安全證號</div>
-                        <code className="bg-white border border-purple-200 px-3 py-2 rounded text-sm text-purple-700 font-mono block">
-                          {store.food_safety_certificate_number}
-                        </code>
-                      </div>
-                    )}
+                {isEditing ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">開店日期</label>
+                      <input
+                        type="date"
+                        value={formData.opening_date}
+                        onChange={(e) => setFormData({ ...formData, opening_date: e.target.value })}
+                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">關店日期</label>
+                      <input
+                        type="date"
+                        value={formData.closing_date}
+                        onChange={(e) => setFormData({ ...formData, closing_date: e.target.value })}
+                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <p className="text-xs text-stone-500 mt-1">僅在店舖永久關閉時填寫</p>
+                    </div>
                   </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-xs text-stone-500 mb-1">開店日期</div>
+                      <div className="font-medium text-stone-900">{store.opening_date || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-stone-500 mb-1">關店日期</div>
+                      <div className={`font-medium ${store.closing_date ? 'text-red-600' : 'text-stone-900'}`}>
+                        {store.closing_date || '-'}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 證照資訊區塊 */}
+              <div className="bg-green-50 rounded-lg p-4">
+                <h4 className="font-bold text-stone-800 mb-4">證照資訊</h4>
+
+                {isEditing ? (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">勞保證號</label>
+                      <input
+                        type="text"
+                        value={formData.labor_insurance_number}
+                        onChange={(e) => setFormData({ ...formData, labor_insurance_number: e.target.value })}
+                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono"
+                        placeholder="選填"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">健保證號</label>
+                      <input
+                        type="text"
+                        value={formData.health_insurance_number}
+                        onChange={(e) => setFormData({ ...formData, health_insurance_number: e.target.value })}
+                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono"
+                        placeholder="選填"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">食品安全證號</label>
+                      <input
+                        type="text"
+                        value={formData.food_safety_certificate_number}
+                        onChange={(e) => setFormData({ ...formData, food_safety_certificate_number: e.target.value })}
+                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono"
+                        placeholder="選填"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div>
+                      <div className="text-xs text-stone-500 mb-1">勞保證號</div>
+                      <code className="bg-white border border-blue-200 px-3 py-2 rounded text-sm text-blue-700 font-mono block">
+                        {store.labor_insurance_number || '-'}
+                      </code>
+                    </div>
+                    <div>
+                      <div className="text-xs text-stone-500 mb-1">健保證號</div>
+                      <code className="bg-white border border-green-200 px-3 py-2 rounded text-sm text-green-700 font-mono block">
+                        {store.health_insurance_number || '-'}
+                      </code>
+                    </div>
+                    <div>
+                      <div className="text-xs text-stone-500 mb-1">食品安全證號</div>
+                      <code className="bg-white border border-purple-200 px-3 py-2 rounded text-sm text-purple-700 font-mono block">
+                        {store.food_safety_certificate_number || '-'}
+                      </code>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 編輯模式的按鈕 */}
+              {isEditing && (
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={handleCancelEdit}
+                    className="flex-1 px-4 py-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors font-medium"
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={handleSaveInfo}
+                    disabled={saving}
+                    className="flex-1 px-4 py-2 bg-gradient-to-r from-amber-500 to-red-500 text-white rounded-lg hover:from-amber-600 hover:to-red-600 transition-all disabled:opacity-50 font-medium shadow-lg shadow-amber-500/20"
+                  >
+                    {saving ? '儲存中...' : '儲存變更'}
+                  </button>
                 </div>
               )}
             </div>
+          )}
+
+          {/* 銀行帳戶頁籤 */}
+          {activeTab === 'bank' && (
+            <BankAccountManagement
+              storeCode={store.code}
+              canEdit={canEditStore}
+              canDelete={canDeleteStore}
+            />
           )}
 
           {/* 租約管理頁籤 */}

@@ -10,20 +10,17 @@ const EXPENSE_TABLES = [
   'expense_requests_with_details'
 ];
 
-// 共用的 public 表
+// 共用的 public 表（包含銀行資料，已從 payment_approval 遷移到 public）
 const PUBLIC_TABLES = [
   'brands',
   'stores',
   'profiles',
   'employees',
   'employees_with_details',
-  'departments'
-];
-
-// payment_approval schema 的表（銀行資料）
-const PAYMENT_APPROVAL_TABLES = [
+  'departments',
   'banks',
-  'branches'
+  'bank_branches',
+  'store_bank_accounts'
 ];
 
 export const supabase = {
@@ -33,15 +30,13 @@ export const supabase = {
   channel: (name, config) => mainClient.channel(name, config),
   removeChannel: (channel) => mainClient.removeChannel(channel),
 
-  // 針對資料庫查詢，根據表名決定 schema
+  // ✅ 暴露 schema 方法供跨 schema 查詢使用（如 RBAC）
+  schema: (schemaName) => mainClient.schema(schemaName),
+
+  // 針對資料庫查詢，所有表都在 public schema
   from: (table) => {
-    if (PAYMENT_APPROVAL_TABLES.includes(table)) {
-      // banks 和 branches 在 payment_approval schema
-      return mainClient.schema('payment_approval').from(table);
-    } else {
-      // 其他表在 public schema
-      return mainClient.from(table);
-    }
+    // 代墊款相關表和共用表都在 public schema
+    return mainClient.from(table);
   },
 
   // RPC 呼叫

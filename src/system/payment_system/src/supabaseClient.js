@@ -3,7 +3,8 @@
 import { supabase as mainClient } from '../../../lib/supabase';
 
 // brands 和 stores 已遷移到 public schema
-const PUBLIC_TABLES = ['brands', 'stores','profiles','employees','employees_with_details'];
+// store_bank_accounts, banks, bank_branches 也在 public schema（用於銀行媒體檔匯出）
+const PUBLIC_TABLES = ['brands', 'stores', 'profiles', 'employees', 'employees_with_details', 'store_bank_accounts', 'banks', 'bank_branches'];
 
 export const supabase = {
   // 共用主系統的 Auth, Storage, Channel
@@ -13,6 +14,9 @@ export const supabase = {
 
   // ✅ 新增這行：將 removeChannel 對應回主客戶端
   removeChannel: (channel) => mainClient.removeChannel(channel),
+
+  // ✅ 暴露 schema 方法供跨 schema 查詢使用（如 RBAC）
+  schema: (schemaName) => mainClient.schema(schemaName),
 
   // 針對資料庫查詢，指定 Schema
   // brands 和 stores 使用 public schema，其他表使用 payment_approval schema
