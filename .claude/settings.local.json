@@ -12,7 +12,8 @@
       "Bash(tree:*)",
       "Bash(npm install:*)",
       "Bash(npm uninstall:*)",
-      "Bash(npx supabase functions deploy:*)"
+      "Bash(npx supabase functions deploy:*)",
+      "Bash(node scripts/generate-version.js:*)"
     ]
   }
 }

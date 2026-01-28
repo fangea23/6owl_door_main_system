@@ -9,6 +9,7 @@ import UserProfile from './pages/UserProfile';
 import ManagementCenter from './pages/management/ManagementCenter';
 import UpdatePassword from './pages/UpdatePassword';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
+import UpdateNotification from './components/UpdateNotification';
 import './App.css';
 
 // 子系統 Layout
@@ -44,6 +45,9 @@ function App() {
 
           {/* PWA 安裝提示 */}
           <PWAInstallPrompt />
+
+          {/* 版本更新提示 */}
+          <UpdateNotification />
 
         <Routes>
           {/* ... (原本的路由都不用動) ... */}
