@@ -31,25 +31,35 @@ const STATUS_MAP = {
 };
 
 /**
- * 薪資計算邏輯 - 依據 Excel 薪資表公式
+ * 薪資計算邏輯 - 依據公司薪資規則
+ *
+ * 時薪計算：
+ * - 正職：月薪 ÷ 240
+ * - 計時：直接使用時薪
  *
  * 月薪制（正職）公式：
  * - 本薪：固定月薪
- * - 時薪 = 本薪 ÷ 240
- * - 加班費(10日) = 時薪×1.34×加班前2hr + 時薪×1.67×加班2hr後 + 國假時薪×國假時數
- * - 特休代金 = 本薪÷240×特休代金時數
- * - 12日超額津貼 = 本薪÷240×12日時數
- * - 12日加班費 = 本薪÷240×M×1.34 + 本薪÷240×N×1.67
- * - 職務獎金 = 職務獎金基數÷30×在職天數
- * - 請假扣款 = 病假時數×(時薪÷2) + 事假時數×時薪
+ * - 加班費(10日) = 時薪×1.34×加班前2hr + 時薪×1.67×加班2hr後
+ * - 國假加班 = 時薪×國假時數（額外加給）
+ * - 特休代金 = 時薪×特休代金時數
+ * - 公婚喪產假：月薪不扣（不需計算）
+ * - 病假扣款 = 時薪÷2×病假時數（扣半薪）
+ * - 事假扣款 = 時薪×事假時數（扣全薪）
  *
  * 時薪制（計時人員）公式：
- * - 本薪 = 底薪基數÷30×在職天數 + 時薪×正常時數 + 有薪假時數×時薪
- * - 加班費(10日) = 加班前2hr費率×J + 加班2hr後費率×K + 國假時薪×O
- * - 特休代金 = 已休特休時數×時薪 + 國假時薪×特休代金時數
- * - 12日超額津貼 = 12日時數×國假時薪
- * - 12日加班費 = M×加班前2hr費率 + N×加班2hr後費率
- * - 請假扣款 = 病假時數×(-時薪÷2)（計時病假負值）
+ * - 本薪 = 底薪基數÷30×在職天數 + 時薪×正常時數
+ * - 加班費(10日) = 時薪×1.34×加班前2hr + 時薪×1.67×加班2hr後
+ * - 國假加班 = 時薪×國假時數（額外加給）
+ * - 特休 = 時薪×已休特休時數（加給）
+ * - 特休代金 = 時薪×特休代金時數（加給）
+ * - 公婚喪產假 = 時薪×有薪假時數（加給）
+ * - 病假扣款 = 時薪÷2×病假時數（扣半薪）
+ * - 事假扣款 = 時薪×事假時數（扣全薪）
+ *
+ * 12日發薪：
+ * - 超額津貼 = 時薪×12日超額時數
+ * - 12日加班費 = 時薪×1.34×M + 時薪×1.67×N
+ * - 職務獎金 = 職務獎金基數÷30×在職天數
  */
 function calculatePayroll(attendance, grade, setting, insurance) {
   const isMonthly = grade?.salary_type === 'monthly';
@@ -61,75 +71,81 @@ function calculatePayroll(attendance, grade, setting, insurance) {
   const positionAllowanceGrade = setting?.custom_position_allowance || grade?.position_allowance || 0;
   const mealAllowance = setting?.custom_meal_allowance || grade?.meal_allowance || 0;
 
-  // 費率（從薪資級距取得或動態計算）
-  const holidayHourlyRate = grade?.holiday_hourly_rate || (isMonthly ? Math.round(baseSalaryGrade / 240) : hourlyRateGrade);
-  const overtimeRate134 = grade?.overtime_rate_134 || Math.round((isMonthly ? baseSalaryGrade / 240 : hourlyRateGrade) * 1.34);
-  const overtimeRate167 = grade?.overtime_rate_167 || Math.round((isMonthly ? baseSalaryGrade / 240 : hourlyRateGrade) * 1.67);
-  const sickLeaveRate = grade?.sick_leave_rate || (isMonthly ? Math.round(baseSalaryGrade / 240 / 2) : -Math.round(hourlyRateGrade / 2));
-  const personalLeaveRate = grade?.personal_leave_rate || (isMonthly ? Math.round(baseSalaryGrade / 240) : 0);
+  // 計算時薪（正職：月薪÷240，計時：直接用時薪）
+  const hourlyRate = isMonthly ? Math.round(baseSalaryGrade / 240) : hourlyRateGrade;
+
+  // 加班費率（統一用時薪計算）
+  const overtimeRate134 = Math.round(hourlyRate * 1.34);
+  const overtimeRate167 = Math.round(hourlyRate * 1.67);
+
+  // 請假扣款費率（正職計時都一樣：病假扣半薪、事假扣全薪）
+  const sickLeaveRate = Math.round(hourlyRate / 2);  // 病假扣半薪
+  const personalLeaveRate = hourlyRate;              // 事假扣全薪
 
   // ==================== 10日發薪項目 ====================
 
   let baseSalary = 0;
+  let paidLeavePay = 0;  // 有薪假加給（僅計時人員）
 
   if (isMonthly) {
-    // 月薪制：本薪固定
+    // 月薪制：本薪固定，有薪假不扣不加
     baseSalary = baseSalaryGrade;
   } else {
-    // 時薪制：底薪基數÷30×在職天數 + 時薪×正常時數 + 有薪假×時薪
+    // 時薪制：底薪基數÷30×在職天數 + 時薪×正常時數
     const baseSalaryMonthly = grade?.base_salary_monthly || 0;  // 計時底薪基數
     const proRataBase = Math.round(baseSalaryMonthly / 30 * workDaysInMonth);
-    const regularPay = Math.round(hourlyRateGrade * (attendance.regular_hours || 0));
-    const paidLeavePay = Math.round((attendance.paid_leave_hours || 0) * hourlyRateGrade);
-    baseSalary = proRataBase + regularPay + paidLeavePay;
+    const regularPay = Math.round(hourlyRate * (attendance.regular_hours || 0));
+    baseSalary = proRataBase + regularPay;
+
+    // 計時人員：公婚喪產假 = 時薪×有薪假時數（加給）
+    paidLeavePay = Math.round((attendance.paid_leave_hours || 0) * hourlyRate);
   }
 
   // 加班費 (10日) - 使用 1.34/1.67 費率
   const overtimePay134 = Math.round(overtimeRate134 * (attendance.overtime_hours_134 || 0));
   const overtimePay167 = Math.round(overtimeRate167 * (attendance.overtime_hours_167 || 0));
 
-  // 國假加班費
-  const holidayPay = Math.round(holidayHourlyRate * (attendance.holiday_hours || 0));
+  // 國假加班費 = 時薪×國假時數（正職計時都一樣）
+  const holidayPay = Math.round(hourlyRate * (attendance.holiday_hours || 0));
 
-  // 特休代金
+  // 特休相關
   let annualLeavePay = 0;
   if (isMonthly) {
-    // 管理者：本薪÷240×特休代金時數
-    annualLeavePay = Math.round(baseSalaryGrade / 240 * (attendance.annual_leave_pay_hours || 0));
+    // 正職：特休不扣薪，只有特休代金
+    annualLeavePay = Math.round(hourlyRate * (attendance.annual_leave_pay_hours || 0));
   } else {
-    // 計時人員：已休特休時數×時薪 + 國假時薪×特休代金時數
-    const usedPay = Math.round((attendance.annual_leave_used_hours || 0) * hourlyRateGrade);
-    const payHoursPay = Math.round(holidayHourlyRate * (attendance.annual_leave_pay_hours || 0));
+    // 計時人員：已休特休時數×時薪（加給） + 特休代金時數×時薪（加給）
+    const usedPay = Math.round((attendance.annual_leave_used_hours || 0) * hourlyRate);
+    const payHoursPay = Math.round((attendance.annual_leave_pay_hours || 0) * hourlyRate);
     annualLeavePay = usedPay + payHoursPay;
   }
 
-  // 三節生日獎金（從出勤資料或手動輸入）
-  const festivalBonus = attendance.festival_bonus || 0;
+  // 三節生日獎金（從出勤資料）
+  const festivalBonus = attendance.birthday_bonus || attendance.festival_bonus || 0;
 
   // ==================== 10日扣款項目 ====================
 
-  // 請假扣款
-  const sickLeaveDeduction = Math.round(Math.abs(sickLeaveRate) * (attendance.sick_leave_hours || 0));
+  // 請假扣款（正職計時都一樣：病假扣半薪、事假扣全薪）
+  const sickLeaveDeduction = Math.round(sickLeaveRate * (attendance.sick_leave_hours || 0));
   const personalLeaveDeduction = Math.round(personalLeaveRate * (attendance.personal_leave_hours || 0));
 
-  // 勞健保
+  // 勞健保（從 insurance_brackets 自動查詢）
   const laborEmployee = setting?.labor_insurance_enabled ? (insurance?.labor_employee || 0) : 0;
   const healthEmployee = setting?.health_insurance_enabled ? (insurance?.health_employee || 0) : 0;
   const laborEmployer = setting?.labor_insurance_enabled ? (insurance?.labor_employer || 0) : 0;
   const healthEmployer = setting?.health_insurance_enabled ? (insurance?.health_employer || 0) : 0;
 
-  // 健保眷屬費（眷屬數 × 健保費）
-  const dependentsCount = setting?.dependents_count || 0;
-  const healthDependents = Math.round(healthEmployee * dependentsCount);
+  // 健保眷屬費（從出勤資料的總部欄位取得，由人資手動輸入）
+  const healthDependents = attendance.health_insurance_dependents || 0;
 
-  // 預支、追朔等（從出勤資料）
+  // 預支、追朔、其他扣款（從出勤資料的總部欄位取得）
   const advancePayment = attendance.advance_payment || 0;
   const laborRetroactive = attendance.labor_insurance_retroactive || 0;
   const healthRetroactive = attendance.health_insurance_retroactive || 0;
-  const otherDeduction = attendance.other_deduction || 0;
+  const otherDeduction = attendance.other_deduction_10th || attendance.other_deduction || 0;
 
-  // 10日應發
-  const pay10thGross = baseSalary + overtimePay134 + overtimePay167 + holidayPay + annualLeavePay + festivalBonus;
+  // 10日應發（含有薪假加給）
+  const pay10thGross = baseSalary + paidLeavePay + overtimePay134 + overtimePay167 + holidayPay + annualLeavePay + festivalBonus;
 
   // 10日應扣
   const pay10thDeduction = sickLeaveDeduction + personalLeaveDeduction +
@@ -141,39 +157,23 @@ function calculatePayroll(attendance, grade, setting, insurance) {
 
   // ==================== 12日發薪項目 ====================
 
-  // 12日超額津貼
-  let overtime12thAllowance = 0;
-  if (isMonthly) {
-    // 管理者：本薪÷240×12日時數
-    overtime12thAllowance = Math.round(baseSalaryGrade / 240 * (attendance.overtime_12th_hours || 0));
-  } else {
-    // 計時人員：12日時數×國假時薪
-    overtime12thAllowance = Math.round((attendance.overtime_12th_hours || 0) * holidayHourlyRate);
-  }
+  // 12日超額津貼 = 時薪×12日超額時數（正職計時都一樣）
+  const overtime12thAllowance = Math.round(hourlyRate * (attendance.overtime_12th_hours || 0));
 
-  // 12日加班費
-  let overtime12thPay = 0;
-  if (isMonthly) {
-    // 管理者：本薪÷240×M×1.34 + 本薪÷240×N×1.67
-    const hourly = baseSalaryGrade / 240;
-    overtime12thPay = Math.round(hourly * (attendance.overtime_12th_hours_134 || 0) * 1.34) +
-                      Math.round(hourly * (attendance.overtime_12th_hours_167 || 0) * 1.67);
-  } else {
-    // 計時人員：M×加班前2hr費率 + N×加班2hr後費率
-    overtime12thPay = Math.round((attendance.overtime_12th_hours_134 || 0) * overtimeRate134) +
-                      Math.round((attendance.overtime_12th_hours_167 || 0) * overtimeRate167);
-  }
+  // 12日加班費 = 時薪×1.34×M + 時薪×1.67×N（正職計時都一樣）
+  const overtime12thPay = Math.round(overtimeRate134 * (attendance.overtime_12th_hours_134 || 0)) +
+                          Math.round(overtimeRate167 * (attendance.overtime_12th_hours_167 || 0));
 
   // 職務獎金（按在職天數比例）
   const positionAllowance = Math.round(positionAllowanceGrade / 30 * workDaysInMonth);
 
-  // 12日其他獎金
+  // 12日其他獎金（從出勤資料）
   const performanceBonus = attendance.performance_bonus || 0;
   const attendanceBonus = attendance.attendance_bonus || 0;
-  const otherBonus = attendance.other_bonus || 0;
+  const otherBonus = attendance.other_bonus_12th || attendance.other_bonus || 0;
 
-  // 12日扣項
-  const pay12thDeduction = attendance.pay_12th_deduction || 0;
+  // 12日扣項（從出勤資料）
+  const pay12thDeduction = attendance.other_deduction_12th || attendance.pay_12th_deduction || 0;
 
   // 12日應發
   const pay12thGross = overtime12thAllowance + overtime12thPay + positionAllowance +
@@ -191,6 +191,7 @@ function calculatePayroll(attendance, grade, setting, insurance) {
   return {
     // 10日發薪
     base_salary: baseSalary,
+    paid_leave_pay: paidLeavePay,           // 有薪假加給（計時人員）
     overtime_pay_134: overtimePay134,
     overtime_pay_167: overtimePay167,
     holiday_pay: holidayPay,
@@ -228,6 +229,9 @@ function calculatePayroll(attendance, grade, setting, insurance) {
     total_gross: totalGross,
     total_deduction: totalDeduction,
     total_net: totalNet,
+
+    // 計算用時薪（供檢視用）
+    hourly_rate: hourlyRate,
 
     // 保留舊欄位相容性
     overtime_pay_133: overtimePay134,

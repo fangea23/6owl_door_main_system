@@ -584,7 +584,96 @@ const canApprove =
 - 新人訓練範本
 - 學習進度追蹤
 
-### 4. 其他系統
+### 4. 薪資管理系統 (Payroll)
+
+**路徑**: `src/system/payroll_system/`
+**Schema**: `public` (使用 `salary_grades`, `insurance_brackets`, `employee_salary_settings`, `attendance_records`, `payroll_records`)
+
+**核心功能**:
+- 薪資等級設定（正職/計時）
+- 勞健保級距設定
+- 員工薪資設定（個人薪資參數）
+- 出勤資料輸入（店長輸入）
+- 出勤資料審核（總部審核）
+- 薪資計算與發放
+
+#### 薪資計算邏輯
+
+**時薪計算**：
+| 員工類型 | 時薪算法 |
+|---------|---------|
+| 正職（月薪制） | `月薪 ÷ 240` |
+| 計時（時薪制） | 直接使用薪資等級的時薪 |
+
+**請假扣款/加給規則**：
+
+| 假別 | 正職（月薪制） | 計時（時薪制） |
+|------|---------------|---------------|
+| 公婚喪產假 | 不扣薪（月薪固定） | `時薪 × 有薪假時數`（加給） |
+| 病假 | `時薪 × 病假時數 ÷ 2`（扣半薪） | `時薪 × 病假時數 ÷ 2`（扣半薪） |
+| 事假 | `時薪 × 事假時數`（扣全薪） | `時薪 × 事假時數`（扣全薪） |
+| 颱風假 | `時薪 × 颱風假時數`（扣全薪） | `時薪 × 颱風假時數`（扣全薪） |
+| 特休 | 不扣薪（月薪固定） | `時薪 × 特休時數`（加給） |
+| 特休代金 | `時薪 × 特休代金時數`（加給） | `時薪 × 特休代金時數`（加給） |
+| 國定假日上班 | `時薪 × 國假時數`（額外加給） | `時薪 × 國假時數`（額外加給） |
+
+**加班費計算**：
+- 加班前 2 小時：`時薪 × 1.34`
+- 加班 2 小時後：`時薪 × 1.67`
+
+**本薪計算**：
+| 員工類型 | 本薪算法 |
+|---------|---------|
+| 正職 | 固定月薪 |
+| 計時 | `底薪基數 ÷ 30 × 在職天數 + 時薪 × 正常時數` |
+
+#### 薪資計算核心程式碼
+
+**檔案位置**: `src/system/payroll_system/src/pages/payroll/PayrollList.jsx`
+
+```javascript
+// 計算時薪（正職：月薪÷240，計時：直接用時薪）
+const hourlyRate = isMonthly ? Math.round(baseSalaryGrade / 240) : hourlyRateGrade;
+
+// 加班費率
+const overtimeRate134 = Math.round(hourlyRate * 1.34);
+const overtimeRate167 = Math.round(hourlyRate * 1.67);
+
+// 請假扣款費率（正職計時都一樣）
+const sickLeaveRate = Math.round(hourlyRate / 2);  // 病假扣半薪
+const personalLeaveRate = hourlyRate;              // 事假扣全薪
+
+// 計時人員有薪假加給
+const paidLeavePay = isMonthly ? 0 : Math.round(paidLeaveHours * hourlyRate);
+```
+
+#### 發薪日期
+
+系統採用**雙發薪日**設計：
+- **10日發薪**：基本薪資、加班費、扣款
+- **12日發薪**：國假加班、特休代金、公司其他獎金
+
+#### 總部手動輸入欄位
+
+以下欄位由人資/財務在「出勤資料審核」頁面手動輸入：
+
+| 欄位 | 說明 | 對應資料表欄位 |
+|------|------|---------------|
+| 預支扣款 | 薪資預支扣回 | `attendance.advance_payment` |
+| 勞保追朔 | 勞保補繳 | `attendance.labor_insurance_retroactive` |
+| 健保追朔 | 健保補繳 | `attendance.health_insurance_retroactive` |
+| 健保眷屬數 | 健保眷屬人數 | `attendance.health_insurance_dependents` |
+| 其他扣款(10日) | 10日發薪其他扣款 | `attendance.other_deduction_10th` |
+| 其他獎金(12日) | 12日發薪其他獎金 | `attendance.other_bonus_12th` |
+
+#### 勞健保計算
+
+勞健保金額從 `insurance_brackets` 表格自動查詢，根據員工月薪對應級距：
+- **勞保費**：`bracket.labor_employee`（員工自付）
+- **健保費**：`bracket.health_employee`（員工自付）
+- **健保眷屬費**：`bracket.health_employee × 眷屬人數`
+
+### 5. 其他系統
 
 | 系統 | 路徑 | 說明 |
 |------|------|------|
@@ -956,6 +1045,7 @@ WHERE email LIKE '%@6owldoor.internal';
 | RBAC 範例 | `docs/RBAC_EXAMPLES.md` | 實際集成示例 |
 | 資料庫說明 | `database/README.md` | 資料庫結構說明 |
 | 代墊款文檔 | `src/system/expense_reimbursement_system/SYSTEM_DOCUMENTATION.md` | 代墊款系統詳細文檔 |
+| 薪資計算 | `src/system/payroll_system/src/pages/payroll/PayrollList.jsx` | 薪資計算核心邏輯 (calculatePayroll 函數) |
 
 ---
 
@@ -963,6 +1053,7 @@ WHERE email LIKE '%@6owldoor.internal';
 
 | 日期 | 變更內容 |
 |------|----------|
+| 2026-01-28 | 新增薪資管理系統文檔：薪資計算規則、請假扣款/加給邏輯、總部手動輸入欄位、勞健保計算說明 |
 | 2026-01-27 | 新增直屬主管設計、Edge Function RBAC 權限檢查、角色分類設計、管理中心整合說明 |
 | 2026-01-27 | 新增 `login_id` 欄位設計說明、管理中心文檔、故障排除更新 |
 | 2026-01-23 | 初版建立 |
@@ -970,4 +1061,4 @@ WHERE email LIKE '%@6owldoor.internal';
 ---
 
 **文檔維護**: Claude AI Assistant
-**最後更新**: 2026-01-27
+**最後更新**: 2026-01-28
