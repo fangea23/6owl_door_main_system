@@ -51,43 +51,80 @@ export const useEmployees = () => {
   }, []);
 
   // -------------------------------------------------------------------
-  // 創建新員工 (改為發送邀請)
+  // 創建新員工
+  // - 有 Email 且需要發邀請 → 調用 invite-employee Edge Function
+  // - 沒有 Email 或不發邀請 → 直接插入 employees 表
   // -------------------------------------------------------------------
-  const createEmployee = async (employeeData) => {
+  const createEmployee = async (employeeData, options = { sendInvite: false }) => {
     try {
-      // 呼叫 Edge Function: invite-employee
-      const { data, error } = await supabase.functions.invoke('invite-employee', {
-        body: {
-          email: employeeData.email,
-          name: employeeData.name,
-          employee_id: employeeData.employee_id,
-          login_id: employeeData.login_id, // 新增：登入帳號（設定後不可修改）
-          department_id: employeeData.department_id,
-          position: employeeData.position,
-          role: employeeData.role,
-          phone: employeeData.phone,
-          mobile: employeeData.mobile
-        }
-      });
+      // 如果有 Email 且要發送邀請
+      if (employeeData.email && options.sendInvite) {
+        const { data, error } = await supabase.functions.invoke('invite-employee', {
+          body: {
+            email: employeeData.email,
+            name: employeeData.name,
+            employee_id: employeeData.employee_id,
+            login_id: employeeData.login_id,
+            department_id: employeeData.department_id,
+            position: employeeData.position,
+            role: employeeData.role,
+            phone: employeeData.phone,
+            mobile: employeeData.mobile
+          }
+        });
 
-      if (error) {
-        let errorMessage = error.message;
-        try {
-           if (error.context && typeof error.context.json === 'function') {
-             const errorBody = await error.context.json();
-             errorMessage = errorBody.error || errorMessage;
-           }
-        } catch (e) {
-          // 解析失敗就用原始訊息
+        if (error) {
+          let errorMessage = error.message;
+          try {
+            if (error.context && typeof error.context.json === 'function') {
+              const errorBody = await error.context.json();
+              errorMessage = errorBody.error || errorMessage;
+            }
+          } catch (e) {
+            // 解析失敗就用原始訊息
+          }
+          throw new Error(errorMessage);
         }
-        throw new Error(errorMessage);
+
+        await fetchEmployees();
+        return { success: true, employee: data };
       }
+
+      // 否則直接插入 employees 表
+      const { data, error: insertError } = await supabase
+        .from('employees')
+        .insert({
+          employee_id: employeeData.employee_id,
+          login_id: employeeData.login_id || employeeData.employee_id,
+          name: employeeData.name,
+          email: employeeData.email || null,
+          phone: employeeData.phone || null,
+          mobile: employeeData.mobile || null,
+          org_type: employeeData.org_type || 'headquarters',
+          department_id: employeeData.department_id || null,
+          store_id: employeeData.store_id || null,
+          store_code: employeeData.store_code || null,
+          position_code: employeeData.position_code || null,
+          employment_type_new: employeeData.employment_type_new || 'fulltime',
+          status: employeeData.status || 'active',
+          hire_date: employeeData.hire_date || null,
+          manager_id: employeeData.manager_id || null,
+          bank_name: employeeData.bank_name || null,
+          bank_code: employeeData.bank_code || null,
+          branch_name: employeeData.branch_name || null,
+          branch_code: employeeData.branch_code || null,
+          bank_account: employeeData.bank_account || null,
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
 
       await fetchEmployees();
       return { success: true, employee: data };
     } catch (err) {
-      console.error('Error creating/inviting employee:', err);
-      return { success: false, error: err.message || '邀請發送失敗' };
+      console.error('Error creating employee:', err);
+      return { success: false, error: err.message || '建立員工失敗' };
     }
   };
 

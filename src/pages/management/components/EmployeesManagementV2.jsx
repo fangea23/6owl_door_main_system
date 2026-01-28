@@ -11,8 +11,9 @@ import Modal from '../../../components/ui/Modal';
 import SearchableSelect from '../../../components/ui/SearchableSelect';
 import {
   UserPlus, Search, Loader2, Mail, Phone, Briefcase, Building2, User, Save, X,
-  Edit2, Trash2, Link as LinkIcon, Shield, Store, Filter, ChevronDown, Users, Landmark, Key, Eye, EyeOff, RefreshCw, MoreVertical
+  Edit2, Trash2, Link as LinkIcon, Shield, Store, Filter, ChevronDown, Users, Landmark, Key, Eye, EyeOff, RefreshCw, MoreVertical, Upload
 } from 'lucide-react';
+import EmployeeBatchImportModal from './EmployeeBatchImportModal';
 
 // 取得環境變數（用於密碼重設 API）
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -34,22 +35,67 @@ const EMPLOYMENT_TYPES = [
 
 // 職位列表（從資料庫的 positions 表）
 const POSITION_CODES = [
-  // 總部職位
+  // === 高階主管 ===
+  { code: 'chairman', name: '董事長', category: 'headquarters' },
   { code: 'ceo', name: '總經理', category: 'headquarters' },
-  { code: 'director', name: '部門總監', category: 'headquarters' },
+  { code: 'vice_president', name: '副總', category: 'headquarters' },
+
+  // === 總部 - 經理級 ===
+  { code: 'manager', name: '經理', category: 'headquarters' },
+  { code: 'deputy_manager', name: '副理', category: 'headquarters' },
   { code: 'fin_manager', name: '財務經理', category: 'headquarters' },
   { code: 'hr_manager', name: '人資經理', category: 'headquarters' },
   { code: 'ops_manager', name: '營運經理', category: 'headquarters' },
+  { code: 'purchasing_manager', name: '採購經理', category: 'headquarters' },
+  { code: 'logistics_manager', name: '倉儲物流經理', category: 'headquarters' },
+  { code: 'rd_manager', name: '商品研發經理', category: 'headquarters' },
+  { code: 'marketing_manager', name: '品牌行銷經理', category: 'headquarters' },
+  { code: 'overseas_manager', name: '海外事業經理', category: 'headquarters' },
+
+  // === 總部 - 主管級 ===
+  { code: 'director', name: '部門總監', category: 'headquarters' },
+  { code: 'chief', name: '主任', category: 'headquarters' },
+  { code: 'supervisor', name: '督導', category: 'headquarters' },
+  { code: 'area_supervisor', name: '區域督導', category: 'headquarters' },
+  { code: 'admin_chef', name: '行政主廚', category: 'headquarters' },
+
+  // === 總部 - 專員級 ===
+  { code: 'specialist', name: '專員', category: 'headquarters' },
+  { code: 'hr_specialist', name: '人資專員', category: 'headquarters' },
+  { code: 'fin_specialist', name: '財務專員', category: 'headquarters' },
+  { code: 'marketing_specialist', name: '品牌行銷專員', category: 'headquarters' },
+  { code: 'logistics_specialist', name: '倉儲物流專員', category: 'headquarters' },
+  { code: 'admin_specialist', name: '行政總務專員', category: 'headquarters' },
+  { code: 'design_specialist', name: '設計專員', category: 'headquarters' },
+  { code: 'it_specialist', name: '資訊管理專員', category: 'headquarters' },
+  { code: 'secretary_specialist', name: '秘書室專員', category: 'headquarters' },
+  { code: 'purchasing_specialist', name: '採購專員', category: 'headquarters' },
+  { code: 'rd_specialist', name: '商品研發專員', category: 'headquarters' },
+  { code: 'production_specialist', name: '產品部專員', category: 'headquarters' },
+
+  // === 總部 - 助理級 ===
+  { code: 'assistant', name: '助理', category: 'headquarters' },
+  { code: 'fin_assistant', name: '財務助理', category: 'headquarters' },
+  { code: 'hr_assistant', name: '人資助理', category: 'headquarters' },
+  { code: 'marketing_assistant', name: '品牌行銷助理', category: 'headquarters' },
+  { code: 'executive_assistant', name: '特助', category: 'headquarters' },
+
+  // === 總部 - 其他職位 ===
   { code: 'accountant', name: '會計', category: 'headquarters' },
   { code: 'cashier', name: '出納', category: 'headquarters' },
-  { code: 'hr_specialist', name: '人資專員', category: 'headquarters' },
   { code: 'it_admin', name: '資訊管理員', category: 'headquarters' },
-  { code: 'area_supervisor', name: '區域督導', category: 'headquarters' },
-  // 門市職位
+  { code: 'logistics_worker', name: '物流士', category: 'headquarters' },
+  { code: 'driver', name: '司機', category: 'headquarters' },
+
+  // === 門市職位 ===
   { code: 'store_manager', name: '店長', category: 'store' },
   { code: 'assistant_manager', name: '副店長', category: 'store' },
   { code: 'store_staff', name: '正職人員', category: 'store' },
   { code: 'store_parttime', name: '計時人員', category: 'store' },
+
+  // === 中央廚房 ===
+  { code: 'kitchen_staff', name: '中央廚房人員', category: 'store' },
+  { code: 'kitchen_parttime', name: '中央廚房計時', category: 'store' },
 ];
 
 // 員工狀態
@@ -100,6 +146,9 @@ export default function EmployeesManagementV2() {
 
   // 操作選單狀態
   const [openActionMenu, setOpenActionMenu] = useState(null); // employee.id
+
+  // 批量匯入 Modal
+  const [showBatchImportModal, setShowBatchImportModal] = useState(false);
 
   // 銀行資料狀態
   const [bankList, setBankList] = useState([]);
@@ -304,6 +353,10 @@ export default function EmployeesManagementV2() {
 
       let result;
       if (editingEmployee) {
+        // 編輯時，如果原本沒有 login_id，且表單有填寫 login_id，則更新
+        if (!_hasLoginId && formDataWithoutInternal.login_id) {
+          cleanData.login_id = formDataWithoutInternal.login_id;
+        }
         result = await updateEmployee(editingEmployee.id, cleanData);
       } else {
         // 新增時，若沒有設定 login_id，使用 employee_id
@@ -631,13 +684,22 @@ export default function EmployeesManagementV2() {
         </button>
 
         {canCreate && (
-          <button
-            onClick={() => openModal()}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg transition flex items-center gap-2 whitespace-nowrap"
-          >
-            <UserPlus size={20} />
-            新增員工
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowBatchImportModal(true)}
+              className="px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl shadow-lg transition flex items-center gap-2 whitespace-nowrap"
+            >
+              <Upload size={20} />
+              批量匯入
+            </button>
+            <button
+              onClick={() => openModal()}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg transition flex items-center gap-2 whitespace-nowrap"
+            >
+              <UserPlus size={20} />
+              新增員工
+            </button>
+          </div>
         )}
       </div>
 
@@ -1385,6 +1447,16 @@ export default function EmployeesManagementV2() {
           onClick={() => setOpenActionMenu(null)}
         />
       )}
+
+      {/* 批量匯入 Modal */}
+      <EmployeeBatchImportModal
+        isOpen={showBatchImportModal}
+        onClose={() => setShowBatchImportModal(false)}
+        onSuccess={() => refetch()}
+        departments={departments}
+        stores={stores}
+        employees={employees}
+      />
     </div>
   );
 }
