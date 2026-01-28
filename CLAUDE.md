@@ -274,6 +274,77 @@ public.stores.code     -- 5 位數字: BB+SSS (品牌碼+流水號)
                        -- 例如: 01001, 02015
 ```
 
+#### banks / bank_branches (銀行資料) ⭐
+
+**⚠️ 重要：銀行資料表的欄位命名與其他表不同，請務必注意！**
+
+```sql
+-- 銀行總行表
+CREATE TABLE public.banks (
+  bank_code TEXT PRIMARY KEY,    -- 銀行代碼（3碼），如 "004", "812"
+  bank_name TEXT NOT NULL,       -- 銀行名稱，如 "臺灣銀行", "台新銀行"
+  idx INTEGER                    -- 排序索引
+);
+
+-- 銀行分行表
+CREATE TABLE public.bank_branches (
+  id INTEGER PRIMARY KEY,
+  bank_code TEXT REFERENCES banks(bank_code),  -- 關聯銀行代碼
+  branch_code TEXT NOT NULL,     -- 分行代碼（4碼），如 "0037"
+  branch_name TEXT NOT NULL,     -- 分行名稱，如 "營業部"
+  full_code TEXT,                -- 完整代碼（7碼），如 "0040037"
+  idx INTEGER                    -- 排序索引
+);
+```
+
+**查詢銀行資料的正確方式**：
+
+```javascript
+// ✅ 正確：使用實際欄位名稱 bank_code, bank_name
+const { data: banks } = await supabase
+  .from('banks')
+  .select('bank_code, bank_name')
+  .order('bank_code');
+
+// ✅ 正確：查詢分行使用 branch_code, branch_name
+const { data: branches } = await supabase
+  .from('bank_branches')
+  .select('branch_code, branch_name')
+  .eq('bank_code', selectedBankCode)  // 用 bank_code 過濾
+  .order('branch_code');
+
+// ❌ 錯誤：不要使用 code, name（這些欄位不存在）
+const { data } = await supabase
+  .from('banks')
+  .select('code, name');  // 會查不到資料！
+```
+
+**SearchableSelect 選項映射**：
+
+```jsx
+// ✅ 正確的 options 映射
+<SearchableSelect
+  options={banks.map(bank => ({
+    value: bank.bank_code,      // 使用 bank_code
+    label: bank.bank_name,      // 使用 bank_name
+    subLabel: bank.bank_code    // 顯示代碼供搜尋
+  }))}
+  value={formData.bank_code}
+  onChange={(value) => handleChange('bank_code', value)}
+/>
+
+// 分行選項
+<SearchableSelect
+  options={branches.map(branch => ({
+    value: branch.branch_code,    // 使用 branch_code
+    label: branch.branch_name,    // 使用 branch_name
+    subLabel: branch.branch_code
+  }))}
+  value={formData.branch_code}
+  onChange={(value) => handleChange('branch_code', value)}
+/>
+```
+
 ### 跨 Schema 關聯規則
 
 **原則**：避免跨 schema 的外鍵約束，使用應用層關聯
@@ -816,7 +887,38 @@ xl: 1280px  /* 大桌面 */
 | `src/components/ui/SearchableSelect.jsx` | Blue/Gray | 共用元件 |
 | `src/system/payment_system/src/components/SearchableSelect.jsx` | Red/Stone | 付款系統 |
 | `src/system/expense_reimbursement_system/src/components/SearchableSelect.jsx` | Amber/Stone | 代墊款系統 |
+| `src/system/erp_system/src/components/SearchableSelect.jsx` | Orange/Stone | ERP 系統 |
 | `src/system/store_management_system/src/components/BankAccountManagement.jsx` | Green/Stone | 門市銀行帳戶（內嵌） |
+
+**⚠️ 重要設計標準：銀行選擇必須使用 SearchableSelect**
+
+所有需要選擇銀行（總行）和分行的欄位，**必須使用 SearchableSelect 元件**，而非一般的 `<select>` 元素。
+
+**原因**：
+1. 台灣銀行數量眾多（約 40 家總行、數千家分行），一般下拉選單難以快速選取
+2. 使用者可輸入銀行代碼（如 "812"）快速搜尋台新銀行
+3. 使用者可輸入關鍵字（如 "國泰"）快速過濾結果
+4. 鍵盤導航支援提升填表效率
+
+**正確用法**：
+```jsx
+// ✅ 正確：使用 SearchableSelect
+<SearchableSelect
+  options={banks.map(bank => ({
+    value: bank.code,
+    label: bank.name,
+    subLabel: bank.code  // 顯示銀行代碼
+  }))}
+  value={formData.bank_code}
+  onChange={(value) => handleChange('bank_code', value)}
+  placeholder="請選擇銀行（可輸入代碼或名稱搜尋）"
+/>
+
+// ❌ 錯誤：使用一般 select
+<select value={formData.bank_code} onChange={(e) => ...}>
+  {banks.map(bank => <option key={bank.code}>{bank.name}</option>)}
+</select>
+```
 
 **鍵盤導航功能**：
 - `↑` `↓`：上下選擇選項
@@ -963,6 +1065,89 @@ INSERT INTO rbac.permissions (code, name, module, category) VALUES
   ('new_system.view', '查看資料', 'new_system', 'read'),
   ('new_system.create', '建立資料', 'new_system', 'write');
 ```
+
+#### Step 6: 建立標準格式的 Header 和 Layout ⭐
+
+**重要**：所有子系統必須使用統一的 Header 和 Layout 格式，參考 `payment_system` 的實作。
+
+**Header 組件** (`src/system/new_system/src/components/Header.jsx`)：
+```jsx
+// 標準 Header 結構（參考 payment_system/src/components/Header.jsx）
+// 必須包含以下元素：
+// 1. 左側：六扇門 Logo + 子系統標題（圖標 + 名稱）
+// 2. 中間：電腦版導覽選單（總覽看板、新增申請等）
+// 3. 右側：使用者下拉選單（姓名、角色、帳戶設定、登出）
+// 4. 手機版：漢堡選單
+
+import logoSrc from '../../../../assets/logo.png';
+import { useAuth } from '../../../../contexts/AuthContext';
+import { useUserRole } from '../../../../hooks/useUserRole';
+// ... 其他必要 imports
+
+const BASE_PATH = '/systems/new-system';
+
+// Logo 組件（統一樣式）
+const Logo = ({ size = 'default' }) => {
+  const sizeClasses = size === 'small' ? 'w-8 h-8' : 'w-10 h-10 sm:w-12 sm:h-12';
+  return (
+    <div className={`${sizeClasses} relative flex items-center justify-center`}>
+      <img src={logoSrc} alt="六扇門 Logo" className="w-full h-full object-contain filter drop-shadow-md" />
+    </div>
+  );
+};
+```
+
+**Layout 組件** (`src/pages/systems/NewSystemLayout.jsx`)：
+```jsx
+// 標準 Layout 結構（參考 PaymentSystemLayout.jsx）
+import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import Header from '../../system/new_system/src/components/Header.jsx';
+import Dashboard from '../../system/new_system/src/pages/Dashboard.jsx';
+
+// 受保護路由組件
+const NewSystemProtectedRoute = () => {
+  const { isAuthenticated, isLoading } = useAuth();
+  if (isLoading) return <LoadingSpinner />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return <Outlet />;
+};
+
+// 內部佈局組件
+const NewSystemInternalLayout = () => (
+  <div className="min-h-screen bg-stone-50 text-stone-900">
+    <Header />
+    <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+      <Outlet />
+    </main>
+  </div>
+);
+
+export default function NewSystemLayout() {
+  return (
+    <Routes>
+      <Route element={<NewSystemProtectedRoute />}>
+        <Route element={<NewSystemInternalLayout />}>
+          <Route index element={<Dashboard />} />
+          {/* 其他路由 */}
+        </Route>
+      </Route>
+      <Route path="*" element={<Navigate to="/systems/new-system" replace />} />
+    </Routes>
+  );
+}
+```
+
+**色系對照表**（各子系統使用不同主色）：
+
+| 系統 | 主色系 | 用途 |
+|------|--------|------|
+| 付款簽核 | `red-600` / `red-700` | 財務相關 |
+| 代墊款 | `amber-600` / `amber-700` | 財務相關 |
+| ERP 管理 | `orange-600` / `amber-600` | 營運相關 |
+| 教育訓練 | `blue-600` / `blue-700` | 人資相關 |
+| 軟體授權 | `purple-600` / `purple-700` | IT 相關 |
+| 會議室 | `teal-600` / `teal-700` | 行政相關 |
 
 ### RLS 政策設計模式
 
@@ -1173,6 +1358,9 @@ WHERE email LIKE '%@6owldoor.internal';
 
 | 日期 | 變更內容 |
 |------|----------|
+| 2026-01-28 | **新增銀行資料表結構文檔**：詳細說明 `banks`/`bank_branches` 表的欄位命名規則（使用 `bank_code`/`bank_name` 而非 `code`/`name`），包含正確的查詢方式和 SearchableSelect 選項映射範例 |
+| 2026-01-28 | **新增銀行選擇標準**：所有銀行/分行選擇欄位必須使用 SearchableSelect 元件（支援代碼/名稱搜尋、鍵盤導航）；新增 ERP 系統 SearchableSelect 元件（Orange 色系） |
+| 2026-01-28 | **新增子系統 Header/Layout 標準格式說明**：所有子系統必須使用統一的 Header 和 Layout 結構，參考 payment_system 實作，包含六扇門 Logo、系統標題、導覽選單、使用者下拉選單、手機版漢堡選單 |
 | 2026-01-28 | 新增 SearchableSelect 鍵盤導航功能文檔（↑↓選擇、Enter確認、Tab跳轉）；銀行資料表遷移至 public schema；ExportModal 自動帶入門市銀行帳戶；更新 supabaseClient 跨 schema 配置指南 |
 | 2026-01-28 | 新增薪資管理系統文檔：薪資計算規則、請假扣款/加給邏輯、總部手動輸入欄位、勞健保計算說明 |
 | 2026-01-27 | 新增直屬主管設計、Edge Function RBAC 權限檢查、角色分類設計、管理中心整合說明 |

@@ -23,6 +23,7 @@ import EIPKMSystemLayout from './pages/systems/EIPKMSystemLayout';
 import TicketingSystemLayout from './pages/systems/TicketingSystemLayout';
 import TrainingSystemLayout from './pages/systems/TrainingSystemLayout';
 import PayrollSystemLayout from './pages/systems/PayrollSystemLayout';
+import ERPSystemLayout from './pages/systems/ERPSystemLayout';
 import { useAuth } from './contexts/AuthContext'; // 確保路徑正確
 /*
 function DebugSession() {
@@ -82,6 +83,7 @@ function App() {
                <Route path="/systems/ticketing/*" element={<TicketingSystemLayout />} />
                <Route path="/systems/training/*" element={<TrainingSystemLayout />} />
                <Route path="/systems/payroll/*" element={<PayrollSystemLayout />} />
+               <Route path="/systems/erp/*" element={<ERPSystemLayout />} />
            </Route>
 
         </Routes>

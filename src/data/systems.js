@@ -116,6 +116,25 @@ export const categories = [
     ],
   },
   {
+    id: 'erp',
+    name: 'ERP 管理',
+    description: '品號與採購管理',
+    icon: '📦',
+    color: 'orange',
+    systems: [
+      {
+        id: 'erp-system',
+        name: 'ERP 管理系統',
+        description: '品號建立/變更/停用申請與審核',
+        icon: '📦',
+        url: '/systems/erp',
+        status: 'active',
+        isExternal: false,
+        permissionCode: 'system.erp',
+      },
+    ],
+  },
+  {
     id: 'admin-service',
     name: '行政服務',
     description: '日常行政與辦公支援',
