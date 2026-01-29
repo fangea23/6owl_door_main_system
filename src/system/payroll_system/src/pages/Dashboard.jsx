@@ -84,11 +84,12 @@ export default function Dashboard() {
 
         setCurrentPeriod(periodData);
 
-        // 取得統計資料
+        // 取得統計資料（過濾掉已刪除的員工）
         const { count: empCount } = await supabase
           .from('employees')
           .select('*', { count: 'exact', head: true })
-          .eq('status', 'active');
+          .eq('status', 'active')
+          .is('deleted_at', null);
 
         // 取得待審核出勤數量
         let attendanceCount = 0;

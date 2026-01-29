@@ -37,10 +37,12 @@ export default function EmployeeSalarySettings() {
     setLoading(true);
     try {
       // 取得員工 (同時取得 store_id 和 store_code)
+      // 過濾掉已刪除的員工 (deleted_at 為 null 表示未刪除)
       const { data: empData } = await supabase
         .from('employees')
         .select('id, name, employee_id, position, store_id, store_code, employment_type_new, bank_name, bank_account')
         .eq('status', 'active')
+        .is('deleted_at', null)
         .order('employee_id');
 
       // 取得薪資級距
@@ -258,6 +260,7 @@ export default function EmployeeSalarySettings() {
                 <th className="p-4 text-left">門市</th>
                 <th className="p-4 text-left">薪資級距</th>
                 <th className="p-4 text-right">薪資</th>
+                <th className="p-4 text-left">勞健保級距</th>
                 <th className="p-4 text-center">勞保</th>
                 <th className="p-4 text-center">健保</th>
                 <th className="p-4 text-left">銀行帳戶</th>
@@ -317,6 +320,29 @@ export default function EmployeeSalarySettings() {
                             }}
                             className="w-full px-2 py-1 border border-stone-300 rounded text-sm text-right"
                           />
+                        </td>
+                        <td className="p-4">
+                          <select
+                            value={editForm.insurance_bracket_id}
+                            onChange={(e) => setEditForm({ ...editForm, insurance_bracket_id: e.target.value })}
+                            className="w-full px-2 py-1 border border-stone-300 rounded text-sm"
+                          >
+                            <option value="">選擇級距</option>
+                            <optgroup label="部分工時">
+                              {insuranceBrackets.filter(b => b.bracket_level < 0).sort((a, b) => a.bracket_level - b.bracket_level).map(b => (
+                                <option key={b.id} value={b.id}>
+                                  P{Math.abs(b.bracket_level)} 投保${b.insured_salary?.toLocaleString()} (勞${b.labor_employee}/健${b.health_employee})
+                                </option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="正職">
+                              {insuranceBrackets.filter(b => b.bracket_level > 0).sort((a, b) => a.bracket_level - b.bracket_level).map(b => (
+                                <option key={b.id} value={b.id}>
+                                  第{b.bracket_level}級 投保${b.insured_salary?.toLocaleString()} (勞${b.labor_employee}/健${b.health_employee})
+                                </option>
+                              ))}
+                            </optgroup>
+                          </select>
                         </td>
                         <td className="p-4 text-center">
                           <input
@@ -390,6 +416,19 @@ export default function EmployeeSalarySettings() {
                             </div>
                           ) : (
                             <span className="text-stone-400">-</span>
+                          )}
+                        </td>
+                        <td className="p-4 text-sm">
+                          {setting?.insurance_bracket_id ? (() => {
+                            const bracket = insuranceBrackets.find(b => b.id === setting.insurance_bracket_id);
+                            if (!bracket) return <span className="text-stone-400">未設定</span>;
+                            return (
+                              <span className="text-stone-800">
+                                {bracket.bracket_level < 0 ? `P${Math.abs(bracket.bracket_level)}` : `第${bracket.bracket_level}級`}
+                              </span>
+                            );
+                          })() : (
+                            <span className="text-stone-400">未設定</span>
                           )}
                         </td>
                         <td className="p-4 text-center">

@@ -71,11 +71,13 @@ export default function AttendanceInput() {
       }
 
       // 取得門市員工 (使用 store_id)
+      // 過濾掉已刪除的員工 (deleted_at 為 null 表示未刪除)
       const { data: storeEmployees } = await supabase
         .from('employees')
         .select('id, name, employee_id, position, employment_type_new')
         .eq('store_id', storeId)
         .eq('status', 'active')
+        .is('deleted_at', null)
         .order('employee_id');
 
       setEmployees(storeEmployees || []);
@@ -114,9 +116,7 @@ export default function AttendanceInput() {
           sick_leave_hours: 0,         // 病假時數
           personal_leave_hours: 0,     // 事假時數
           paid_leave_hours: 0,         // 公婚喪產假時數
-          // 其他
-          late_count: 0,
-          absent_count: 0,
+          typhoon_leave_hours: 0,      // 颱風假時數
           status: 'draft'
         };
       });
@@ -174,9 +174,7 @@ export default function AttendanceInput() {
           sick_leave_hours: data.sick_leave_hours || 0,
           personal_leave_hours: data.personal_leave_hours || 0,
           paid_leave_hours: data.paid_leave_hours || 0,
-          // 其他
-          late_count: data.late_count || 0,
-          absent_count: data.absent_count || 0,
+          typhoon_leave_hours: data.typhoon_leave_hours || 0,
           status: 'draft',
           updated_at: new Date().toISOString()
         };
@@ -622,7 +620,7 @@ export default function AttendanceInput() {
         <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
           <div className="bg-emerald-50 px-4 py-3 border-b border-emerald-100">
             <h2 className="font-bold text-emerald-800">請假與扣款項目</h2>
-            <p className="text-xs text-emerald-600 mt-1">特休、病假、事假、有薪假、遲到曠職</p>
+            <p className="text-xs text-emerald-600 mt-1">特休、病假、事假、公婚喪產假、颱風假</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1100px]">
@@ -649,17 +647,13 @@ export default function AttendanceInput() {
                     <div>事假</div>
                     <div className="text-[10px] font-normal text-red-500">(hr)</div>
                   </th>
-                  <th className="p-3 text-center bg-blue-50 text-blue-700 min-w-[80px]" title="公婚喪產假時數（有薪）">
-                    <div>有薪假</div>
+                  <th className="p-3 text-center bg-blue-50 text-blue-700 min-w-[80px]" title="公婚喪產假時數（計時加給）">
+                    <div>公婚喪產假</div>
                     <div className="text-[10px] font-normal text-blue-500">(hr)</div>
                   </th>
-                  <th className="p-3 text-center min-w-[70px]" title="遲到次數">
-                    <div>遲到</div>
-                    <div className="text-[10px] font-normal text-stone-400">(次)</div>
-                  </th>
-                  <th className="p-3 text-center min-w-[70px]" title="曠職天數">
-                    <div>曠職</div>
-                    <div className="text-[10px] font-normal text-stone-400">(天)</div>
+                  <th className="p-3 text-center bg-purple-50 text-purple-700 min-w-[80px]" title="颱風假時數（扣全薪）">
+                    <div>颱風假</div>
+                    <div className="text-[10px] font-normal text-purple-500">(hr)</div>
                   </th>
                 </tr>
               </thead>
@@ -744,24 +738,15 @@ export default function AttendanceInput() {
                           step="0.5"
                         />
                       </td>
-                      <td className="p-3 text-center">
+                      <td className="p-3 bg-purple-50/50 text-center">
                         <input
                           type="number"
-                          value={data.late_count || ''}
-                          onChange={(e) => handleChange(emp.id, 'late_count', e.target.value)}
+                          value={data.typhoon_leave_hours || ''}
+                          onChange={(e) => handleChange(emp.id, 'typhoon_leave_hours', e.target.value)}
                           disabled={disabled}
-                          className="w-16 px-2 py-1 border border-stone-300 rounded text-center text-sm disabled:bg-stone-100 mx-auto block"
+                          className="w-16 px-2 py-1 border border-purple-200 rounded text-center text-sm disabled:bg-stone-100 mx-auto block"
                           min="0"
-                        />
-                      </td>
-                      <td className="p-3 text-center">
-                        <input
-                          type="number"
-                          value={data.absent_count || ''}
-                          onChange={(e) => handleChange(emp.id, 'absent_count', e.target.value)}
-                          disabled={disabled}
-                          className="w-16 px-2 py-1 border border-stone-300 rounded text-center text-sm disabled:bg-stone-100 mx-auto block"
-                          min="0"
+                          step="0.5"
                         />
                       </td>
                     </tr>

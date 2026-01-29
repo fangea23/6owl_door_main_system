@@ -40,26 +40,30 @@ const STATUS_MAP = {
  * 月薪制（正職）公式：
  * - 本薪：固定月薪
  * - 加班費(10日) = 時薪×1.34×加班前2hr + 時薪×1.67×加班2hr後
- * - 國假加班 = 時薪×國假時數（額外加給）
+ * - 國假上班 = 時薪×國假時數（額外加給）
  * - 特休代金 = 時薪×特休代金時數
  * - 公婚喪產假：月薪不扣（不需計算）
+ * - 特休：月薪不扣（不需計算）
  * - 病假扣款 = 時薪÷2×病假時數（扣半薪）
  * - 事假扣款 = 時薪×事假時數（扣全薪）
+ * - 颱風假扣款 = 時薪×颱風假時數（扣全薪）
  *
  * 時薪制（計時人員）公式：
  * - 本薪 = 底薪基數÷30×在職天數 + 時薪×正常時數
  * - 加班費(10日) = 時薪×1.34×加班前2hr + 時薪×1.67×加班2hr後
- * - 國假加班 = 時薪×國假時數（額外加給）
+ * - 國假上班 = 時薪×國假時數（額外加給）
  * - 特休 = 時薪×已休特休時數（加給）
  * - 特休代金 = 時薪×特休代金時數（加給）
- * - 公婚喪產假 = 時薪×有薪假時數（加給）
+ * - 公婚喪產假 = 時薪×公婚喪產假時數（加給）
  * - 病假扣款 = 時薪÷2×病假時數（扣半薪）
  * - 事假扣款 = 時薪×事假時數（扣全薪）
+ * - 颱風假扣款 = 時薪×颱風假時數（扣全薪）
  *
  * 12日發薪：
  * - 超額津貼 = 時薪×12日超額時數
  * - 12日加班費 = 時薪×1.34×M + 時薪×1.67×N
  * - 職務獎金 = 職務獎金基數÷30×在職天數
+ * - 伙食津貼：門市無此項目
  */
 function calculatePayroll(attendance, grade, setting, insurance) {
   const isMonthly = grade?.salary_type === 'monthly';
@@ -69,7 +73,7 @@ function calculatePayroll(attendance, grade, setting, insurance) {
   const baseSalaryGrade = setting?.custom_base_salary || grade?.base_salary || 0;
   const hourlyRateGrade = setting?.custom_hourly_rate || grade?.hourly_rate || 0;
   const positionAllowanceGrade = setting?.custom_position_allowance || grade?.position_allowance || 0;
-  const mealAllowance = setting?.custom_meal_allowance || grade?.meal_allowance || 0;
+  // 門市無伙食津貼，已移除 mealAllowance
 
   // 計算時薪（正職：月薪÷240，計時：直接用時薪）
   const hourlyRate = isMonthly ? Math.round(baseSalaryGrade / 240) : hourlyRateGrade;
@@ -85,10 +89,9 @@ function calculatePayroll(attendance, grade, setting, insurance) {
   // ==================== 10日發薪項目 ====================
 
   let baseSalary = 0;
-  let paidLeavePay = 0;  // 有薪假加給（僅計時人員）
 
   if (isMonthly) {
-    // 月薪制：本薪固定，有薪假不扣不加
+    // 月薪制：本薪固定
     baseSalary = baseSalaryGrade;
   } else {
     // 時薪制：底薪基數÷30×在職天數 + 時薪×正常時數
@@ -96,9 +99,6 @@ function calculatePayroll(attendance, grade, setting, insurance) {
     const proRataBase = Math.round(baseSalaryMonthly / 30 * workDaysInMonth);
     const regularPay = Math.round(hourlyRate * (attendance.regular_hours || 0));
     baseSalary = proRataBase + regularPay;
-
-    // 計時人員：公婚喪產假 = 時薪×有薪假時數（加給）
-    paidLeavePay = Math.round((attendance.paid_leave_hours || 0) * hourlyRate);
   }
 
   // 加班費 (10日) - 使用 1.34/1.67 費率
@@ -120,14 +120,22 @@ function calculatePayroll(attendance, grade, setting, insurance) {
     annualLeavePay = usedPay + payHoursPay;
   }
 
+  // 公婚喪產假加給（只對計時人員）
+  // 正職月薪不扣，計時需要加給
+  let paidLeavePay = 0;
+  if (!isMonthly) {
+    paidLeavePay = Math.round(hourlyRate * (attendance.paid_leave_hours || 0));
+  }
+
   // 三節生日獎金（從出勤資料）
   const festivalBonus = attendance.birthday_bonus || attendance.festival_bonus || 0;
 
   // ==================== 10日扣款項目 ====================
 
-  // 請假扣款（正職計時都一樣：病假扣半薪、事假扣全薪）
+  // 請假扣款（正職計時都一樣：病假扣半薪、事假扣全薪、颱風假扣全薪）
   const sickLeaveDeduction = Math.round(sickLeaveRate * (attendance.sick_leave_hours || 0));
   const personalLeaveDeduction = Math.round(personalLeaveRate * (attendance.personal_leave_hours || 0));
+  const typhoonLeaveDeduction = Math.round(hourlyRate * (attendance.typhoon_leave_hours || 0));
 
   // 勞健保（從 insurance_brackets 自動查詢）
   const laborEmployee = setting?.labor_insurance_enabled ? (insurance?.labor_employee || 0) : 0;
@@ -144,11 +152,11 @@ function calculatePayroll(attendance, grade, setting, insurance) {
   const healthRetroactive = attendance.health_insurance_retroactive || 0;
   const otherDeduction = attendance.other_deduction_10th || attendance.other_deduction || 0;
 
-  // 10日應發（含有薪假加給）
-  const pay10thGross = baseSalary + paidLeavePay + overtimePay134 + overtimePay167 + holidayPay + annualLeavePay + festivalBonus;
+  // 10日應發（含公婚喪產假加給，僅計時人員有值）
+  const pay10thGross = baseSalary + overtimePay134 + overtimePay167 + holidayPay + annualLeavePay + paidLeavePay + festivalBonus;
 
-  // 10日應扣
-  const pay10thDeduction = sickLeaveDeduction + personalLeaveDeduction +
+  // 10日應扣（含颱風假扣款）
+  const pay10thDeduction = sickLeaveDeduction + personalLeaveDeduction + typhoonLeaveDeduction +
     laborEmployee + healthEmployee + healthDependents +
     advancePayment + laborRetroactive + healthRetroactive + otherDeduction;
 
@@ -175,9 +183,9 @@ function calculatePayroll(attendance, grade, setting, insurance) {
   // 12日扣項（從出勤資料）
   const pay12thDeduction = attendance.other_deduction_12th || attendance.pay_12th_deduction || 0;
 
-  // 12日應發
+  // 12日應發（門市無伙食津貼）
   const pay12thGross = overtime12thAllowance + overtime12thPay + positionAllowance +
-    mealAllowance + performanceBonus + attendanceBonus + otherBonus;
+    performanceBonus + attendanceBonus + otherBonus;
 
   // 12日實發
   const pay12thTotal = pay12thGross - pay12thDeduction;
@@ -191,7 +199,7 @@ function calculatePayroll(attendance, grade, setting, insurance) {
   return {
     // 10日發薪
     base_salary: baseSalary,
-    paid_leave_pay: paidLeavePay,           // 有薪假加給（計時人員）
+    paid_leave_pay: paidLeavePay,  // 公婚喪產假加給（計時人員）
     overtime_pay_134: overtimePay134,
     overtime_pay_167: overtimePay167,
     holiday_pay: holidayPay,
@@ -199,6 +207,7 @@ function calculatePayroll(attendance, grade, setting, insurance) {
     festival_bonus: festivalBonus,
     sick_leave_deduction: sickLeaveDeduction,
     personal_leave_deduction: personalLeaveDeduction,
+    typhoon_leave_deduction: typhoonLeaveDeduction,  // 颱風假扣款
     labor_insurance_employee: laborEmployee,
     health_insurance_employee: healthEmployee,
     health_insurance_dependents: healthDependents,
@@ -214,7 +223,7 @@ function calculatePayroll(attendance, grade, setting, insurance) {
     overtime_12th_allowance: overtime12thAllowance,
     overtime_12th_pay: overtime12thPay,
     position_allowance: positionAllowance,
-    meal_allowance: mealAllowance,
+    meal_allowance: 0,  // 門市無伙食津貼
     performance_bonus: performanceBonus,
     attendance_bonus: attendanceBonus,
     other_bonus: otherBonus,
